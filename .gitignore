@@ -104,6 +104,22 @@ dist
 # vitepress cache directory
 **/.vitepress/cache
 
+# Build directories
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
 # Docusaurus cache and generated files
 .docusaurus
 
