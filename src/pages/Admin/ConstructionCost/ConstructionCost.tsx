@@ -10,6 +10,7 @@ import {
   FolderOutlined,
   FileOutlined,
   FolderOpenOutlined,
+  ClearOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { supabase } from '../../../lib/supabase';
@@ -255,6 +256,51 @@ const ConstructionCost: React.FC = () => {
     }
   };
 
+  // Удаление всех затрат
+  const handleDeleteAll = async () => {
+    setLoading(true);
+    try {
+      // Сначала удаляем все детальные категории
+      const { error: detailError } = await supabase
+        .from('detail_cost_categories')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Удаляем все записи
+
+      if (detailError) {
+        throw detailError;
+      }
+
+      // Затем удаляем все категории
+      const { error: categoryError } = await supabase
+        .from('cost_categories')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Удаляем все записи
+
+      if (categoryError) {
+        throw categoryError;
+      }
+
+      // Опционально: удаляем все локации
+      const { error: locationError } = await supabase
+        .from('locations')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Удаляем все записи
+
+      if (locationError) {
+        console.warn('Ошибка при удалении локаций:', locationError);
+        // Не прерываем выполнение, так как локации могут использоваться в других местах
+      }
+
+      message.success('Все затраты успешно удалены');
+      await fetchData();
+    } catch (error) {
+      console.error('Ошибка при удалении всех затрат:', error);
+      message.error('Ошибка при удалении затрат');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Фильтрация данных
   const filterData = (data: CategoryRecord[]): CategoryRecord[] => {
     if (!searchText) return data;
@@ -401,6 +447,22 @@ const ConstructionCost: React.FC = () => {
             >
               Обновить
             </Button>
+            <Popconfirm
+              title="Удалить все затраты?"
+              description="Это действие удалит все категории и детальные записи затрат. Действие необратимо!"
+              onConfirm={handleDeleteAll}
+              okText="Да, удалить всё"
+              cancelText="Отмена"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                danger
+                icon={<ClearOutlined />}
+                loading={loading}
+              >
+                Удалить затраты
+              </Button>
+            </Popconfirm>
             <Button
               type="primary"
               icon={<PlusOutlined />}

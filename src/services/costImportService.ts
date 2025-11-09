@@ -144,7 +144,16 @@ function parseImportData(rows: any[][]) {
 async function importLocations(locations: Set<string>): Promise<Map<string, string>> {
   const locationMap = new Map<string, string>();
 
+  console.log('Импорт локаций. Всего уникальных локаций:', locations.size);
+  console.log('Локации для импорта:', Array.from(locations));
+
   for (const location of locations) {
+    // Пропускаем пустые локации
+    if (!location || location.trim() === '') {
+      console.log('Пропускаем пустую локацию');
+      continue;
+    }
+
     try {
       // Проверяем существование локации
       let { data: existingLocation } = await supabase
@@ -155,6 +164,7 @@ async function importLocations(locations: Set<string>): Promise<Map<string, stri
 
       if (existingLocation) {
         locationMap.set(location, existingLocation.id);
+        console.log(`Локация "${location}" уже существует с ID: ${existingLocation.id}`);
       } else {
         // Создаем новую локацию
         const { data: newLocation, error } = await supabase
@@ -166,6 +176,7 @@ async function importLocations(locations: Set<string>): Promise<Map<string, stri
         if (error) throw error;
         if (newLocation) {
           locationMap.set(location, newLocation.id);
+          console.log(`Создана новая локация "${location}" с ID: ${newLocation.id}`);
         }
       }
     } catch (error) {
@@ -173,6 +184,7 @@ async function importLocations(locations: Set<string>): Promise<Map<string, stri
     }
   }
 
+  console.log('Импорт локаций завершен. Всего в маппинге:', locationMap.size);
   return locationMap;
 }
 
@@ -183,6 +195,9 @@ async function importCategories(
   categories: Map<string, { name: string; unit: string }>
 ): Promise<Map<string, string>> {
   const categoryMap = new Map<string, string>();
+
+  console.log('Импорт категорий. Всего уникальных категорий:', categories.size);
+  console.log('Категории для импорта:', Array.from(categories.entries()));
 
   for (const [key, category] of categories) {
     try {
@@ -196,6 +211,7 @@ async function importCategories(
 
       if (existingCategory) {
         categoryMap.set(key, existingCategory.id);
+        console.log(`Категория "${category.name}" (${category.unit}) уже существует с ID: ${existingCategory.id}`);
       } else {
         // Создаем новую категорию
         const { data: newCategory, error } = await supabase
@@ -210,6 +226,7 @@ async function importCategories(
         if (error) throw error;
         if (newCategory) {
           categoryMap.set(key, newCategory.id);
+          console.log(`Создана новая категория "${category.name}" (${category.unit}) с ID: ${newCategory.id}`);
         }
       }
     } catch (error) {
@@ -217,6 +234,7 @@ async function importCategories(
     }
   }
 
+  console.log('Импорт категорий завершен. Всего в маппинге:', categoryMap.size);
   return categoryMap;
 }
 
@@ -229,48 +247,73 @@ async function importDetailCategories(
   locationMap: Map<string, string>
 ): Promise<number> {
   const detailsToInsert = [];
+  let skippedCount = 0;
+
+  console.log('Начинаем импорт детальных категорий. Всего элементов:', detailItems.length);
+  console.log('Доступные категории:', Array.from(categoryMap.entries()));
+  console.log('Доступные локации:', Array.from(locationMap.entries()));
 
   for (const item of detailItems) {
     const categoryKey = `${item.categoryName}_${item.categoryUnit}`;
     const categoryId = categoryMap.get(categoryKey);
-    const locationId = locationMap.get(item.location);
+    const locationId = item.location ? locationMap.get(item.location) : null;
 
-    if (categoryId && locationId) {
+    console.log(`Обработка элемента: ${item.costName}`, {
+      categoryKey,
+      categoryId,
+      location: item.location,
+      locationId
+    });
+
+    // Категория обязательна, локация - опциональна
+    if (categoryId) {
       try {
         // Проверяем существование записи
+        // Для проверки уникальности используем только category_id и name
         const { data: existing } = await supabase
           .from('detail_cost_categories')
           .select('id')
           .eq('cost_category_id', categoryId)
-          .eq('location_id', locationId)
           .eq('name', item.costName)
           .maybeSingle();
 
         if (!existing) {
-          detailsToInsert.push({
+          const newDetail = {
             cost_category_id: categoryId,
-            location_id: locationId,
+            location_id: locationId, // может быть null
             name: item.costName,
             unit: item.costUnit,
             order_num: item.orderNum,
-          });
+          };
+          detailsToInsert.push(newDetail);
+          console.log('Добавляем новую запись:', newDetail);
+        } else {
+          console.log('Запись уже существует, пропускаем:', item.costName);
         }
       } catch (error) {
         console.error('Ошибка при проверке существующей записи:', error);
       }
+    } else {
+      skippedCount++;
+      console.warn(`Пропущена запись "${item.costName}" - категория не найдена (${categoryKey})`);
     }
   }
 
+  console.log(`Готово к вставке: ${detailsToInsert.length} записей, пропущено: ${skippedCount}`);
+
   // Вставляем все новые записи одним запросом
   if (detailsToInsert.length > 0) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('detail_cost_categories')
-      .insert(detailsToInsert);
+      .insert(detailsToInsert)
+      .select();
 
     if (error) {
       console.error('Ошибка при вставке детальных категорий:', error);
       throw error;
     }
+
+    console.log('Успешно вставлено записей:', data?.length || 0);
   }
 
   return detailsToInsert.length;
