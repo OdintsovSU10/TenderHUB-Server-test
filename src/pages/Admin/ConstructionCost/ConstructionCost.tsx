@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Input, Tag, Select, Typography, Row, Col, Statistic, Upload, message, Progress } from 'antd';
+import { Card, Table, Button, Space, Input, Tag, Typography, Upload, message, Progress, Modal, Form, Select, Popconfirm } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   SearchOutlined,
-  EnvironmentOutlined,
-  AppstoreOutlined,
-  DollarOutlined,
-  BarChartOutlined,
   FileExcelOutlined,
   ReloadOutlined,
+  FolderOutlined,
+  FileOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { supabase } from '../../../lib/supabase';
@@ -19,35 +18,44 @@ import { costImportService } from '../../../services/costImportService';
 const { Text } = Typography;
 const { Option } = Select;
 
-interface DetailCostCategoryRecord {
+interface CategoryRecord {
   key: string;
   id: string;
-  categoryName: string;
-  categoryId: string;
-  locationName: string;
-  locationId: string;
   name: string;
   unit: string;
-  orderNum: number;
-  estimatedCost?: number;
-  actualCost?: number;
-  createdAt: string;
+  type: 'category';
+  description?: string;
+  children?: DetailRecord[];
 }
+
+interface DetailRecord {
+  key: string;
+  id: string;
+  name: string;
+  unit: string;
+  type: 'detail';
+  description?: string;
+  categoryId: string;
+  locationId?: string;
+  orderNum: number;
+}
+
+type CostRecord = CategoryRecord | DetailRecord;
 
 const ConstructionCost: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [data, setData] = useState<DetailCostCategoryRecord[]>([]);
-  const [locations, setLocations] = useState<Array<{value: string; label: string}>>([
-    { value: 'all', label: 'Все локации' }
-  ]);
-  const [categories, setCategories] = useState<Array<{value: string; label: string}>>([
-    { value: 'all', label: 'Все категории' }
-  ]);
+  const [data, setData] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<CostRecord | null>(null);
+  const [form] = Form.useForm();
+  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+
+  const unitOptions = [
+    'шт', 'м', 'м2', 'м3', 'кг', 'т', 'л', 'компл', 'м.п.'
+  ];
 
   const unitColors: Record<string, string> = {
     'шт': 'blue',
@@ -65,72 +73,60 @@ const ConstructionCost: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Загружаем детальные категории затрат с привязанными категориями и локациями
-      const { data: detailData, error: detailError } = await supabase
-        .from('detail_cost_categories')
-        .select(`
-          *,
-          cost_categories (
-            id,
-            name,
-            unit
-          ),
-          locations (
-            id,
-            location
-          )
-        `)
-        .order('order_num', { ascending: true });
+      // Загружаем категории
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('cost_categories')
+        .select('*')
+        .order('name');
 
-      if (detailError) {
-        console.error('Ошибка загрузки данных:', detailError);
+      if (categoryError) {
+        console.error('Ошибка загрузки категорий:', categoryError);
         message.error('Ошибка загрузки данных');
         return;
       }
 
-      // Преобразуем данные для таблицы
-      const transformedData = (detailData || []).map((item: any) => ({
-        key: item.id,
-        id: item.id,
-        categoryName: item.cost_categories?.name || '',
-        categoryId: item.cost_category_id,
-        locationName: item.locations?.location || '',
-        locationId: item.location_id,
-        name: item.name,
-        unit: item.unit,
-        orderNum: item.order_num,
-        createdAt: item.created_at,
-      }));
+      // Загружаем детальные категории
+      const { data: detailData, error: detailError } = await supabase
+        .from('detail_cost_categories')
+        .select('*')
+        .order('order_num');
 
-      setData(transformedData);
-
-      // Загружаем список локаций
-      const { data: locationData } = await supabase
-        .from('locations')
-        .select('id, location')
-        .order('location');
-
-      if (locationData) {
-        const locationOptions = [
-          { value: 'all', label: 'Все локации' },
-          ...locationData.map(loc => ({ value: loc.id, label: loc.location }))
-        ];
-        setLocations(locationOptions);
+      if (detailError) {
+        console.error('Ошибка загрузки деталей:', detailError);
+        message.error('Ошибка загрузки данных');
+        return;
       }
 
-      // Загружаем список категорий
-      const { data: categoryData } = await supabase
-        .from('cost_categories')
-        .select('id, name')
-        .order('name');
+      // Группируем данные по категориям
+      const groupedData: CategoryRecord[] = (categoryData || []).map((category: any) => {
+        const details = (detailData || [])
+          .filter((detail: any) => detail.cost_category_id === category.id)
+          .map((detail: any) => ({
+            key: `detail-${detail.id}`,
+            id: detail.id,
+            name: detail.name,
+            unit: detail.unit,
+            type: 'detail' as const,
+            description: '', // Можно добавить поле в БД при необходимости
+            categoryId: detail.cost_category_id,
+            locationId: detail.location_id,
+            orderNum: detail.order_num,
+          }));
 
-      if (categoryData) {
-        const categoryOptions = [
-          { value: 'all', label: 'Все категории' },
-          ...categoryData.map(cat => ({ value: cat.id, label: cat.name }))
-        ];
-        setCategories(categoryOptions);
-      }
+        return {
+          key: `category-${category.id}`,
+          id: category.id,
+          name: category.name,
+          unit: category.unit,
+          type: 'category' as const,
+          description: '', // Можно добавить поле в БД при необходимости
+          children: details,
+        };
+      });
+
+      setData(groupedData);
+      // Раскрываем все категории по умолчанию
+      setExpandedRowKeys(groupedData.map(cat => cat.key));
     } catch (error) {
       console.error('Ошибка при загрузке данных:', error);
       message.error('Произошла ошибка при загрузке данных');
@@ -155,7 +151,6 @@ const ConstructionCost: React.FC = () => {
 
       if (result.success) {
         message.success(`Импорт завершен! Добавлено ${result.recordsAdded} записей`);
-        // Перезагружаем данные
         await fetchData();
       } else {
         message.error(result.error || 'Ошибка при импорте данных');
@@ -168,220 +163,220 @@ const ConstructionCost: React.FC = () => {
       setImportProgress(0);
     }
 
-    return false; // Предотвращаем загрузку файла на сервер
+    return false;
+  };
+
+  // Редактирование записи
+  const handleEdit = (record: CostRecord) => {
+    setEditingRecord(record);
+    form.setFieldsValue({
+      name: record.name,
+      unit: record.unit,
+      description: record.description || '',
+    });
+    setEditModalVisible(true);
+  };
+
+  // Сохранение изменений
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+
+      if (!editingRecord) return;
+
+      if (editingRecord.type === 'category') {
+        // Обновляем категорию
+        const { error } = await supabase
+          .from('cost_categories')
+          .update({
+            name: values.name,
+            unit: values.unit,
+          })
+          .eq('id', editingRecord.id);
+
+        if (error) throw error;
+      } else {
+        // Обновляем детальную категорию
+        const { error } = await supabase
+          .from('detail_cost_categories')
+          .update({
+            name: values.name,
+            unit: values.unit,
+          })
+          .eq('id', editingRecord.id);
+
+        if (error) throw error;
+      }
+
+      message.success('Изменения сохранены');
+      setEditModalVisible(false);
+      form.resetFields();
+      setEditingRecord(null);
+      await fetchData();
+    } catch (error) {
+      console.error('Ошибка сохранения:', error);
+      message.error('Ошибка при сохранении изменений');
+    }
+  };
+
+  // Удаление записи
+  const handleDelete = async (record: CostRecord) => {
+    try {
+      if (record.type === 'category') {
+        // Проверяем, есть ли дочерние элементы
+        const category = record as CategoryRecord;
+        if (category.children && category.children.length > 0) {
+          message.warning('Нельзя удалить категорию с дочерними элементами');
+          return;
+        }
+
+        // Удаляем категорию
+        const { error } = await supabase
+          .from('cost_categories')
+          .delete()
+          .eq('id', record.id);
+
+        if (error) throw error;
+      } else {
+        // Удаляем детальную категорию
+        const { error } = await supabase
+          .from('detail_cost_categories')
+          .delete()
+          .eq('id', record.id);
+
+        if (error) throw error;
+      }
+
+      message.success('Запись удалена');
+      await fetchData();
+    } catch (error) {
+      console.error('Ошибка удаления:', error);
+      message.error('Ошибка при удалении записи');
+    }
   };
 
   // Фильтрация данных
-  const filteredData = data.filter(item => {
-    const matchesSearch = searchText === '' ||
-      item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.categoryName.toLowerCase().includes(searchText.toLowerCase());
-    const matchesLocation = selectedLocation === 'all' || item.locationId === selectedLocation;
-    const matchesCategory = selectedCategory === 'all' || item.categoryId === selectedCategory;
+  const filterData = (data: CategoryRecord[]): CategoryRecord[] => {
+    if (!searchText) return data;
 
-    return matchesSearch && matchesLocation && matchesCategory;
-  });
+    return data.map(category => {
+      const categoryMatches = category.name.toLowerCase().includes(searchText.toLowerCase());
+      const filteredChildren = category.children?.filter(child =>
+        child.name.toLowerCase().includes(searchText.toLowerCase())
+      ) || [];
 
-  // Расчёт статистики
-  const totalEstimated = filteredData.reduce((sum, item) => sum + (item.estimatedCost || 0), 0);
-  const totalActual = filteredData.reduce((sum, item) => sum + (item.actualCost || 0), 0);
-  const difference = totalActual - totalEstimated;
-  const percentDiff = totalEstimated > 0 ? (difference / totalEstimated * 100).toFixed(2) : '0';
+      if (categoryMatches || filteredChildren.length > 0) {
+        return {
+          ...category,
+          children: categoryMatches ? category.children : filteredChildren
+        };
+      }
+      return null;
+    }).filter(Boolean) as CategoryRecord[];
+  };
 
-  const columns: ColumnsType<DetailCostCategoryRecord> = [
+  const columns: ColumnsType<CostRecord> = [
     {
-      title: '№',
-      dataIndex: 'orderNum',
-      key: 'orderNum',
-      width: 60,
-      align: 'center',
-      sorter: (a, b) => a.orderNum - b.orderNum,
+      title: 'Структура',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text: string, record: CostRecord) => {
+        const isCategory = record.type === 'category';
+        const Icon = isCategory ?
+          (expandedRowKeys.includes(record.key) ? FolderOpenOutlined : FolderOutlined) :
+          FileOutlined;
+
+        return (
+          <Space>
+            <Icon style={{ color: isCategory ? '#1890ff' : '#666' }} />
+            <Text strong={isCategory}>{text}</Text>
+            {isCategory && (record as CategoryRecord).children && (
+              <Text type="secondary">({(record as CategoryRecord).children?.length || 0})</Text>
+            )}
+          </Space>
+        );
+      },
     },
     {
-      title: 'Категория',
-      dataIndex: 'categoryName',
-      key: 'categoryName',
-      width: 180,
-      render: (text: string) => (
-        <Tag color="blue" icon={<AppstoreOutlined />}>
-          {text}
+      title: 'Тип элемента',
+      key: 'type',
+      width: 150,
+      render: (_: any, record: CostRecord) => (
+        <Tag color={record.type === 'category' ? 'blue' : 'green'}>
+          {record.type === 'category' ? 'Категория' : 'Детализация'}
         </Tag>
       ),
     },
     {
-      title: 'Локация',
-      dataIndex: 'locationName',
-      key: 'locationName',
-      width: 150,
-      render: (text: string) => (
-        <Space>
-          <EnvironmentOutlined style={{ color: '#10b981' }} />
-          <span>{text}</span>
-        </Space>
-      ),
-    },
-    {
-      title: 'Наименование работ',
-      dataIndex: 'name',
-      key: 'name',
-      ellipsis: true,
-    },
-    {
-      title: 'Ед. изм.',
+      title: 'Единица измерения',
       dataIndex: 'unit',
       key: 'unit',
-      width: 100,
+      width: 150,
       align: 'center',
       render: (unit: string) => (
         <Tag color={unitColors[unit] || 'default'}>{unit}</Tag>
       ),
     },
     {
-      title: 'Плановая стоимость',
-      dataIndex: 'estimatedCost',
-      key: 'estimatedCost',
-      width: 150,
-      align: 'right',
-      render: (cost?: number) => (
-        <Text>{cost ? `${cost.toLocaleString('ru-RU')} ₽` : '—'}</Text>
+      title: 'Описание',
+      dataIndex: 'description',
+      key: 'description',
+      render: (text: string) => (
+        <Text type="secondary">{text || 'Нет описания'}</Text>
       ),
-      sorter: (a, b) => (a.estimatedCost || 0) - (b.estimatedCost || 0),
-    },
-    {
-      title: 'Фактическая стоимость',
-      dataIndex: 'actualCost',
-      key: 'actualCost',
-      width: 150,
-      align: 'right',
-      render: (cost: number | undefined, record: DetailCostCategoryRecord) => {
-        const diff = (record.actualCost || 0) - (record.estimatedCost || 0);
-        const color = diff > 0 ? '#ff4d4f' : diff < 0 ? '#52c41a' : undefined;
-        return (
-          <Text style={{ color }}>
-            {cost ? `${cost.toLocaleString('ru-RU')} ₽` : '—'}
-          </Text>
-        );
-      },
-      sorter: (a, b) => (a.actualCost || 0) - (b.actualCost || 0),
-    },
-    {
-      title: 'Отклонение',
-      key: 'difference',
-      width: 120,
-      align: 'right',
-      render: (_: any, record) => {
-        const diff = (record.actualCost || 0) - (record.estimatedCost || 0);
-        const percent = record.estimatedCost ? (diff / record.estimatedCost * 100).toFixed(1) : 0;
-        const color = diff > 0 ? '#ff4d4f' : diff < 0 ? '#52c41a' : '#888';
-        return (
-          <Space direction="vertical" size={0}>
-            <Text style={{ color, fontWeight: 500 }}>
-              {diff >= 0 ? '+' : ''}{diff.toLocaleString('ru-RU')} ₽
-            </Text>
-            <Text style={{ color, fontSize: 12 }}>
-              ({diff >= 0 ? '+' : ''}{percent}%)
-            </Text>
-          </Space>
-        );
-      },
     },
     {
       title: 'Действия',
       key: 'action',
-      width: 100,
-      fixed: 'right',
-      render: (_: any) => (
+      width: 150,
+      align: 'center',
+      render: (_: any, record: CostRecord) => (
         <Space size="small">
-          <Button type="text" icon={<EditOutlined />} />
-          <Button type="text" danger icon={<DeleteOutlined />} />
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            Изменить
+          </Button>
+          <Popconfirm
+            title="Вы уверены?"
+            description={
+              record.type === 'category' && (record as CategoryRecord).children?.length
+                ? "Эта категория содержит дочерние элементы"
+                : "Эта запись будет удалена безвозвратно"
+            }
+            onConfirm={() => handleDelete(record)}
+            okText="Да"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+            >
+              Удалить
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
   ];
 
+  const filteredData = filterData(data);
+
   return (
     <div>
-      {/* Статистические карточки */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Плановая стоимость"
-              value={totalEstimated}
-              suffix="₽"
-              valueStyle={{ color: '#1890ff' }}
-              prefix={<DollarOutlined />}
-              formatter={(value) => `${Number(value).toLocaleString('ru-RU')}`}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Фактическая стоимость"
-              value={totalActual}
-              suffix="₽"
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<BarChartOutlined />}
-              formatter={(value) => `${Number(value).toLocaleString('ru-RU')}`}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Отклонение"
-              value={Math.abs(difference)}
-              suffix="₽"
-              valueStyle={{ color: difference > 0 ? '#ff4d4f' : '#52c41a' }}
-              prefix={difference >= 0 ? '↑' : '↓'}
-              formatter={(value) => `${Number(value).toLocaleString('ru-RU')}`}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Отклонение в %"
-              value={Math.abs(Number(percentDiff))}
-              suffix="%"
-              valueStyle={{ color: difference > 0 ? '#ff4d4f' : '#52c41a' }}
-              prefix={difference >= 0 ? '↑' : '↓'}
-              precision={2}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Основная таблица */}
       <Card
-        title="Затраты строительства"
+        title="Затраты на строительство"
         extra={
           <Space>
-            <Select
-              value={selectedLocation}
-              onChange={setSelectedLocation}
-              style={{ width: 150 }}
-              disabled={loading}
-            >
-              {locations.map(loc => (
-                <Option key={loc.value} value={loc.value}>{loc.label}</Option>
-              ))}
-            </Select>
-            <Select
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              style={{ width: 180 }}
-              disabled={loading}
-            >
-              {categories.map(cat => (
-                <Option key={cat.value} value={cat.value}>{cat.label}</Option>
-              ))}
-            </Select>
             <Input
               placeholder="Поиск..."
               prefix={<SearchOutlined />}
-              style={{ width: 200 }}
+              style={{ width: 250 }}
+              value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               disabled={loading}
             />
@@ -406,7 +401,15 @@ const ConstructionCost: React.FC = () => {
             >
               Обновить
             </Button>
-            <Button icon={<PlusOutlined />}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditingRecord(null);
+                form.resetFields();
+                setEditModalVisible(true);
+              }}
+            >
               Добавить
             </Button>
           </Space>
@@ -418,49 +421,83 @@ const ConstructionCost: React.FC = () => {
             <Text type="secondary">Импорт данных...</Text>
           </div>
         )}
+
         <Table
           columns={columns}
           dataSource={filteredData}
           loading={loading}
+          expandable={{
+            expandedRowKeys,
+            onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+            rowExpandable: (record) =>
+              record.type === 'category' &&
+              !!(record as CategoryRecord).children?.length,
+            indentSize: 40,
+          }}
           pagination={{
-            pageSize: 10,
+            pageSize: 20,
             showSizeChanger: true,
             showTotal: (total) => `Всего: ${total} записей`,
           }}
           size="middle"
-          scroll={{ x: 1400 }}
           locale={{
             emptyText: data.length === 0
               ? 'Нет данных. Используйте кнопку "Импорт затрат" для загрузки данных из Excel файла.'
-              : 'Нет данных по выбранным фильтрам'
+              : 'Нет данных по запросу'
           }}
-          summary={() => (
-            filteredData.length > 0 && (
-              <Table.Summary fixed>
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={5}>
-                    <Text strong>Итого:</Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="right">
-                    <Text strong>{totalEstimated.toLocaleString('ru-RU')} ₽</Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="right">
-                    <Text strong style={{ color: difference > 0 ? '#ff4d4f' : '#52c41a' }}>
-                      {totalActual.toLocaleString('ru-RU')} ₽
-                    </Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} align="right">
-                    <Text strong style={{ color: difference > 0 ? '#ff4d4f' : '#52c41a' }}>
-                      {difference >= 0 ? '+' : ''}{difference.toLocaleString('ru-RU')} ₽
-                    </Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} />
-                </Table.Summary.Row>
-              </Table.Summary>
-            )
-          )}
         />
       </Card>
+
+      {/* Модальное окно редактирования */}
+      <Modal
+        title={editingRecord ? 'Редактирование' : 'Добавление'}
+        open={editModalVisible}
+        onOk={handleSave}
+        onCancel={() => {
+          setEditModalVisible(false);
+          form.resetFields();
+          setEditingRecord(null);
+        }}
+        okText="Сохранить"
+        cancelText="Отмена"
+      >
+        <Form
+          form={form}
+          layout="vertical"
+        >
+          <Form.Item
+            name="name"
+            label="Наименование"
+            rules={[{ required: true, message: 'Введите наименование' }]}
+          >
+            <Input placeholder="Введите наименование" />
+          </Form.Item>
+
+          <Form.Item
+            name="unit"
+            label="Единица измерения"
+            rules={[{ required: true, message: 'Выберите единицу измерения' }]}
+          >
+            <Select placeholder="Выберите единицу измерения">
+              {unitOptions.map(unit => (
+                <Option key={unit} value={unit}>
+                  <Tag color={unitColors[unit]}>{unit}</Tag>
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Описание"
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Введите описание (необязательно)"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
