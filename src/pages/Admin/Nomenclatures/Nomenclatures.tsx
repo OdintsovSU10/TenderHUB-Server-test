@@ -451,13 +451,6 @@ const Nomenclatures: React.FC = () => {
 
   const materialColumns: ColumnsType<MaterialRecord> = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 100,
-      ellipsis: true,
-    },
-    {
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
@@ -505,13 +498,6 @@ const Nomenclatures: React.FC = () => {
   ];
 
   const workColumns: ColumnsType<WorkRecord> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 100,
-      ellipsis: true,
-    },
     {
       title: 'Наименование',
       dataIndex: 'name',
