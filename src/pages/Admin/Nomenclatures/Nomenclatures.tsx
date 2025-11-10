@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Table, Button, Space, Input, Tag, Tooltip, message, Modal, Form, InputNumber, Switch, Select } from 'antd';
+import { Card, Tabs, Table, Button, Space, Input, Tag, Tooltip, message, Modal, Form, InputNumber, Switch, Select, AutoComplete } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import type { TabsProps, ColumnsType } from 'antd/es';
 import { supabase } from '../../../lib/supabase';
@@ -860,9 +860,29 @@ const Nomenclatures: React.FC = () => {
           <Form.Item
             name="name"
             label="Наименование материала"
-            rules={[{ required: true, message: 'Введите наименование материала' }]}
+            rules={[
+              { required: true, message: 'Введите наименование материала' },
+              {
+                validator: async (_, value) => {
+                  if (!value) return;
+                  const isDuplicate = materialsData.some(
+                    item => item.name.toLowerCase() === value.toLowerCase() &&
+                            (!editingMaterial || item.id !== editingMaterial.id)
+                  );
+                  if (isDuplicate) {
+                    throw new Error('Материал с таким наименованием уже существует');
+                  }
+                },
+              },
+            ]}
           >
-            <Input placeholder="Например: Кирпич керамический" />
+            <AutoComplete
+              placeholder="Например: Кирпич керамический"
+              options={materialsData.map(item => ({ value: item.name }))}
+              filterOption={(inputValue, option) =>
+                option?.value.toLowerCase().includes(inputValue.toLowerCase())
+              }
+            />
           </Form.Item>
 
           <Form.Item
@@ -907,9 +927,29 @@ const Nomenclatures: React.FC = () => {
           <Form.Item
             name="name"
             label="Наименование работы"
-            rules={[{ required: true, message: 'Введите наименование работы' }]}
+            rules={[
+              { required: true, message: 'Введите наименование работы' },
+              {
+                validator: async (_, value) => {
+                  if (!value) return;
+                  const isDuplicate = worksData.some(
+                    item => item.name.toLowerCase() === value.toLowerCase() &&
+                            (!editingWork || item.id !== editingWork.id)
+                  );
+                  if (isDuplicate) {
+                    throw new Error('Работа с таким наименованием уже существует');
+                  }
+                },
+              },
+            ]}
           >
-            <Input placeholder="Например: Монтаж кирпичной кладки" />
+            <AutoComplete
+              placeholder="Например: Монтаж кирпичной кладки"
+              options={worksData.map(item => ({ value: item.name }))}
+              filterOption={(inputValue, option) =>
+                option?.value.toLowerCase().includes(inputValue.toLowerCase())
+              }
+            />
           </Form.Item>
 
           <Form.Item
