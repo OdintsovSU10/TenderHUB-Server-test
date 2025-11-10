@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Table, Button, Space, Input, Tag, Tooltip, message, Modal, Form, InputNumber, Switch } from 'antd';
+import { Card, Tabs, Table, Button, Space, Input, Tag, Tooltip, message, Modal, Form, InputNumber, Switch, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import type { TabsProps, ColumnsType } from 'antd/es';
 import { supabase } from '../../../lib/supabase';
@@ -42,10 +42,23 @@ const Nomenclatures: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Модальные окна для материалов
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialRecord | null>(null);
+  const [materialForm] = Form.useForm();
+
+  // Модальные окна для работ
+  const [workModalOpen, setWorkModalOpen] = useState(false);
+  const [editingWork, setEditingWork] = useState<WorkRecord | null>(null);
+  const [workForm] = Form.useForm();
+
   // Модальные окна для единиц измерения
   const [unitModalOpen, setUnitModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<UnitRecord | null>(null);
   const [unitForm] = Form.useForm();
+
+  // Список единиц измерения для Select
+  const [unitsList, setUnitsList] = useState<{code: string, name: string}[]>([]);
 
   const unitColors: Record<string, string> = {
     'шт': 'blue',
@@ -145,6 +158,28 @@ const Nomenclatures: React.FC = () => {
     }
   };
 
+  // Загрузка списка единиц измерения для Select
+  const loadUnitsList = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('units')
+        .select('code, name')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) throw error;
+
+      const unitOptions = data?.map((item: any) => ({
+        code: item.code,
+        name: item.name,
+      })) || [];
+
+      setUnitsList(unitOptions);
+    } catch (error) {
+      console.error('Ошибка загрузки списка единиц:', error);
+    }
+  };
+
   // Открытие модального окна для добавления единицы
   const handleAddUnit = () => {
     setEditingUnit(null);
@@ -241,10 +276,177 @@ const Nomenclatures: React.FC = () => {
     });
   };
 
+  // ========== Функции для материалов ==========
+
+  const handleAddMaterial = () => {
+    setEditingMaterial(null);
+    materialForm.resetFields();
+    setMaterialModalOpen(true);
+  };
+
+  const handleEditMaterial = (record: MaterialRecord) => {
+    setEditingMaterial(record);
+    materialForm.setFieldsValue({
+      name: record.name,
+      unit: record.unit,
+    });
+    setMaterialModalOpen(true);
+  };
+
+  const handleSaveMaterial = async () => {
+    try {
+      const values = await materialForm.validateFields();
+
+      if (editingMaterial) {
+        // Обновление существующего материала
+        const { error } = await supabase
+          .from('material_names')
+          .update({
+            name: values.name,
+            unit: values.unit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingMaterial.id);
+
+        if (error) throw error;
+        message.success('Материал обновлен');
+      } else {
+        // Добавление нового материала
+        const { error } = await supabase
+          .from('material_names')
+          .insert([{
+            name: values.name,
+            unit: values.unit,
+          }]);
+
+        if (error) throw error;
+        message.success('Материал добавлен');
+      }
+
+      setMaterialModalOpen(false);
+      materialForm.resetFields();
+      await loadMaterials();
+    } catch (error: any) {
+      console.error('Ошибка сохранения материала:', error);
+      message.error(error.message || 'Ошибка сохранения материала');
+    }
+  };
+
+  const handleDeleteMaterial = (record: MaterialRecord) => {
+    confirm({
+      title: 'Подтверждение удаления',
+      icon: <ExclamationCircleOutlined />,
+      content: `Вы уверены, что хотите удалить материал "${record.name}"?`,
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const { error } = await supabase
+            .from('material_names')
+            .delete()
+            .eq('id', record.id);
+
+          if (error) throw error;
+
+          message.success('Материал удален');
+          await loadMaterials();
+        } catch (error: any) {
+          console.error('Ошибка удаления материала:', error);
+          message.error(error.message || 'Ошибка удаления материала');
+        }
+      },
+    });
+  };
+
+  // ========== Функции для работ ==========
+
+  const handleAddWork = () => {
+    setEditingWork(null);
+    workForm.resetFields();
+    setWorkModalOpen(true);
+  };
+
+  const handleEditWork = (record: WorkRecord) => {
+    setEditingWork(record);
+    workForm.setFieldsValue({
+      name: record.name,
+      unit: record.unit,
+    });
+    setWorkModalOpen(true);
+  };
+
+  const handleSaveWork = async () => {
+    try {
+      const values = await workForm.validateFields();
+
+      if (editingWork) {
+        // Обновление существующей работы
+        const { error } = await supabase
+          .from('work_names')
+          .update({
+            name: values.name,
+            unit: values.unit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingWork.id);
+
+        if (error) throw error;
+        message.success('Работа обновлена');
+      } else {
+        // Добавление новой работы
+        const { error } = await supabase
+          .from('work_names')
+          .insert([{
+            name: values.name,
+            unit: values.unit,
+          }]);
+
+        if (error) throw error;
+        message.success('Работа добавлена');
+      }
+
+      setWorkModalOpen(false);
+      workForm.resetFields();
+      await loadWorks();
+    } catch (error: any) {
+      console.error('Ошибка сохранения работы:', error);
+      message.error(error.message || 'Ошибка сохранения работы');
+    }
+  };
+
+  const handleDeleteWork = (record: WorkRecord) => {
+    confirm({
+      title: 'Подтверждение удаления',
+      icon: <ExclamationCircleOutlined />,
+      content: `Вы уверены, что хотите удалить работу "${record.name}"?`,
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const { error } = await supabase
+            .from('work_names')
+            .delete()
+            .eq('id', record.id);
+
+          if (error) throw error;
+
+          message.success('Работа удалена');
+          await loadWorks();
+        } catch (error: any) {
+          console.error('Ошибка удаления работы:', error);
+          message.error(error.message || 'Ошибка удаления работы');
+        }
+      },
+    });
+  };
+
   useEffect(() => {
     loadMaterials();
     loadWorks();
     loadUnits();
+    loadUnitsList();
   }, []);
 
   const materialColumns: ColumnsType<MaterialRecord> = [
@@ -283,10 +485,19 @@ const Nomenclatures: React.FC = () => {
       render: (_: any, record: MaterialRecord) => (
         <Space size="small">
           <Tooltip title="Редактировать">
-            <Button type="text" icon={<EditOutlined />} />
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditMaterial(record)}
+            />
           </Tooltip>
           <Tooltip title="Удалить">
-            <Button type="text" danger icon={<DeleteOutlined />} />
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteMaterial(record)}
+            />
           </Tooltip>
         </Space>
       ),
@@ -329,10 +540,19 @@ const Nomenclatures: React.FC = () => {
       render: (_: any, record: WorkRecord) => (
         <Space size="small">
           <Tooltip title="Редактировать">
-            <Button type="text" icon={<EditOutlined />} />
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditWork(record)}
+            />
           </Tooltip>
           <Tooltip title="Удалить">
-            <Button type="text" danger icon={<DeleteOutlined />} />
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteWork(record)}
+            />
           </Tooltip>
         </Space>
       ),
@@ -463,6 +683,7 @@ const Nomenclatures: React.FC = () => {
           loading={loading}
           pagination={paginationConfig}
           size="middle"
+          scroll={{ y: 600 }}
         />
       ),
     },
@@ -476,6 +697,7 @@ const Nomenclatures: React.FC = () => {
           loading={loading}
           pagination={paginationConfig}
           size="middle"
+          scroll={{ y: 600 }}
         />
       ),
     },
@@ -489,6 +711,7 @@ const Nomenclatures: React.FC = () => {
           loading={loading}
           pagination={paginationConfig}
           size="middle"
+          scroll={{ y: 600 }}
         />
       ),
     },
@@ -510,11 +733,14 @@ const Nomenclatures: React.FC = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => {
-                if (activeTab === 'units') {
+                if (activeTab === 'materials') {
+                  handleAddMaterial();
+                } else if (activeTab === 'works') {
+                  handleAddWork();
+                } else if (activeTab === 'units') {
                   handleAddUnit();
                 }
               }}
-              disabled={activeTab !== 'units'}
             >
               Добавить
             </Button>
@@ -597,6 +823,100 @@ const Nomenclatures: React.FC = () => {
             <Switch
               checkedChildren="Активна"
               unCheckedChildren="Неактивна"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Модальное окно для добавления/редактирования материала */}
+      <Modal
+        title={editingMaterial ? 'Редактировать материал' : 'Добавить материал'}
+        open={materialModalOpen}
+        onOk={handleSaveMaterial}
+        onCancel={() => {
+          setMaterialModalOpen(false);
+          materialForm.resetFields();
+        }}
+        okText="Сохранить"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Form
+          form={materialForm}
+          layout="vertical"
+          style={{ marginTop: 20 }}
+        >
+          <Form.Item
+            name="name"
+            label="Наименование материала"
+            rules={[{ required: true, message: 'Введите наименование материала' }]}
+          >
+            <Input placeholder="Например: Кирпич керамический" />
+          </Form.Item>
+
+          <Form.Item
+            name="unit"
+            label="Единица измерения"
+            rules={[{ required: true, message: 'Выберите единицу измерения' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Выберите или введите единицу измерения"
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={unitsList.map(unit => ({
+                value: unit.code,
+                label: `${unit.name} (${unit.code})`,
+              }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Модальное окно для добавления/редактирования работы */}
+      <Modal
+        title={editingWork ? 'Редактировать работу' : 'Добавить работу'}
+        open={workModalOpen}
+        onOk={handleSaveWork}
+        onCancel={() => {
+          setWorkModalOpen(false);
+          workForm.resetFields();
+        }}
+        okText="Сохранить"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Form
+          form={workForm}
+          layout="vertical"
+          style={{ marginTop: 20 }}
+        >
+          <Form.Item
+            name="name"
+            label="Наименование работы"
+            rules={[{ required: true, message: 'Введите наименование работы' }]}
+          >
+            <Input placeholder="Например: Монтаж кирпичной кладки" />
+          </Form.Item>
+
+          <Form.Item
+            name="unit"
+            label="Единица измерения"
+            rules={[{ required: true, message: 'Выберите единицу измерения' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Выберите или введите единицу измерения"
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={unitsList.map(unit => ({
+                value: unit.code,
+                label: `${unit.name} (${unit.code})`,
+              }))}
             />
           </Form.Item>
         </Form>
