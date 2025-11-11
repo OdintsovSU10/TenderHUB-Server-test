@@ -1,14 +1,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme } from 'antd';
+import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme, Tag, Tooltip } from 'antd';
 import { DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { supabase, MaterialLibraryFull, MaterialName, MaterialType, ItemType, CurrencyType, DeliveryPriceType, UnitType } from '../../lib/supabase';
-
-interface DetailCostCategoryData {
-  id: string;
-  name: string;
-  location: string;
-  cost_category_id: string;
-}
 
 interface MaterialsTabProps {
   searchText: string;
@@ -26,10 +19,10 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
   const [materialNames, setMaterialNames] = useState<MaterialName[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null);
   const [selectedAddUnit, setSelectedAddUnit] = useState<UnitType | null>(null);
-  const [detailCostCategories, setDetailCostCategories] = useState<DetailCostCategoryData[]>([]);
-  const [costCategoryOptions, setCostCategoryOptions] = useState<{ value: string; label: string; id: string }[]>([]);
   const [addDeliveryType, setAddDeliveryType] = useState<DeliveryPriceType>('в цене');
   const [addItemType, setAddItemType] = useState<ItemType>('мат');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
 
   // Fetch materials library data
   const fetchMaterials = async () => {
@@ -43,15 +36,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
             id,
             name,
             unit
-          ),
-          detail_cost_categories (
-            id,
-            name,
-            location,
-            cost_categories (
-              id,
-              name
-            )
           )
         `)
         .order('created_at', { ascending: false });
@@ -61,10 +45,7 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
       const formatted = materialsData?.map(item => ({
         ...item,
         material_name: item.material_names?.name || '',
-        unit: item.material_names?.unit || 'шт',
-        detail_cost_category_name: item.detail_cost_categories?.name,
-        detail_cost_category_location: item.detail_cost_categories?.location,
-        cost_category_name: item.detail_cost_categories?.cost_categories?.name
+        unit: item.material_names?.unit || 'шт'
       })) as MaterialLibraryFull[];
 
       setData(formatted || []);
@@ -91,42 +72,9 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
     }
   };
 
-  // Fetch cost categories for autocomplete
-  const fetchCostCategories = async () => {
-    try {
-      const { data: categoriesData, error: catError } = await supabase
-        .from('cost_categories')
-        .select('id, name');
-
-      const { data: detailsData, error: detailError } = await supabase
-        .from('detail_cost_categories')
-        .select('id, name, location, cost_category_id');
-
-      if (catError || detailError) throw catError || detailError;
-
-      // Store all details
-      setDetailCostCategories(detailsData || []);
-
-      // Build autocomplete options: "Категория / Затрата / Локализация"
-      const options = detailsData?.map(detail => {
-        const category = categoriesData?.find(cat => cat.id === detail.cost_category_id);
-        return {
-          id: detail.id,
-          value: `${category?.name || ''} / ${detail.name} / ${detail.location}`,
-          label: `${category?.name || ''} / ${detail.name} / ${detail.location}`
-        };
-      }) || [];
-
-      setCostCategoryOptions(options);
-    } catch (error) {
-      console.error('Error fetching cost categories:', error);
-    }
-  };
-
   useEffect(() => {
     fetchMaterials();
     fetchMaterialNames();
-    fetchCostCategories();
   }, []);
 
   // Expose handleAdd method to parent
@@ -153,13 +101,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
       setSelectedUnit(record.unit as UnitType);
     }
 
-    // Find the detail cost category label for autocomplete
-    let costCategoryLabel: string | undefined;
-    if (record.detail_cost_category_id) {
-      const option = costCategoryOptions.find(opt => opt.id === record.detail_cost_category_id);
-      costCategoryLabel = option?.value;
-    }
-
     form.setFieldsValue({
       material_type: record.material_type,
       item_type: record.item_type,
@@ -169,7 +110,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
       unit_rate: record.unit_rate,
       delivery_price_type: record.delivery_price_type || 'в цене',
       delivery_amount: record.delivery_amount || 0,
-      detail_cost_category_search: costCategoryLabel,
     });
     setEditingKey(record.id || '');
   };
@@ -196,13 +136,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         return;
       }
 
-      // Find detail_cost_category_id by search string
-      let detailCategoryId: string | null = null;
-      if (row.detail_cost_category_search) {
-        const option = costCategoryOptions.find(opt => opt.value === row.detail_cost_category_search);
-        detailCategoryId = option?.id || null;
-      }
-
       const updateData = {
         material_type: row.material_type,
         item_type: row.item_type,
@@ -212,7 +145,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         currency_type: row.currency_type,
         delivery_price_type: row.delivery_price_type,
         delivery_amount: row.delivery_price_type === 'суммой' ? row.delivery_amount : 0,
-        detail_cost_category_id: detailCategoryId || null,
       };
 
       // Update existing record
@@ -261,13 +193,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         return;
       }
 
-      // Find detail_cost_category_id by search string
-      let detailCategoryId: string | null = null;
-      if (row.detail_cost_category_search) {
-        const option = costCategoryOptions.find(opt => opt.value === row.detail_cost_category_search);
-        detailCategoryId = option?.id || null;
-      }
-
       const insertData = {
         material_type: row.material_type,
         item_type: row.item_type,
@@ -277,7 +202,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         currency_type: row.currency_type,
         delivery_price_type: row.delivery_price_type,
         delivery_amount: row.delivery_price_type === 'суммой' ? row.delivery_amount : 0,
-        detail_cost_category_id: detailCategoryId || null,
       };
 
       const { error } = await supabase
@@ -334,12 +258,38 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
 
   const columns = [
     {
+      title: '№',
+      dataIndex: 'index',
+      width: 50,
+      editable: true,
+      align: 'center' as const,
+      render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
+    },
+    {
       title: 'Вид материала',
       dataIndex: 'item_type',
       width: 110,
       editable: true,
       align: 'center' as const,
-      render: (text: ItemType) => text,
+      render: (text: ItemType) => {
+        let bgColor = '';
+        let textColor = '';
+        switch (text) {
+          case 'мат':
+            bgColor = 'rgba(21, 101, 192, 0.12)';
+            textColor = '#1976d2';
+            break;
+          case 'суб-мат':
+            bgColor = 'rgba(104, 159, 56, 0.12)';
+            textColor = '#7cb342';
+            break;
+          case 'мат-комп.':
+            bgColor = 'rgba(0, 105, 92, 0.12)';
+            textColor = '#00897b';
+            break;
+        }
+        return <Tag style={{ backgroundColor: bgColor, color: textColor, border: 'none' }}>{text}</Tag>;
+      },
     },
     {
       title: 'Тип материала',
@@ -347,7 +297,11 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
       width: 110,
       editable: true,
       align: 'center' as const,
-      render: (text: MaterialType) => text,
+      render: (text: MaterialType) => {
+        const bgColor = text === 'основн.' ? 'rgba(255, 152, 0, 0.12)' : 'rgba(21, 101, 192, 0.12)';
+        const textColor = text === 'основн.' ? '#fb8c00' : '#1976d2';
+        return <Tag style={{ backgroundColor: bgColor, color: textColor, border: 'none' }}>{text}</Tag>;
+      },
     },
     {
       title: 'Наименование материала',
@@ -412,19 +366,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         record.delivery_price_type === 'суммой' ? value?.toFixed(2) : '-',
     },
     {
-      title: 'Затрата на строительство',
-      dataIndex: 'detail_cost_category_name',
-      width: 250,
-      editable: true,
-      align: 'center' as const,
-      render: (_: string, record: MaterialLibraryFull) => {
-        if (record.cost_category_name && record.detail_cost_category_name && record.detail_cost_category_location) {
-          return `${record.cost_category_name} / ${record.detail_cost_category_name} / ${record.detail_cost_category_location}`;
-        }
-        return '-';
-      },
-    },
-    {
       title: 'Действия',
       dataIndex: 'operation',
       width: 100,
@@ -433,46 +374,47 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
       render: (_: unknown, record: MaterialLibraryFull) => {
         const editable = isEditing(record);
         return editable ? (
-          <Space direction="vertical" size={0}>
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={() => save(record.id)}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
-            <Button
-              icon={<CloseOutlined />}
-              onClick={cancel}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
+          <Space size="small">
+            <Tooltip title="Сохранить">
+              <Button
+                type="text"
+                icon={<SaveOutlined />}
+                onClick={() => save(record.id)}
+              />
+            </Tooltip>
+            <Tooltip title="Отмена">
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={cancel}
+              />
+            </Tooltip>
           </Space>
         ) : (
-          <Space direction="vertical" size={0}>
-            <Button
-              type="default"
-              icon={<EditOutlined />}
-              disabled={editingKey !== ''}
-              onClick={() => edit(record)}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
-            <Popconfirm
-              title="Удалить?"
-              onConfirm={() => handleDelete(record.id)}
-              okText="Да"
-              cancelText="Нет"
-            >
+          <Space size="small">
+            <Tooltip title="Редактировать">
               <Button
-                type="primary"
-                icon={<DeleteOutlined />}
-                danger
+                type="text"
+                icon={<EditOutlined />}
                 disabled={editingKey !== ''}
-                size="small"
-                style={{ fontSize: '14px' }}
+                onClick={() => edit(record)}
               />
-            </Popconfirm>
+            </Tooltip>
+            <Tooltip title="Удалить">
+              <Popconfirm
+                title="Удалить?"
+                onConfirm={() => handleDelete(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={editingKey !== ''}
+                />
+              </Popconfirm>
+            </Tooltip>
           </Space>
         );
       },
@@ -503,11 +445,13 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
     children: React.ReactNode;
   }> = ({ editing, dataIndex, children, record }) => {
     const deliveryPriceType = Form.useWatch('delivery_price_type', form);
+    const currentItemType = Form.useWatch('item_type', form);
 
     // Get border color based on item_type for editing mode (all types)
     const getEditBorderColor = () => {
       if (!editing) return undefined;
-      switch (record.item_type) {
+      const itemType = currentItemType || record.item_type;
+      switch (itemType) {
         case 'мат':
           return '#2196f3'; // Синий
         case 'суб-мат':
@@ -536,7 +480,7 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
     }
 
     // For non-editable columns in edit mode, just show content with border
-    if (dataIndex === 'unit' || dataIndex === 'operation') {
+    if (dataIndex === 'index' || dataIndex === 'unit' || dataIndex === 'operation') {
       return <td style={cellStyle}>{children}</td>;
     }
 
@@ -695,23 +639,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
         );
         break;
 
-      case 'detail_cost_category_name':
-        inputNode = (
-          <Form.Item
-            name="detail_cost_category_search"
-            style={{ margin: 0 }}
-          >
-            <AutoComplete
-              options={costCategoryOptions}
-              placeholder="Начните вводить затрату..."
-              filterOption={(inputValue, option) =>
-                option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
-              }
-            />
-          </Form.Item>
-        );
-        break;
-
       default:
         inputNode = (
           <Form.Item name={dataIndex} style={{ margin: 0 }}>
@@ -768,7 +695,7 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
             }}
           >
             <Row gutter={8}>
-              <Col span={3}>
+              <Col span={2}>
                 <Form.Item
                   label="Вид материала"
                   name="item_type"
@@ -781,7 +708,7 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col span={3}>
+              <Col span={2}>
                 <Form.Item
                   label="Тип материала"
                   name="material_type"
@@ -793,7 +720,7 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col span={6}>
+              <Col span={8}>
                 <Form.Item
                   label="Наименование материала"
                   name="material_name_id"
@@ -891,23 +818,6 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
                 </Form.Item>
               </Col>
             </Row>
-            <Row gutter={8}>
-              <Col span={24}>
-                <Form.Item
-                  label="Затрата на строительство"
-                  name="detail_cost_category_search"
-                  rules={[{ required: true, message: 'Обязательное поле' }]}
-                >
-                  <AutoComplete
-                    options={costCategoryOptions}
-                    placeholder="Начните вводить затрату..."
-                    filterOption={(inputValue, option) =>
-                      option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
-                    }
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
             <Row gutter={16}>
               <Col span={24} style={{ textAlign: 'right' }}>
                 <Space>
@@ -936,15 +846,20 @@ const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
           columns={mergedColumns}
           rowClassName={getRowClassName}
           pagination={{
-            defaultPageSize: 100,
+            current: currentPage,
+            pageSize: pageSize,
             pageSizeOptions: ['100', '250', '500', '1000'],
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
           }}
           loading={loading}
           rowKey="id"
           scroll={{ y: 600 }}
-          size="middle"
+          size="small"
         />
       </Form>
 

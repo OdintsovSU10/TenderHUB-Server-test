@@ -1,14 +1,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme } from 'antd';
+import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme, Tag, Tooltip } from 'antd';
 import { DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { supabase, WorkLibraryFull, WorkName, CurrencyType, UnitType, WorkItemType } from '../../lib/supabase';
-
-interface DetailCostCategoryData {
-  id: string;
-  name: string;
-  location: string;
-  cost_category_id: string;
-}
 
 interface WorksTabProps {
   searchText: string;
@@ -26,9 +19,9 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
   const [workNames, setWorkNames] = useState<WorkName[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null);
   const [selectedAddUnit, setSelectedAddUnit] = useState<UnitType | null>(null);
-  const [detailCostCategories, setDetailCostCategories] = useState<DetailCostCategoryData[]>([]);
-  const [costCategoryOptions, setCostCategoryOptions] = useState<{ value: string; label: string; id: string }[]>([]);
   const [addItemType, setAddItemType] = useState<WorkItemType>('раб');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
 
   // Fetch works library data
   const fetchWorks = async () => {
@@ -42,15 +35,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
             id,
             name,
             unit
-          ),
-          detail_cost_categories (
-            id,
-            name,
-            location,
-            cost_categories (
-              id,
-              name
-            )
           )
         `)
         .order('created_at', { ascending: false });
@@ -60,10 +44,7 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
       const formatted = worksData?.map(item => ({
         ...item,
         work_name: item.work_names?.name || '',
-        unit: item.work_names?.unit || 'шт',
-        detail_cost_category_name: item.detail_cost_categories?.name,
-        detail_cost_category_location: item.detail_cost_categories?.location,
-        cost_category_name: item.detail_cost_categories?.cost_categories?.name
+        unit: item.work_names?.unit || 'шт'
       })) as WorkLibraryFull[];
 
       setData(formatted || []);
@@ -90,38 +71,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
     }
   };
 
-  // Fetch cost categories for autocomplete
-  const fetchCostCategories = async () => {
-    try {
-      const { data: categoriesData, error: catError } = await supabase
-        .from('cost_categories')
-        .select('id, name');
-
-      const { data: detailsData, error: detailError } = await supabase
-        .from('detail_cost_categories')
-        .select('id, name, location, cost_category_id');
-
-      if (catError || detailError) throw catError || detailError;
-
-      // Store all details
-      setDetailCostCategories(detailsData || []);
-
-      // Build autocomplete options: "Категория / Затрата / Локализация"
-      const options = detailsData?.map(detail => {
-        const category = categoriesData?.find(cat => cat.id === detail.cost_category_id);
-        return {
-          id: detail.id,
-          value: `${category?.name || ''} / ${detail.name} / ${detail.location}`,
-          label: `${category?.name || ''} / ${detail.name} / ${detail.location}`
-        };
-      }) || [];
-
-      setCostCategoryOptions(options);
-    } catch (error) {
-      console.error('Error fetching cost categories:', error);
-    }
-  };
-
   // Expose handleAdd method to parent
   useImperativeHandle(ref, () => ({
     handleAdd: () => {
@@ -138,7 +87,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
   useEffect(() => {
     fetchWorks();
     fetchWorkNames();
-    fetchCostCategories();
   }, []);
 
   const isEditing = (record: WorkLibraryFull) => record.id === editingKey;
@@ -149,19 +97,11 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
       setSelectedUnit(record.unit as UnitType);
     }
 
-    // Find the detail cost category label for autocomplete
-    let costCategoryLabel: string | undefined;
-    if (record.detail_cost_category_id) {
-      const option = costCategoryOptions.find(opt => opt.id === record.detail_cost_category_id);
-      costCategoryLabel = option?.value;
-    }
-
     form.setFieldsValue({
       item_type: record.item_type,
       work_name_id: record.work_name,
       currency_type: record.currency_type || 'RUB',
       unit_rate: record.unit_rate,
-      detail_cost_category_search: costCategoryLabel,
     });
     setEditingKey(record.id || '');
   };
@@ -188,19 +128,11 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
         return;
       }
 
-      // Find detail_cost_category_id by search string
-      let detailCategoryId: string | null = null;
-      if (row.detail_cost_category_search) {
-        const option = costCategoryOptions.find(opt => opt.value === row.detail_cost_category_search);
-        detailCategoryId = option?.id || null;
-      }
-
       const updateData = {
         work_name_id: workName.id,
         item_type: row.item_type,
         unit_rate: row.unit_rate,
         currency_type: row.currency_type,
-        detail_cost_category_id: detailCategoryId || null,
       };
 
       // Update existing record
@@ -249,19 +181,11 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
         return;
       }
 
-      // Find detail_cost_category_id by search string
-      let detailCategoryId: string | null = null;
-      if (row.detail_cost_category_search) {
-        const option = costCategoryOptions.find(opt => opt.value === row.detail_cost_category_search);
-        detailCategoryId = option?.id || null;
-      }
-
       const insertData = {
         work_name_id: workName.id,
         item_type: row.item_type,
         unit_rate: row.unit_rate,
         currency_type: row.currency_type,
-        detail_cost_category_id: detailCategoryId || null,
       };
 
       const { error } = await supabase
@@ -317,17 +241,43 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
 
   const columns = [
     {
+      title: '№',
+      dataIndex: 'index',
+      width: 25,
+      editable: true,
+      align: 'center' as const,
+      render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
+    },
+    {
       title: 'Вид работы',
       dataIndex: 'item_type',
       width: 110,
       editable: true,
       align: 'center' as const,
-      render: (text: WorkItemType) => text,
+      render: (text: WorkItemType) => {
+        let bgColor = '';
+        let textColor = '';
+        switch (text) {
+          case 'раб':
+            bgColor = 'rgba(239, 108, 0, 0.12)';
+            textColor = '#f57c00';
+            break;
+          case 'суб-раб':
+            bgColor = 'rgba(106, 27, 154, 0.12)';
+            textColor = '#7b1fa2';
+            break;
+          case 'раб-комп.':
+            bgColor = 'rgba(198, 40, 40, 0.12)';
+            textColor = '#d32f2f';
+            break;
+        }
+        return <Tag style={{ backgroundColor: bgColor, color: textColor, border: 'none' }}>{text}</Tag>;
+      },
     },
     {
       title: 'Наименование работы',
       dataIndex: 'work_name',
-      width: 300,
+      width: 325,
       editable: true,
       align: 'center' as const,
       render: (text: string) => <div style={{ textAlign: 'left' }}>{text}</div>,
@@ -362,19 +312,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
       render: (value: CurrencyType) => currencySymbols[value] || value,
     },
     {
-      title: 'Затрата на строительство',
-      dataIndex: 'detail_cost_category_name',
-      width: 200,
-      editable: true,
-      align: 'center' as const,
-      render: (_: string, record: WorkLibraryFull) => {
-        if (record.cost_category_name && record.detail_cost_category_name && record.detail_cost_category_location) {
-          return `${record.cost_category_name} / ${record.detail_cost_category_name} / ${record.detail_cost_category_location}`;
-        }
-        return '-';
-      },
-    },
-    {
       title: 'Действия',
       dataIndex: 'operation',
       width: 100,
@@ -383,46 +320,47 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
       render: (_: unknown, record: WorkLibraryFull) => {
         const editable = isEditing(record);
         return editable ? (
-          <Space direction="vertical" size={0}>
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={() => save(record.id)}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
-            <Button
-              icon={<CloseOutlined />}
-              onClick={cancel}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
+          <Space size="small">
+            <Tooltip title="Сохранить">
+              <Button
+                type="text"
+                icon={<SaveOutlined />}
+                onClick={() => save(record.id)}
+              />
+            </Tooltip>
+            <Tooltip title="Отмена">
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={cancel}
+              />
+            </Tooltip>
           </Space>
         ) : (
-          <Space direction="vertical" size={0}>
-            <Button
-              type="default"
-              icon={<EditOutlined />}
-              disabled={editingKey !== ''}
-              onClick={() => edit(record)}
-              size="small"
-              style={{ fontSize: '14px' }}
-            />
-            <Popconfirm
-              title="Удалить?"
-              onConfirm={() => handleDelete(record.id)}
-              okText="Да"
-              cancelText="Нет"
-            >
+          <Space size="small">
+            <Tooltip title="Редактировать">
               <Button
-                type="primary"
-                icon={<DeleteOutlined />}
-                danger
+                type="text"
+                icon={<EditOutlined />}
                 disabled={editingKey !== ''}
-                size="small"
-                style={{ fontSize: '14px' }}
+                onClick={() => edit(record)}
               />
-            </Popconfirm>
+            </Tooltip>
+            <Tooltip title="Удалить">
+              <Popconfirm
+                title="Удалить?"
+                onConfirm={() => handleDelete(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={editingKey !== ''}
+                />
+              </Popconfirm>
+            </Tooltip>
           </Space>
         );
       },
@@ -452,10 +390,13 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
     record: WorkLibraryFull;
     children: React.ReactNode;
   }> = ({ editing, dataIndex, children, record }) => {
+    const currentItemType = Form.useWatch('item_type', form);
+
     // Get border color based on item_type for editing mode (all types)
     const getEditBorderColor = () => {
       if (!editing) return undefined;
-      switch (record.item_type) {
+      const itemType = currentItemType || record.item_type;
+      switch (itemType) {
         case 'раб':
           return '#ff9800'; // Оранжевый
         case 'суб-раб':
@@ -484,7 +425,7 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
     }
 
     // For non-editable columns in edit mode, just show content with border
-    if (dataIndex === 'unit' || dataIndex === 'operation') {
+    if (dataIndex === 'index' || dataIndex === 'unit' || dataIndex === 'operation') {
       return <td style={cellStyle}>{children}</td>;
     }
 
@@ -555,23 +496,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
               step={0.01}
               precision={2}
               style={{ width: '100%' }}
-            />
-          </Form.Item>
-        );
-        break;
-
-      case 'detail_cost_category_name':
-        inputNode = (
-          <Form.Item
-            name="detail_cost_category_search"
-            style={{ margin: 0 }}
-          >
-            <AutoComplete
-              options={costCategoryOptions}
-              placeholder="Начните вводить затрату..."
-              filterOption={(inputValue, option) =>
-                option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
-              }
             />
           </Form.Item>
         );
@@ -688,23 +612,6 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
                 </Form.Item>
               </Col>
             </Row>
-            <Row gutter={8}>
-              <Col span={24}>
-                <Form.Item
-                  label="Затрата на строительство"
-                  name="detail_cost_category_search"
-                  rules={[{ required: true, message: 'Обязательное поле' }]}
-                >
-                  <AutoComplete
-                    options={costCategoryOptions}
-                    placeholder="Начните вводить затрату..."
-                    filterOption={(inputValue, option) =>
-                      option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
-                    }
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
             <Row gutter={16}>
               <Col span={24} style={{ textAlign: 'right' }}>
                 <Space>
@@ -733,15 +640,20 @@ const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
           columns={mergedColumns}
           rowClassName={getRowClassName}
           pagination={{
-            defaultPageSize: 100,
+            current: currentPage,
+            pageSize: pageSize,
             pageSizeOptions: ['100', '250', '500', '1000'],
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
           }}
           loading={loading}
           rowKey="id"
           scroll={{ y: 600 }}
-          size="middle"
+          size="small"
         />
       </Form>
 

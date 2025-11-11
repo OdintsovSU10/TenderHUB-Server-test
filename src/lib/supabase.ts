@@ -67,7 +67,6 @@ export interface MaterialLibraryInsert {
   currency_type?: CurrencyType;
   delivery_price_type?: DeliveryPriceType;
   delivery_amount?: number;
-  detail_cost_category_id?: string | null;
   material_name_id: string;
 }
 
@@ -161,9 +160,6 @@ export interface DetailCostCategory extends DetailCostCategoryInsert {
 export interface MaterialLibraryFull extends MaterialLibrary {
   material_name: string;
   unit: UnitType;
-  detail_cost_category_name?: string;
-  detail_cost_category_location?: string;
-  cost_category_name?: string;
 }
 
 // =============================================
@@ -175,7 +171,6 @@ export interface WorkLibraryInsert {
   item_type: WorkItemType;
   unit_rate: number;
   currency_type?: CurrencyType;
-  detail_cost_category_id?: string | null;
 }
 
 export interface WorkLibrary extends WorkLibraryInsert {
@@ -191,7 +186,4 @@ export interface WorkLibrary extends WorkLibraryInsert {
 export interface WorkLibraryFull extends WorkLibrary {
   work_name: string;
   unit: UnitType;
-  detail_cost_category_name?: string;
-  detail_cost_category_location?: string;
-  cost_category_name?: string;
 }

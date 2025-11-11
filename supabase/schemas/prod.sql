@@ -1,5 +1,5 @@
 -- Database Schema SQL Export
--- Generated: 2025-11-10T11:19:15.671251
+-- Generated: 2025-11-11T14:00:14.116660
 -- Database: postgres
 -- Host: aws-1-eu-west-1.pooler.supabase.com
 
@@ -350,8 +350,7 @@ COMMENT ON TABLE auth.users IS 'Auth: Stores user login data within a secure sch
 COMMENT ON COLUMN auth.users.is_sso_user IS 'Auth: Set this column to true when the account comes from SSO. These accounts can have duplicate emails.';
 
 -- Table: public.cost_categories
--- Description: Справочник      
-
+-- Description: Справочник      
   категорий затрат
 CREATE TABLE IF NOT EXISTS public.cost_categories (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -362,8 +361,7 @@ CREATE TABLE IF NOT EXISTS public.cost_categories (
     CONSTRAINT cost_categories_pkey PRIMARY KEY (id),
     CONSTRAINT cost_categories_unit_fkey FOREIGN KEY (unit) REFERENCES None.None(None)
 );
-COMMENT ON TABLE public.cost_categories IS 'Справочник      
-
+COMMENT ON TABLE public.cost_categories IS 'Справочник      
   категорий затрат';
 COMMENT ON COLUMN public.cost_categories.id IS 'Уникальный идентификатор категории (UUID)';
 COMMENT ON COLUMN public.cost_categories.name IS 'Наименование категории затрат';
@@ -392,14 +390,11 @@ COMMENT ON COLUMN public.detail_cost_categories.cost_category_id IS 'Ссылк�
 COMMENT ON COLUMN public.detail_cost_categories.location IS 'Локация/местоположение';
 COMMENT ON COLUMN public.detail_cost_categories.name IS 'Наименование детальной категории';
 COMMENT ON COLUMN public.detail_cost_categories.unit IS 'Единица измерения';
-COMMENT ON COLUMN public.detail_cost_categories.order_num IS 'Порядковый      
-
+COMMENT ON COLUMN public.detail_cost_categories.order_num IS 'Порядковый      
   номер для сортировки';
-COMMENT ON COLUMN public.detail_cost_categories.created_at IS 'Дата и
-
+COMMENT ON COLUMN public.detail_cost_categories.created_at IS 'Дата и
   время создания записи';
-COMMENT ON COLUMN public.detail_cost_categories.updated_at IS 'Дата и
-
+COMMENT ON COLUMN public.detail_cost_categories.updated_at IS 'Дата и
   время последнего обновления';
 
 -- Table: public.material_names
@@ -724,8 +719,6 @@ CREATE TYPE public.delivery_price_type AS ENUM ('в цене', 'не в цене
 CREATE TYPE public.item_type AS ENUM ('мат', 'суб-мат', 'мат-комп.');
 
 CREATE TYPE public.material_type AS ENUM ('основн.', 'вспомогат.');
-
-CREATE TYPE public.unit_type AS ENUM ('шт', 'м', 'м2', 'м3', 'кг', 'т', 'л', 'компл', 'м.п.', 'месяц', 'тн', 'тн/м пог');
 
 CREATE TYPE public.work_item_type AS ENUM ('раб', 'суб-раб', 'раб-комп.');
 
