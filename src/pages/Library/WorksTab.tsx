@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { supabase, WorkLibraryFull, WorkName, CurrencyType, UnitType, WorkItemType } from '../../lib/supabase';
 
 interface DetailCostCategoryData {
@@ -10,7 +10,12 @@ interface DetailCostCategoryData {
   cost_category_id: string;
 }
 
-const WorksTab: React.FC = () => {
+interface WorksTabProps {
+  searchText: string;
+}
+
+const WorksTab = forwardRef<any, WorksTabProps>((props, ref) => {
+  const { searchText } = props;
   const [form] = Form.useForm();
   const [addForm] = Form.useForm();
   const { token } = theme.useToken();
@@ -24,7 +29,6 @@ const WorksTab: React.FC = () => {
   const [detailCostCategories, setDetailCostCategories] = useState<DetailCostCategoryData[]>([]);
   const [costCategoryOptions, setCostCategoryOptions] = useState<{ value: string; label: string; id: string }[]>([]);
   const [addItemType, setAddItemType] = useState<WorkItemType>('раб');
-  const [searchText, setSearchText] = useState('');
 
   // Fetch works library data
   const fetchWorks = async () => {
@@ -117,6 +121,19 @@ const WorksTab: React.FC = () => {
       console.error('Error fetching cost categories:', error);
     }
   };
+
+  // Expose handleAdd method to parent
+  useImperativeHandle(ref, () => ({
+    handleAdd: () => {
+      setIsAdding(true);
+      setAddItemType('раб');
+      addForm.setFieldsValue({
+        item_type: 'раб',
+        currency_type: 'RUB',
+        unit_rate: 0,
+      });
+    }
+  }));
 
   useEffect(() => {
     fetchWorks();
@@ -221,16 +238,6 @@ const WorksTab: React.FC = () => {
     }
   };
 
-  const handleAdd = () => {
-    setIsAdding(true);
-    setAddItemType('раб');
-    addForm.setFieldsValue({
-      item_type: 'раб',
-      currency_type: 'RUB',
-      unit_rate: 0,
-    });
-  };
-
   const handleAddSubmit = async () => {
     try {
       const row = await addForm.validateFields();
@@ -320,8 +327,10 @@ const WorksTab: React.FC = () => {
     {
       title: 'Наименование работы',
       dataIndex: 'work_name',
+      width: 300,
       editable: true,
       align: 'center' as const,
+      render: (text: string) => <div style={{ textAlign: 'left' }}>{text}</div>,
     },
     {
       title: 'Ед.изм',
@@ -337,14 +346,6 @@ const WorksTab: React.FC = () => {
       },
     },
     {
-      title: 'Валюта',
-      dataIndex: 'currency_type',
-      width: 80,
-      editable: true,
-      align: 'center' as const,
-      render: (value: CurrencyType) => currencySymbols[value] || value,
-    },
-    {
       title: 'Цена за ед.',
       dataIndex: 'unit_rate',
       width: 100,
@@ -353,8 +354,17 @@ const WorksTab: React.FC = () => {
       render: (value: number) => value?.toFixed(2),
     },
     {
+      title: 'Валюта',
+      dataIndex: 'currency_type',
+      width: 80,
+      editable: true,
+      align: 'center' as const,
+      render: (value: CurrencyType) => currencySymbols[value] || value,
+    },
+    {
       title: 'Затрата на строительство',
       dataIndex: 'detail_cost_category_name',
+      width: 200,
       editable: true,
       align: 'center' as const,
       render: (_: string, record: WorkLibraryFull) => {
@@ -599,26 +609,6 @@ const WorksTab: React.FC = () => {
 
   return (
     <div>
-      {/* Search and Actions Bar */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-        <Input
-          placeholder="Поиск работ по наименованию..."
-          prefix={<SearchOutlined />}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ maxWidth: 400 }}
-          allowClear
-        />
-        <Button
-          type="primary"
-          onClick={handleAdd}
-          icon={<PlusOutlined />}
-          disabled={editingKey !== ''}
-        >
-          Добавить работу
-        </Button>
-      </div>
-
       {/* Add Form Section */}
       {isAdding && (
         <div
@@ -739,13 +729,19 @@ const WorksTab: React.FC = () => {
               cell: EditableCell,
             },
           }}
-          bordered
           dataSource={filteredData}
           columns={mergedColumns}
           rowClassName={getRowClassName}
-          pagination={false}
+          pagination={{
+            defaultPageSize: 100,
+            pageSizeOptions: ['100', '250', '500', '1000'],
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+          }}
           loading={loading}
           rowKey="id"
+          scroll={{ y: 600 }}
+          size="middle"
         />
       </Form>
 
@@ -772,6 +768,6 @@ const WorksTab: React.FC = () => {
       `}</style>
     </div>
   );
-};
+});
 
 export default WorksTab;

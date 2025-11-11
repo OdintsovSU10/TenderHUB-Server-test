@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Table, Button, Form, Input, Select, InputNumber, message, Popconfirm, Space, AutoComplete, Row, Col, theme } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SaveOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { supabase, MaterialLibraryFull, MaterialName, MaterialType, ItemType, CurrencyType, DeliveryPriceType, UnitType } from '../../lib/supabase';
 
 interface DetailCostCategoryData {
@@ -10,7 +10,12 @@ interface DetailCostCategoryData {
   cost_category_id: string;
 }
 
-const MaterialsTab: React.FC = () => {
+interface MaterialsTabProps {
+  searchText: string;
+}
+
+const MaterialsTab = forwardRef<any, MaterialsTabProps>((props, ref) => {
+  const { searchText } = props;
   const [form] = Form.useForm();
   const [addForm] = Form.useForm();
   const { token } = theme.useToken();
@@ -25,7 +30,6 @@ const MaterialsTab: React.FC = () => {
   const [costCategoryOptions, setCostCategoryOptions] = useState<{ value: string; label: string; id: string }[]>([]);
   const [addDeliveryType, setAddDeliveryType] = useState<DeliveryPriceType>('в цене');
   const [addItemType, setAddItemType] = useState<ItemType>('мат');
-  const [searchText, setSearchText] = useState('');
 
   // Fetch materials library data
   const fetchMaterials = async () => {
@@ -124,6 +128,22 @@ const MaterialsTab: React.FC = () => {
     fetchMaterialNames();
     fetchCostCategories();
   }, []);
+
+  // Expose handleAdd method to parent
+  useImperativeHandle(ref, () => ({
+    handleAdd: () => {
+      setIsAdding(true);
+      setAddItemType('мат');
+      addForm.setFieldsValue({
+        material_type: 'основн.',
+        item_type: 'мат',
+        consumption_coefficient: 1.0,
+        currency_type: 'RUB',
+        delivery_price_type: 'в цене',
+        delivery_amount: 0,
+      });
+    }
+  }));
 
   const isEditing = (record: MaterialLibraryFull) => record.id === editingKey;
 
@@ -230,19 +250,6 @@ const MaterialsTab: React.FC = () => {
     }
   };
 
-  const handleAdd = () => {
-    setIsAdding(true);
-    setAddItemType('мат');
-    addForm.setFieldsValue({
-      material_type: 'основн.',
-      item_type: 'мат',
-      consumption_coefficient: 1.0,
-      currency_type: 'RUB',
-      delivery_price_type: 'в цене',
-      delivery_amount: 0,
-    });
-  };
-
   const handleAddSubmit = async () => {
     try {
       const row = await addForm.validateFields();
@@ -345,8 +352,10 @@ const MaterialsTab: React.FC = () => {
     {
       title: 'Наименование материала',
       dataIndex: 'material_name',
+      width: 250,
       editable: true,
       align: 'center' as const,
+      render: (text: string) => <div style={{ textAlign: 'left' }}>{text}</div>,
     },
     {
       title: 'Ед.изм',
@@ -370,20 +379,20 @@ const MaterialsTab: React.FC = () => {
       render: (value: number) => value?.toFixed(4),
     },
     {
-      title: 'Валюта',
-      dataIndex: 'currency_type',
-      width: 80,
-      editable: true,
-      align: 'center' as const,
-      render: (value: CurrencyType) => currencySymbols[value] || value,
-    },
-    {
       title: 'Цена за ед.',
       dataIndex: 'unit_rate',
       width: 100,
       editable: true,
       align: 'center' as const,
       render: (value: number) => value?.toFixed(2),
+    },
+    {
+      title: 'Валюта',
+      dataIndex: 'currency_type',
+      width: 100,
+      editable: true,
+      align: 'center' as const,
+      render: (value: CurrencyType) => currencySymbols[value] || value,
     },
     {
       title: 'Тип доставки',
@@ -405,6 +414,7 @@ const MaterialsTab: React.FC = () => {
     {
       title: 'Затрата на строительство',
       dataIndex: 'detail_cost_category_name',
+      width: 250,
       editable: true,
       align: 'center' as const,
       render: (_: string, record: MaterialLibraryFull) => {
@@ -734,26 +744,6 @@ const MaterialsTab: React.FC = () => {
 
   return (
     <div>
-      {/* Search and Actions Bar */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-        <Input
-          placeholder="Поиск материалов по наименованию..."
-          prefix={<SearchOutlined />}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ maxWidth: 400 }}
-          allowClear
-        />
-        <Button
-          type="primary"
-          onClick={handleAdd}
-          icon={<PlusOutlined />}
-          disabled={editingKey !== ''}
-        >
-          Добавить материал
-        </Button>
-      </div>
-
       {/* Add Form Section */}
       {isAdding && (
         <div
@@ -942,13 +932,19 @@ const MaterialsTab: React.FC = () => {
               cell: EditableCell,
             },
           }}
-          bordered
           dataSource={filteredData}
           columns={mergedColumns}
           rowClassName={getRowClassName}
-          pagination={false}
+          pagination={{
+            defaultPageSize: 100,
+            pageSizeOptions: ['100', '250', '500', '1000'],
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+          }}
           loading={loading}
           rowKey="id"
+          scroll={{ y: 600 }}
+          size="middle"
         />
       </Form>
 
@@ -975,6 +971,6 @@ const MaterialsTab: React.FC = () => {
       `}</style>
     </div>
   );
-};
+});
 
 export default MaterialsTab;
