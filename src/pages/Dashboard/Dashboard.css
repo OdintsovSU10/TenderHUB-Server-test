@@ -31,7 +31,7 @@
 }
 
 /* Table Header Styles */
-.ant-table-thead > tr > th {
+.dashboard-table .ant-table-thead > tr > th {
   background-color: #fafafa !important;
   font-weight: 600;
   border-bottom: 2px solid #f0f0f0;
@@ -39,24 +39,98 @@
 }
 
 /* Dark Theme Table Header */
-.dark .ant-table-thead > tr > th {
+.dark .dashboard-table .ant-table-thead > tr > th {
   background-color: #1f1f1f !important;
-  border-bottom: 2px solid #303030;
-  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 2px solid #303030 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Dark Theme Table Card */
+.dark .dashboard-table-card {
+  background: #141414 !important;
+}
+
+.dark .dashboard-table-card .ant-card-body {
+  background: #141414 !important;
+}
+
+/* Table Styles */
+.dashboard-table .ant-table {
+  background: transparent;
+}
+
+.dark .dashboard-table .ant-table {
+  background: #141414;
+}
+
+/* Table Row Styles */
+.dashboard-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dark .dashboard-table .ant-table-tbody > tr > td {
+  background-color: #141414 !important;
+  border-bottom: 1px solid #303030 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 /* Table Row Hover */
-.ant-table-tbody > tr:hover > td {
+.dashboard-table .ant-table-tbody > tr:hover > td {
   background-color: #f5f5f5 !important;
 }
 
-.dark .ant-table-tbody > tr:hover > td {
+.dark .dashboard-table .ant-table-tbody > tr:hover > td {
   background-color: #262626 !important;
+}
+
+/* Fix table wrapper background */
+.dark .ant-table-wrapper {
+  background: transparent !important;
+}
+
+.dark .ant-table-container {
+  background: #141414 !important;
 }
 
 /* Table Pagination */
 .ant-pagination {
   margin-top: 16px;
+}
+
+/* Dark Theme Pagination */
+.dark .ant-pagination-item {
+  background: #141414 !important;
+  border-color: #303030 !important;
+}
+
+.dark .ant-pagination-item a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .ant-pagination-item-active {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.dark .ant-pagination-prev .ant-pagination-item-link,
+.dark .ant-pagination-next .ant-pagination-item-link {
+  background: #141414 !important;
+  border-color: #303030 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .ant-pagination-options {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .ant-select-selector {
+  background: #141414 !important;
+  border-color: #303030 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .ant-pagination-total-text {
+  color: rgba(255, 255, 255, 0.65) !important;
 }
 
 /* Status Tag Styles */

@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className={`dashboard-container ${currentTheme}`} style={{ padding: '24px' }}>
       {/* Заголовок страницы */}
       <div style={{ marginBottom: 24 }}>
         <Space align="center">
@@ -234,6 +234,7 @@ const Dashboard: React.FC = () => {
 
       {/* Таблица тендеров */}
       <Card
+        className="dashboard-table-card"
         style={{
           borderRadius: 8,
           boxShadow: currentTheme === 'dark' ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
@@ -241,6 +242,7 @@ const Dashboard: React.FC = () => {
         bodyStyle={{ padding: 0 }}
       >
         <Table
+          className="dashboard-table"
           columns={columns}
           dataSource={filteredTenders}
           loading={loading}
