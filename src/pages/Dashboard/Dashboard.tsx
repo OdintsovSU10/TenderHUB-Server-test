@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Typography, theme, Input, Tag, Button, Space, message } from 'antd';
+import { Table, Typography, theme, Input, Tag, Button, Space, message, Card } from 'antd';
 import {
   SearchOutlined,
   CheckCircleFilled,
   SyncOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, Tender } from '../../lib/supabase';
@@ -11,7 +12,7 @@ import { formatNumberWithSpaces } from '../../utils/numberFormat';
 import dayjs from 'dayjs';
 import './Dashboard.css';
 
-const { Text } = Typography;
+const { Title, Text } = Typography;
 
 interface TenderTableData {
   key: string;
@@ -203,10 +204,23 @@ const Dashboard: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* Поиск */}
+      {/* Заголовок страницы */}
       <div style={{ marginBottom: 24 }}>
+        <Space align="center">
+          <DashboardOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
+          <Title level={2} style={{ margin: 0 }}>
+            Дашборд тендеров
+          </Title>
+        </Space>
+        <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+          Обзор активных тендеров и основные показатели
+        </Text>
+      </div>
+
+      {/* Поиск */}
+      <div style={{ marginBottom: 16 }}>
         <Input
-          placeholder="Поиск по названию, номеру, заказчику или версии..."
+          placeholder="Поиск по названию, номеру, заказчику..."
           prefix={<SearchOutlined />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
@@ -219,20 +233,26 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Таблица тендеров */}
-      <Table
-        columns={columns}
-        dataSource={filteredTenders}
-        loading={loading}
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total} тендеров`,
-        }}
-        scroll={{ x: 1200 }}
+      <Card
         style={{
-          backgroundColor: currentTheme === 'dark' ? '#141414' : '#fff',
+          borderRadius: 8,
+          boxShadow: currentTheme === 'dark' ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
         }}
-      />
+        bodyStyle={{ padding: 0 }}
+      >
+        <Table
+          columns={columns}
+          dataSource={filteredTenders}
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `Всего: ${total} тендеров`,
+            style: { margin: '16px' }
+          }}
+          scroll={{ x: 1200 }}
+        />
+      </Card>
     </div>
   );
 };
