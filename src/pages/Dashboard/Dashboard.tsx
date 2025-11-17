@@ -282,32 +282,43 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className={`dashboard-container ${currentTheme}`} style={{ padding: '24px' }}>
-      {/* Заголовок страницы */}
-      <div style={{ marginBottom: 24 }}>
-        <Space align="center">
-          <DashboardOutlined style={{ fontSize: 24, color: token.colorPrimary }} />
-          <Title level={2} style={{ margin: 0 }}>
-            Дашборд тендеров
-          </Title>
-        </Space>
-        <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-          Обзор активных тендеров и основные показатели
-        </Text>
-      </div>
+      {/* Компактная шапка страницы */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 16,
+        flexWrap: 'wrap'
+      }}>
+        {/* Левая часть: заголовок с описанием */}
+        <div style={{ flex: '1 1 auto', minWidth: 300 }}>
+          <Space align="center" size={12}>
+            <DashboardOutlined style={{ fontSize: 22, color: token.colorPrimary }} />
+            <div>
+              <Title level={3} style={{ margin: 0, lineHeight: 1.2 }}>
+                Дашборд тендеров
+              </Title>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Обзор активных тендеров и основные показатели
+              </Text>
+            </div>
+          </Space>
+        </div>
 
-      {/* Поиск */}
-      <div style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="Поиск по названию, номеру, заказчику..."
-          prefix={<SearchOutlined />}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{
-            width: '100%',
-            maxWidth: 500,
-            backgroundColor: currentTheme === 'dark' ? '#141414' : '#fff',
-          }}
-        />
+        {/* Правая часть: поиск */}
+        <div style={{ flex: '0 0 auto' }}>
+          <Input
+            placeholder="Поиск по названию, номеру, заказчику..."
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{
+              width: 400,
+              backgroundColor: currentTheme === 'dark' ? '#141414' : '#fff',
+            }}
+          />
+        </div>
       </div>
 
       {/* Таблица тендеров */}
