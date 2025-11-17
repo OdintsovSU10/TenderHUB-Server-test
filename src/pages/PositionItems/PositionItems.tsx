@@ -12,6 +12,7 @@ import {
   AutoComplete,
   Select,
   Popconfirm,
+  Form,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -24,7 +25,6 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useTheme } from '../../contexts/ThemeContext';
 import {
   supabase,
   type ClientPosition,
@@ -47,19 +47,10 @@ const currencySymbols: Record<CurrencyType, string> = {
   CNY: '¥',
 };
 
-interface AddItemForm {
-  kind: 'work' | 'material';
-  nameId: string;
-  quantity: number;
-  parentWorkId?: string;
-  conversionCoeff?: number;
-}
-
 const PositionItems: React.FC = () => {
   const { positionId } = useParams<{ positionId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { theme } = useTheme();
 
   const [position, setPosition] = useState<ClientPosition | null>(null);
   const [items, setItems] = useState<BoqItemFull[]>([]);
@@ -67,12 +58,11 @@ const PositionItems: React.FC = () => {
   const [materials, setMaterials] = useState<MaterialLibraryFull[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [addingWork, setAddingWork] = useState(false);
-  const [addingMaterial, setAddingMaterial] = useState(false);
-  const [selectedWorkNameId, setSelectedWorkNameId] = useState<string>('');
-  const [selectedMaterialNameId, setSelectedMaterialNameId] = useState<string>('');
   const [workSearchText, setWorkSearchText] = useState<string>('');
   const [materialSearchText, setMaterialSearchText] = useState<string>('');
+
+  const [form] = Form.useForm();
+  const [editingKey, setEditingKey] = useState<string>('');
 
   useEffect(() => {
     if (positionId) {
@@ -212,14 +202,14 @@ const PositionItems: React.FC = () => {
     }
   };
 
-  const handleAddWork = async () => {
-    if (!selectedWorkNameId || !position) {
+  const handleAddWork = async (workNameId: string) => {
+    if (!workNameId || !position) {
       message.error('Выберите работу');
       return;
     }
 
     try {
-      const workLib = works.find(w => w.work_name_id === selectedWorkNameId);
+      const workLib = works.find(w => w.work_name_id === workNameId);
       if (!workLib) throw new Error('Работа не найдена в библиотеке');
 
       const maxSort = Math.max(...items.map(i => i.sort_number || 0), 0);
@@ -240,8 +230,6 @@ const PositionItems: React.FC = () => {
       if (error) throw error;
 
       message.success('Работа добавлена');
-      setAddingWork(false);
-      setSelectedWorkNameId('');
       setWorkSearchText('');
       fetchItems();
     } catch (error: any) {
@@ -249,14 +237,14 @@ const PositionItems: React.FC = () => {
     }
   };
 
-  const handleAddMaterial = async () => {
-    if (!selectedMaterialNameId || !position) {
+  const handleAddMaterial = async (materialNameId: string) => {
+    if (!materialNameId || !position) {
       message.error('Выберите материал');
       return;
     }
 
     try {
-      const matLib = materials.find(m => m.material_name_id === selectedMaterialNameId);
+      const matLib = materials.find(m => m.material_name_id === materialNameId);
       if (!matLib) throw new Error('Материал не найден в библиотеке');
 
       const maxSort = Math.max(...items.map(i => i.sort_number || 0), 0);
@@ -281,8 +269,6 @@ const PositionItems: React.FC = () => {
       if (error) throw error;
 
       message.success('Материал добавлен');
-      setAddingMaterial(false);
-      setSelectedMaterialNameId('');
       setMaterialSearchText('');
       fetchItems();
     } catch (error: any) {
@@ -300,6 +286,49 @@ const PositionItems: React.FC = () => {
       fetchItems();
     } catch (error: any) {
       message.error('Ошибка удаления: ' + error.message);
+    }
+  };
+
+  const isEditing = (record: BoqItemFull) => record.id === editingKey;
+
+  const edit = (record: BoqItemFull) => {
+    form.setFieldsValue({
+      conversion_coefficient: record.conversion_coefficient,
+      consumption_coefficient: record.consumption_coefficient,
+      quantity: record.quantity,
+      parent_work_item_id: record.parent_work_item_id,
+      quote_link: record.quote_link,
+      ...record,
+    });
+    setEditingKey(record.id);
+  };
+
+  const cancel = () => {
+    setEditingKey('');
+  };
+
+  const save = async (id: string) => {
+    try {
+      const row = await form.validateFields();
+
+      const { error } = await supabase
+        .from('boq_items')
+        .update({
+          conversion_coefficient: row.conversion_coefficient,
+          consumption_coefficient: row.consumption_coefficient,
+          quantity: row.quantity,
+          parent_work_item_id: row.parent_work_item_id || null,
+          quote_link: row.quote_link,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      message.success('Изменения сохранены');
+      setEditingKey('');
+      fetchItems();
+    } catch (error: any) {
+      message.error('Ошибка сохранения: ' + error.message);
     }
   };
 
@@ -342,7 +371,68 @@ const PositionItems: React.FC = () => {
     return record.total_amount || 0;
   };
 
-  const columns: ColumnsType<BoqItemFull> = [
+  interface EditableCellProps {
+    editing: boolean;
+    dataIndex: string;
+    title: any;
+    inputType: 'number' | 'text' | 'select';
+    record: BoqItemFull;
+    index: number;
+    children: React.ReactNode;
+    selectOptions?: { value: string; label: string }[];
+  }
+
+  const EditableCell: React.FC<EditableCellProps> = ({
+    editing,
+    dataIndex,
+    title,
+    inputType,
+    record,
+    index,
+    children,
+    selectOptions,
+    ...restProps
+  }) => {
+    let inputNode: React.ReactNode;
+
+    if (inputType === 'number') {
+      inputNode = <InputNumber style={{ width: '100%' }} min={0} step={0.01} />;
+    } else if (inputType === 'select') {
+      inputNode = (
+        <Select
+          style={{ width: '100%' }}
+          placeholder="Выберите работу"
+          allowClear
+          options={selectOptions}
+        />
+      );
+    } else {
+      inputNode = <Input />;
+    }
+
+    return (
+      <td {...restProps}>
+        {editing ? (
+          <Form.Item
+            name={dataIndex}
+            style={{ margin: 0 }}
+            rules={[
+              {
+                required: dataIndex === 'quantity',
+                message: `Пожалуйста, введите ${title}!`,
+              },
+            ]}
+          >
+            {inputNode}
+          </Form.Item>
+        ) : (
+          children
+        )}
+      </td>
+    );
+  };
+
+  const columns: any[] = [
     {
       title: <div style={{ textAlign: 'center' }}>Тип</div>,
       key: 'type',
@@ -373,6 +463,7 @@ const PositionItems: React.FC = () => {
       key: 'conversion',
       width: 80,
       align: 'center',
+      editable: true,
       render: (value) => value?.toFixed(3) || '-',
     },
     {
@@ -389,6 +480,7 @@ const PositionItems: React.FC = () => {
       key: 'quantity',
       width: 100,
       align: 'center',
+      editable: true,
       render: (value) => value?.toFixed(2) || '-',
     },
     {
@@ -431,6 +523,19 @@ const PositionItems: React.FC = () => {
       },
     },
     {
+      title: <div style={{ textAlign: 'center' }}>Привязка к работе</div>,
+      dataIndex: 'parent_work_item_id',
+      key: 'parent_work',
+      width: 200,
+      align: 'center',
+      editable: true,
+      render: (value: string | null) => {
+        if (!value) return '-';
+        const parentWork = items.find(item => item.id === value);
+        return parentWork ? parentWork.work_name : '-';
+      },
+    },
+    {
       title: <div style={{ textAlign: 'center' }}>Категория затрат</div>,
       key: 'cost_category',
       width: 180,
@@ -443,6 +548,7 @@ const PositionItems: React.FC = () => {
       key: 'quote_link',
       width: 120,
       align: 'center',
+      editable: true,
       render: (value) => value || '-',
     },
     {
@@ -455,22 +561,75 @@ const PositionItems: React.FC = () => {
     {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       key: 'actions',
-      width: 80,
+      width: 120,
       align: 'center',
-      render: (_, record) => (
-        <Space>
-          <Popconfirm
-            title="Удалить элемент?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button type="text" danger size="small" icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
+      render: (_, record) => {
+        const editable = isEditing(record);
+        return editable ? (
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              icon={<SaveOutlined />}
+              onClick={() => save(record.id)}
+            />
+            <Button
+              type="link"
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={cancel}
+            />
+          </Space>
+        ) : (
+          <Space>
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              disabled={editingKey !== ''}
+              onClick={() => edit(record)}
+            />
+            <Popconfirm
+              title="Удалить элемент?"
+              onConfirm={() => handleDelete(record.id)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
+
+  const mergedColumns = columns.map((col: any) => {
+    if (!col.editable) {
+      return col;
+    }
+    return {
+      ...col,
+      onCell: (record: BoqItemFull) => ({
+        record,
+        inputType:
+          col.dataIndex === 'parent_work_item_id'
+            ? 'select'
+            : col.dataIndex === 'quote_link'
+            ? 'text'
+            : 'number',
+        dataIndex: col.dataIndex,
+        title: col.title,
+        editing: isEditing(record),
+        selectOptions:
+          col.dataIndex === 'parent_work_item_id'
+            ? getAvailableWorks().map(w => ({
+                value: w.id,
+                label: w.work_name || '',
+              }))
+            : [],
+      }),
+    };
+  });
 
   if (!position) {
     return <div>Загрузка...</div>;
@@ -513,138 +672,103 @@ const PositionItems: React.FC = () => {
         </div>
       </Card>
 
-      <Card
-        title="Элементы позиции"
-        extra={
-          !addingWork && !addingMaterial && (
-            <Space>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setAddingWork(true)}
-              >
-                Добавить работу
-              </Button>
-              <Button
-                type="default"
-                icon={<PlusOutlined />}
-                onClick={() => setAddingMaterial(true)}
-              >
-                Добавить материал
-              </Button>
-            </Space>
-          )
-        }
-      >
-        {addingWork && (
-          <Card
-            title="Добавление работы"
-            style={{ marginBottom: 16, background: theme === 'dark' ? '#1f1f1f' : '#fafafa' }}
-          >
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Space wrap>
-                <AutoComplete
-                  style={{ width: 400 }}
-                  placeholder="Введите наименование работы..."
-                  options={works.map(w => ({
-                    value: w.work_name_id,
-                    label: w.work_name,
-                  }))}
-                  value={workSearchText}
-                  onSelect={(value, option: any) => {
-                    setSelectedWorkNameId(value);
-                    setWorkSearchText(option.label);
-                  }}
-                  onChange={(value) => {
-                    setWorkSearchText(value);
-                    if (!value) setSelectedWorkNameId('');
-                  }}
-                  filterOption={(input, option) =>
-                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
-                />
-                <Button
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  disabled={!selectedWorkNameId}
-                  onClick={handleAddWork}
-                >
-                  Добавить
-                </Button>
-                <Button
-                  icon={<CloseOutlined />}
-                  onClick={() => {
-                    setAddingWork(false);
-                    setSelectedWorkNameId('');
-                    setWorkSearchText('');
-                  }}
-                >
-                  Отмена
-                </Button>
-              </Space>
-            </Space>
-          </Card>
-        )}
+      <Card title="Добавление работ и материалов" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <AutoComplete
+            style={{ flex: 1 }}
+            placeholder="Введите работу (2+ символа)..."
+            options={works
+              .filter(w =>
+                workSearchText.length >= 2 &&
+                w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+              )
+              .map(w => ({
+                value: w.work_name_id,
+                label: w.work_name,
+              }))
+            }
+            value={workSearchText}
+            onSelect={(value) => {
+              handleAddWork(value);
+            }}
+            onChange={(value) => {
+              setWorkSearchText(value);
+            }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            style={{ background: '#10b981' }}
+            disabled={!workSearchText || works.filter(w =>
+              w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+            ).length === 0}
+            onClick={() => {
+              const work = works.find(w =>
+                w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+              );
+              if (work) {
+                handleAddWork(work.work_name_id);
+              }
+            }}
+          />
 
-        {addingMaterial && (
-          <Card
-            title="Добавление материала"
-            style={{ marginBottom: 16, background: theme === 'dark' ? '#1f1f1f' : '#fafafa' }}
-          >
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Space wrap>
-                <AutoComplete
-                  style={{ width: 400 }}
-                  placeholder="Введите наименование материала..."
-                  options={materials.map(m => ({
-                    value: m.material_name_id,
-                    label: m.material_name,
-                  }))}
-                  value={materialSearchText}
-                  onSelect={(value, option: any) => {
-                    setSelectedMaterialNameId(value);
-                    setMaterialSearchText(option.label);
-                  }}
-                  onChange={(value) => {
-                    setMaterialSearchText(value);
-                    if (!value) setSelectedMaterialNameId('');
-                  }}
-                  filterOption={(input, option) =>
-                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
-                />
-                <Button
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  disabled={!selectedMaterialNameId}
-                  onClick={handleAddMaterial}
-                >
-                  Добавить
-                </Button>
-                <Button
-                  icon={<CloseOutlined />}
-                  onClick={() => {
-                    setAddingMaterial(false);
-                    setSelectedMaterialNameId('');
-                    setMaterialSearchText('');
-                  }}
-                >
-                  Отмена
-                </Button>
-              </Space>
-            </Space>
-          </Card>
-        )}
+          <AutoComplete
+            style={{ flex: 1 }}
+            placeholder="Введите материал (2+ символа)..."
+            options={materials
+              .filter(m =>
+                materialSearchText.length >= 2 &&
+                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+              )
+              .map(m => ({
+                value: m.material_name_id,
+                label: m.material_name,
+              }))
+            }
+            value={materialSearchText}
+            onSelect={(value) => {
+              handleAddMaterial(value);
+            }}
+            onChange={(value) => {
+              setMaterialSearchText(value);
+            }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            style={{ background: '#10b981' }}
+            disabled={!materialSearchText || materials.filter(m =>
+              m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+            ).length === 0}
+            onClick={() => {
+              const material = materials.find(m =>
+                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+              );
+              if (material) {
+                handleAddMaterial(material.material_name_id);
+              }
+            }}
+          />
+        </div>
+      </Card>
 
-        <Table
-          columns={columns}
-          dataSource={items}
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          scroll={{ y: 'calc(100vh - 500px)' }}
-          size="small"
-        />
+      <Card title="Элементы позиции">
+        <Form form={form} component={false}>
+          <Table
+            components={{
+              body: {
+                cell: EditableCell,
+              },
+            }}
+            columns={mergedColumns}
+            dataSource={items}
+            rowKey="id"
+            loading={loading}
+            pagination={false}
+            scroll={{ y: 'calc(100vh - 500px)' }}
+            size="small"
+          />
+        </Form>
       </Card>
     </div>
   );
