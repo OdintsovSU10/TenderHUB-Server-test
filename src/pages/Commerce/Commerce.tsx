@@ -37,6 +37,7 @@ import { initializeTestMarkup } from '../../utils/initializeTestMarkup';
 import { debugCommercialCalculation } from '../../utils/debugCommercialCalculation';
 import { checkDatabaseStructure } from '../../utils/checkDatabaseStructure';
 import { verifyCoefficients } from '../../utils/verifyCoefficients';
+import { showGlobalTactic } from '../../utils/showGlobalTactic';
 import * as XLSX from 'xlsx';
 
 const { Title, Text } = Typography;
@@ -176,16 +177,16 @@ export default function Commerce() {
           itemsCount++;
         }
 
-        // Рассчитываем процент наценки
-        const markupPercentage = baseTotal > 0
-          ? ((commercialTotal - baseTotal) / baseTotal) * 100
-          : 0;
+        // Рассчитываем коэффициент наценки
+        const markupCoefficient = baseTotal > 0
+          ? commercialTotal / baseTotal
+          : 1;
 
         return {
           ...position,
           base_total: baseTotal,
           commercial_total: commercialTotal,
-          markup_percentage: markupPercentage,
+          markup_percentage: markupCoefficient, // Теперь это коэффициент, не процент
           items_count: itemsCount
         } as PositionWithCommercialCost;
       }));
@@ -322,7 +323,7 @@ export default function Commerce() {
       'Кол-во элементов': pos.items_count || 0,
       'Базовая стоимость': pos.base_total || 0,
       'Коммерческая стоимость': pos.commercial_total || 0,
-      'Наценка, %': pos.markup_percentage?.toFixed(2) || '0',
+      'Коэффициент': pos.markup_percentage?.toFixed(4) || '1.0000',
       'За единицу (база)': pos.volume && pos.volume > 0 ? (pos.base_total || 0) / pos.volume : 0,
       'За единицу (коммерч.)': pos.volume && pos.volume > 0 ? (pos.commercial_total || 0) / pos.volume : 0,
     }));
@@ -482,17 +483,19 @@ export default function Commerce() {
       sorter: (a, b) => (a.commercial_total || 0) - (b.commercial_total || 0),
     },
     {
-      title: 'Наценка',
+      title: 'Коэффициент',
       key: 'markup',
       width: 120,
       align: 'center',
       render: (_, record) => {
-        const markup = record.markup_percentage || 0;
-        const color = markup > 0 ? 'green' : markup < 0 ? 'red' : 'default';
+        const coefficient = record.markup_percentage || 1; // Теперь это коэффициент
+        const color = coefficient > 1 ? 'green' : coefficient < 1 ? 'red' : 'default';
         return (
-          <Tag color={color}>
-            {markup > 0 ? '+' : ''}{markup.toFixed(2)}%
-          </Tag>
+          <Tooltip title={`Наценка: ${((coefficient - 1) * 100).toFixed(2)}%`}>
+            <Tag color={color}>
+              {coefficient.toFixed(4)}
+            </Tag>
+          </Tooltip>
         );
       },
       sorter: (a, b) => (a.markup_percentage || 0) - (b.markup_percentage || 0),

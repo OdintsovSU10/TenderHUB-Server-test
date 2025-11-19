@@ -254,17 +254,36 @@ function getOperandValue(
       }
 
       const markupValue = markupParameters.get(String(operandKey));
+
+      // Специальное логирование для material_cost_growth
+      if (String(operandKey) === 'material_cost_growth') {
+        console.log('🔍 ПРОВЕРКА material_cost_growth в getOperandValue:');
+        console.log('  - Ключ запрошен:', operandKey);
+        console.log('  - Значение из Map:', markupValue);
+        console.log('  - Все параметры в Map:', Array.from(markupParameters.entries()));
+      }
+
       if (markupValue === undefined) {
+        console.error(`❌ Параметр "${operandKey}" НЕ НАЙДЕН в Map!`);
+        console.error('Доступные параметры:', Array.from(markupParameters.keys()));
         throw new Error(`Параметр наценки "${operandKey}" не найден`);
       }
 
       // Применяем формат умножения
       if (multiplyFormat === 'addOne') {
         // Формат (1 + %): например, 10% становится 1.1
-        return 1 + markupValue / 100;
+        const result = 1 + markupValue / 100;
+        if (String(operandKey) === 'material_cost_growth') {
+          console.log(`  - Формат: addOne, результат: ${result} (1 + ${markupValue}/100)`);
+        }
+        return result;
       } else {
         // Прямое значение: например, 10% становится 0.1
-        return markupValue / 100;
+        const result = markupValue / 100;
+        if (String(operandKey) === 'material_cost_growth') {
+          console.log(`  - Формат: direct, результат: ${result} (${markupValue}/100)`);
+        }
+        return result;
       }
     }
 
