@@ -9,6 +9,7 @@ interface MaterialEditFormProps {
   workItems: BoqItemFull[]; // Список работ для привязки
   costCategories: any[];
   currencyRates: { usd: number; eur: number; cny: number };
+  gpVolume: number; // Количество ГП из позиции заказчика
   onSave: (data: any) => Promise<void>;
   onCancel: () => void;
 }
@@ -19,6 +20,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
   workItems,
   costCategories,
   currencyRates,
+  gpVolume,
   onSave,
   onCancel,
 }) => {
@@ -70,8 +72,8 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
       }
       return 0;
     } else {
-      // Материал не привязан к работе
-      return formData.base_quantity * formData.consumption_coefficient;
+      // Материал не привязан к работе - используем количество ГП
+      return gpVolume * formData.consumption_coefficient;
     }
   };
 
@@ -106,7 +108,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
     formData.parent_work_item_id,
     formData.conversion_coefficient,
     formData.consumption_coefficient,
-    formData.base_quantity,
+    gpVolume,
   ]);
 
   // Обработчик сохранения
@@ -116,19 +118,41 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
       return;
     }
 
-    // Проверка на корректность количества
-    if (!formData.parent_work_item_id && (!formData.base_quantity || formData.base_quantity <= 0)) {
-      message.error('Введите базовое количество для непривязанного материала');
+    // Проверка на коэффициент расхода
+    if (formData.consumption_coefficient < 1.0) {
+      message.error('Значение коэффициента расхода не может быть менее 1,00');
       return;
     }
 
-    const totalAmount = calculateTotal();
-
-    await onSave({
+    // Подготовить данные для сохранения
+    const dataToSave: any = {
       ...formData,
-      quantity: calculateQuantity(),
-      total_amount: totalAmount,
-    });
+    };
+
+    // Если материал не привязан к работе
+    if (!formData.parent_work_item_id) {
+      // Проверка на корректность количества ГП
+      if (!gpVolume || gpVolume <= 0) {
+        message.error('Введите количество ГП');
+        return;
+      }
+      // Явно устанавливаем null для отвязанного материала
+      dataToSave.parent_work_item_id = null;
+      dataToSave.conversion_coefficient = null;
+      // Использовать количество ГП как базовое количество
+      dataToSave.base_quantity = gpVolume;
+      dataToSave.quantity = gpVolume * formData.consumption_coefficient;
+    } else {
+      // Если материал привязан к работе, очистить base_quantity
+      dataToSave.parent_work_item_id = formData.parent_work_item_id;
+      dataToSave.base_quantity = null;
+      dataToSave.quantity = calculateQuantity();
+    }
+
+    const totalAmount = calculateTotal();
+    dataToSave.total_amount = totalAmount;
+
+    await onSave(dataToSave);
   };
 
   // Получить опции для AutoComplete затрат
@@ -158,7 +182,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
   };
 
   return (
-    <div style={{ padding: '16px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+    <div style={{ padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       {/* Строка 1: Тип | Вид | Наименование | Привязка */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
         <div style={{ width: '120px' }}>
@@ -230,9 +254,10 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
           <Select
             value={formData.parent_work_item_id}
             onChange={(value) => {
+              // При отвязке сбрасываем conversion_coefficient
               setFormData({
                 ...formData,
-                parent_work_item_id: value,
+                parent_work_item_id: value || null,
                 conversion_coefficient: value ? formData.conversion_coefficient : 1,
               });
             }}
@@ -273,25 +298,11 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
             onChange={(value) => setFormData({ ...formData, consumption_coefficient: value || 1 })}
             placeholder="1.00"
             precision={3}
+            min={1.0}
             style={{ width: '100%' }}
             size="small"
           />
         </div>
-
-        {/* Базовое количество - показываем только если нет привязки */}
-        {!formData.parent_work_item_id && (
-          <div style={{ width: '100px' }}>
-            <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', textAlign: 'center' }}>Баз. кол-во</div>
-            <InputNumber
-              value={formData.base_quantity}
-              onChange={(value) => setFormData({ ...formData, base_quantity: value || 0 })}
-              placeholder="0.00"
-              precision={2}
-              style={{ width: '100%' }}
-              size="small"
-            />
-          </div>
-        )}
 
         <div style={{ width: '100px' }}>
           <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', textAlign: 'center' }}>Кол-во</div>
@@ -300,7 +311,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
             disabled
             placeholder="0.00"
             precision={3}
-            style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#888' }}
+            style={{ width: '100%' }}
             size="small"
           />
         </div>
@@ -310,7 +321,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
           <Input
             value={formData.unit_code || '-'}
             disabled
-            style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#888' }}
+            style={{ width: '100%' }}
             size="small"
           />
         </div>
@@ -380,7 +391,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
             disabled
             placeholder="0.00"
             precision={2}
-            style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#888' }}
+            style={{ width: '100%' }}
             size="small"
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
           />

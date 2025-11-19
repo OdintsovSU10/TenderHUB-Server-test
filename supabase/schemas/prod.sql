@@ -1,5 +1,5 @@
 -- Database Schema SQL Export
--- Generated: 2025-11-19T09:05:39.853253
+-- Generated: 2025-11-19T14:51:28.608725
 -- Database: postgres
 -- Host: aws-1-eu-west-1.pooler.supabase.com
 
@@ -371,13 +371,14 @@ CREATE TABLE IF NOT EXISTS public.boq_items (
     total_amount numeric(18,2),
     detail_cost_category_id uuid,
     quote_link text,
-    description text,
     commercial_markup numeric(10,4),
     total_commercial_material_cost numeric(18,2),
     total_commercial_work_cost numeric(18,2),
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     parent_work_item_id uuid,
+    description text,
+    unit_rate numeric(18,2) DEFAULT 0.00,
     CONSTRAINT boq_items_client_position_id_fkey FOREIGN KEY (client_position_id) REFERENCES None.None(None),
     CONSTRAINT boq_items_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
     CONSTRAINT boq_items_material_name_id_fkey FOREIGN KEY (material_name_id) REFERENCES None.None(None),
@@ -407,13 +408,14 @@ COMMENT ON COLUMN public.boq_items.currency_type IS 'Тип валюты (RUB, U
 COMMENT ON COLUMN public.boq_items.total_amount IS 'Итоговая сумма';
 COMMENT ON COLUMN public.boq_items.detail_cost_category_id IS 'Затрата на строительство, связь с таблицей detail_cost_categories';
 COMMENT ON COLUMN public.boq_items.quote_link IS 'Ссылка на КП';
-COMMENT ON COLUMN public.boq_items.description IS 'Примечание к элементу позиции';
 COMMENT ON COLUMN public.boq_items.commercial_markup IS 'Коэффициент наценки';
 COMMENT ON COLUMN public.boq_items.total_commercial_material_cost IS 'Итоговая стоимость материала в коммерческой стоимости';
 COMMENT ON COLUMN public.boq_items.total_commercial_work_cost IS 'Итоговая стоимость работы в коммерческой стоимости';
 COMMENT ON COLUMN public.boq_items.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN public.boq_items.updated_at IS 'Дата и время последнего обновления';
 COMMENT ON COLUMN public.boq_items.parent_work_item_id IS 'Привязка материала к работе (FK к boq_items.id, NULL если материал независимый)';
+COMMENT ON COLUMN public.boq_items.description IS 'Примечание к элементу позиции';
+COMMENT ON COLUMN public.boq_items.unit_rate IS 'Цена за единицу';
 
 -- Table: public.client_positions
 -- Description: Позиции заказчика из ВОРа (Bill of Quantities)
@@ -4183,7 +4185,7 @@ GRANT service_role TO authenticator;
 -- GRANT USAGE ON SCHEMA public TO authenticator;
 
 -- Role: cli_login_postgres
-CREATE ROLE cli_login_postgres WITH LOGIN NOINHERIT VALID UNTIL '2025-11-17 12:34:07.223578+00';
+CREATE ROLE cli_login_postgres WITH LOGIN NOINHERIT VALID UNTIL '2025-11-19 09:11:28.232669+00';
 GRANT postgres TO cli_login_postgres;
 -- Database privileges for cli_login_postgres:
 -- GRANT CONNECT, TEMP ON DATABASE postgres TO cli_login_postgres;

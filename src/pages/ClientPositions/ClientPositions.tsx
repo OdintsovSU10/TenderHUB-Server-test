@@ -355,27 +355,7 @@ const ClientPositions: React.FC = () => {
             {isLeaf && (
               <div style={{ marginBottom: 4 }}>
                 <Text type="secondary">Кол-во: </Text>
-                <InputNumber
-                  size="small"
-                  value={record.manual_volume || undefined}
-                  min={0.00001}
-                  precision={5}
-                  step={0.1}
-                  style={{ width: '120px' }}
-                  placeholder="Введите количество"
-                  decimalSeparator="."
-                  parser={(value) => {
-                    if (!value) return 0;
-                    // Обработка обоих разделителей
-                    return parseFloat(value.replace(',', '.'));
-                  }}
-                  onBlur={(e) => {
-                    const value = parseFloat(e.target.value.replace(',', '.'));
-                    if (!isNaN(value) && value > 0) {
-                      handleUpdatePosition(record.id, 'manual_volume', value);
-                    }
-                  }}
-                />
+                <Text>{record.manual_volume?.toFixed(2) || '-'}</Text>
               </div>
             )}
 
@@ -390,38 +370,26 @@ const ClientPositions: React.FC = () => {
             {/* Примечание ГП - показываем всегда */}
             <div>
               <Text type="secondary">Примечание: </Text>
-              <Input
-                size="small"
-                value={record.manual_note || ''}
-                placeholder="Введите примечание"
-                style={{ width: '200px' }}
-                onBlur={(e) => {
-                  handleUpdatePosition(record.id, 'manual_note', e.target.value || null);
-                }}
-                onChange={(e) => {
-                  // Обновляем локальное состояние для плавного ввода
-                  setClientPositions(prev =>
-                    prev.map(pos =>
-                      pos.id === record.id ? { ...pos, manual_note: e.target.value } : pos
-                    )
-                  );
-                }}
-              />
+              <Text>{record.manual_note || '-'}</Text>
             </div>
           </div>
         );
       },
     },
     {
-      title: <div style={{ textAlign: 'center' }}>Итоговая сумма</div>,
+      title: <div style={{ textAlign: 'center' }}>Итого</div>,
       key: 'total',
       width: 150,
       align: 'center',
       render: (_, record) => {
         const total = (record.total_material || 0) + (record.total_works || 0);
+
+        // Подсчет работ и материалов - нужно будет получить из boq_items
+        // Пока оставим пустым, т.к. эта информация не загружается в ClientPositions
+
         return (
           <Text strong style={{ fontSize: 14 }}>
-            {total.toFixed(2)} {currencySymbols.RUB}
+            {Math.round(total).toLocaleString('ru-RU')}
           </Text>
         );
       },
@@ -585,6 +553,28 @@ const ClientPositions: React.FC = () => {
             pagination={false}
             scroll={{ x: 1200, y: 'calc(100vh - 400px)' }}
             size="small"
+            summary={() => {
+              const totalSum = clientPositions.reduce(
+                (sum, pos) => sum + (pos.total_material || 0) + (pos.total_works || 0),
+                0
+              );
+
+              // Пока не можем посчитать Р/М, т.к. boq_items не загружаются в ClientPositions
+              // Это можно будет добавить позже через агрегацию в SQL
+
+              return (
+                <Table.Summary fixed>
+                  <Table.Summary.Row style={{ fontWeight: 'bold' }}>
+                    <Table.Summary.Cell index={0} colSpan={4} align="right">
+                      Итого:
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={4} align="center">
+                      {Math.round(totalSum).toLocaleString('ru-RU')}
+                    </Table.Summary.Cell>
+                  </Table.Summary.Row>
+                </Table.Summary>
+              );
+            }}
           />
         </Card>
       )}

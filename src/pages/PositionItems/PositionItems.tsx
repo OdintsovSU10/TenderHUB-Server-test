@@ -70,6 +70,10 @@ const PositionItems: React.FC = () => {
   const [workNames, setWorkNames] = useState<any[]>([]);
   const [materialNames, setMaterialNames] = useState<any[]>([]);
 
+  // Состояния для данных ГП
+  const [gpVolume, setGpVolume] = useState<number>(0);
+  const [gpNote, setGpNote] = useState<string>('');
+
   useEffect(() => {
     if (positionId) {
       fetchPositionData();
@@ -107,6 +111,10 @@ const PositionItems: React.FC = () => {
 
       if (error) throw error;
       setPosition(data);
+
+      // Инициализация полей ГП
+      setGpVolume(data.manual_volume || 0);
+      setGpNote(data.manual_note || '');
 
       // Сохранить курсы валют
       if (data.tenders) {
@@ -185,12 +193,59 @@ const PositionItems: React.FC = () => {
           : workRates[item.work_name_id],
       }));
 
-      setItems(formattedItems);
+      // Сортировка: работы с их материалами, потом непривязанные материалы
+      const sortedItems = sortItemsByHierarchy(formattedItems);
+
+      setItems(sortedItems);
     } catch (error: any) {
       message.error('Ошибка загрузки элементов: ' + error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Функция сортировки: работы с материалами, работы без материалов, непривязанные материалы
+  const sortItemsByHierarchy = (items: BoqItemFull[]): BoqItemFull[] => {
+    const works = items.filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type));
+    const materials = items.filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type));
+
+    const linkedMaterials = materials.filter(m => m.parent_work_item_id);
+    const unlinkedMaterials = materials.filter(m => !m.parent_work_item_id);
+
+    const result: BoqItemFull[] = [];
+
+    // Сортируем работы по sort_number
+    works.sort((a, b) => (a.sort_number || 0) - (b.sort_number || 0));
+
+    // Разделяем работы на те, у которых есть материалы и у которых нет
+    const worksWithMaterials: BoqItemFull[] = [];
+    const worksWithoutMaterials: BoqItemFull[] = [];
+
+    works.forEach(work => {
+      const workMaterials = linkedMaterials.filter(m => m.parent_work_item_id === work.id);
+      if (workMaterials.length > 0) {
+        worksWithMaterials.push(work);
+      } else {
+        worksWithoutMaterials.push(work);
+      }
+    });
+
+    // Сначала работы с материалами
+    worksWithMaterials.forEach(work => {
+      result.push(work);
+      const workMaterials = linkedMaterials.filter(m => m.parent_work_item_id === work.id);
+      workMaterials.sort((a, b) => (a.sort_number || 0) - (b.sort_number || 0));
+      result.push(...workMaterials);
+    });
+
+    // Потом работы без материалов
+    result.push(...worksWithoutMaterials);
+
+    // В конце непривязанные материалы
+    unlinkedMaterials.sort((a, b) => (a.sort_number || 0) - (b.sort_number || 0));
+    result.push(...unlinkedMaterials);
+
+    return result;
   };
 
   const fetchWorks = async () => {
@@ -303,6 +358,12 @@ const PositionItems: React.FC = () => {
 
       const maxSort = Math.max(...items.map(i => i.sort_number || 0), 0);
 
+      // Рассчитать total_amount для новой работы
+      const quantity = 1;
+      const unitRate = workLib.unit_rate || 0;
+      const rate = getCurrencyRate(workLib.currency_type as CurrencyType);
+      const totalAmount = quantity * unitRate * rate;
+
       const newItem: BoqItemInsert = {
         tender_id: position.tender_id,
         client_position_id: position.id,
@@ -310,8 +371,10 @@ const PositionItems: React.FC = () => {
         boq_item_type: workLib.item_type as BoqItemType,
         work_name_id: workLib.work_name_id,
         unit_code: workLib.unit,
-        quantity: 1,
+        quantity: quantity,
+        unit_rate: unitRate,
         currency_type: workLib.currency_type as CurrencyType,
+        total_amount: totalAmount,
       };
 
       const { error } = await supabase.from('boq_items').insert(newItem);
@@ -320,7 +383,8 @@ const PositionItems: React.FC = () => {
 
       message.success('Работа добавлена');
       setWorkSearchText('');
-      fetchItems();
+      await fetchItems();
+      await updateClientPositionTotals();
     } catch (error: any) {
       message.error('Ошибка добавления работы: ' + error.message);
     }
@@ -338,6 +402,23 @@ const PositionItems: React.FC = () => {
 
       const maxSort = Math.max(...items.map(i => i.sort_number || 0), 0);
 
+      // Рассчитать total_amount для нового материала
+      const baseQuantity = 1;
+      const consumptionCoeff = matLib.consumption_coefficient || 1;
+      const quantity = baseQuantity * consumptionCoeff;
+      const unitRate = matLib.unit_rate || 0;
+      const rate = getCurrencyRate(matLib.currency_type as CurrencyType);
+
+      // Учесть доставку
+      let deliveryPrice = 0;
+      if (matLib.delivery_price_type === 'не в цене' && matLib.delivery_amount) {
+        deliveryPrice = unitRate * rate * (matLib.delivery_amount / 100);
+      } else if (matLib.delivery_price_type === 'суммой' && matLib.delivery_amount) {
+        deliveryPrice = matLib.delivery_amount;
+      }
+
+      const totalAmount = quantity * (unitRate * rate + deliveryPrice);
+
       const newItem: BoqItemInsert = {
         tender_id: position.tender_id,
         client_position_id: position.id,
@@ -346,11 +427,14 @@ const PositionItems: React.FC = () => {
         material_type: matLib.material_type as MaterialType,
         material_name_id: matLib.material_name_id,
         unit_code: matLib.unit,
-        quantity: 1,
+        quantity: quantity,
+        base_quantity: baseQuantity, // Устанавливаем для непривязанного материала
+        unit_rate: unitRate,
         consumption_coefficient: matLib.consumption_coefficient,
         currency_type: matLib.currency_type as CurrencyType,
         delivery_price_type: matLib.delivery_price_type as DeliveryPriceType,
         delivery_amount: matLib.delivery_amount,
+        total_amount: totalAmount,
       };
 
       const { error } = await supabase.from('boq_items').insert(newItem);
@@ -359,9 +443,54 @@ const PositionItems: React.FC = () => {
 
       message.success('Материал добавлен');
       setMaterialSearchText('');
-      fetchItems();
+      await fetchItems();
+      await updateClientPositionTotals();
     } catch (error: any) {
       message.error('Ошибка добавления материала: ' + error.message);
+    }
+  };
+
+  const updateClientPositionTotals = async () => {
+    if (!positionId) return;
+
+    try {
+      // Получить все элементы из БД для точного расчета
+      const { data: boqItems, error: fetchError } = await supabase
+        .from('boq_items')
+        .select('boq_item_type, total_amount')
+        .eq('client_position_id', positionId);
+
+      if (fetchError) throw fetchError;
+
+      // Пересчитать total_material и total_works из данных БД
+      const totalMaterial = (boqItems || [])
+        .filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type))
+        .reduce((sum, item) => sum + (item.total_amount || 0), 0);
+
+      const totalWorks = (boqItems || [])
+        .filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type))
+        .reduce((sum, item) => sum + (item.total_amount || 0), 0);
+
+      const { error } = await supabase
+        .from('client_positions')
+        .update({
+          total_material: totalMaterial,
+          total_works: totalWorks,
+        })
+        .eq('id', positionId);
+
+      if (error) throw error;
+
+      // Обновить локальное состояние позиции
+      if (position) {
+        setPosition({
+          ...position,
+          total_material: totalMaterial,
+          total_works: totalWorks,
+        });
+      }
+    } catch (error: any) {
+      console.error('Ошибка обновления итогов позиции:', error.message);
     }
   };
 
@@ -372,7 +501,8 @@ const PositionItems: React.FC = () => {
       if (error) throw error;
 
       message.success('Элемент удален');
-      fetchItems();
+      await fetchItems();
+      await updateClientPositionTotals();
     } catch (error: any) {
       message.error('Ошибка удаления: ' + error.message);
     }
@@ -395,16 +525,97 @@ const PositionItems: React.FC = () => {
 
       if (error) throw error;
 
+      // Если обновляется работа, обновляем количество привязанных материалов
+      const updatedItem = items.find(item => item.id === recordId);
+      if (updatedItem && ['раб', 'суб-раб', 'раб-комп.'].includes(updatedItem.boq_item_type)) {
+        await updateLinkedMaterialsQuantity(recordId);
+      }
+
       message.success('Изменения сохранены');
       setExpandedRowKeys([]);
-      fetchItems();
+      await fetchItems();
+      await updateClientPositionTotals();
     } catch (error: any) {
       message.error('Ошибка сохранения: ' + error.message);
     }
   };
 
+  // Обновление количества материалов, привязанных к работе
+  const updateLinkedMaterialsQuantity = async (workId: string) => {
+    try {
+      // Получить обновленное количество работы
+      const { data: workData, error: workError } = await supabase
+        .from('boq_items')
+        .select('quantity')
+        .eq('id', workId)
+        .single();
+
+      if (workError) throw workError;
+
+      const workQuantity = workData.quantity || 0;
+
+      // Найти все материалы, привязанные к этой работе
+      const { data: linkedMaterials, error: materialsError } = await supabase
+        .from('boq_items')
+        .select('id, conversion_coefficient, consumption_coefficient, unit_rate, currency_type, delivery_price_type, delivery_amount')
+        .eq('parent_work_item_id', workId);
+
+      if (materialsError) throw materialsError;
+
+      // Обновить количество и total_amount для каждого материала
+      for (const material of linkedMaterials || []) {
+        const conversionCoeff = material.conversion_coefficient || 1;
+        const consumptionCoeff = material.consumption_coefficient || 1;
+        const newQuantity = workQuantity * conversionCoeff * consumptionCoeff;
+
+        // Рассчитать total_amount
+        const unitRate = material.unit_rate || 0;
+        const rate = getCurrencyRate(material.currency_type as CurrencyType);
+        let deliveryPrice = 0;
+
+        if (material.delivery_price_type === 'не в цене' && material.delivery_amount) {
+          deliveryPrice = unitRate * rate * (material.delivery_amount / 100);
+        } else if (material.delivery_price_type === 'суммой' && material.delivery_amount) {
+          deliveryPrice = material.delivery_amount;
+        }
+
+        const totalAmount = newQuantity * (unitRate * rate + deliveryPrice);
+
+        await supabase
+          .from('boq_items')
+          .update({
+            quantity: newQuantity,
+            total_amount: totalAmount,
+          })
+          .eq('id', material.id);
+      }
+    } catch (error: any) {
+      console.error('Ошибка обновления количества материалов:', error.message);
+    }
+  };
+
   const handleFormCancel = () => {
     setExpandedRowKeys([]);
+  };
+
+  const handleSaveGPData = async () => {
+    if (!positionId) return;
+
+    try {
+      const { error } = await supabase
+        .from('client_positions')
+        .update({
+          manual_volume: gpVolume,
+          manual_note: gpNote,
+        })
+        .eq('id', positionId);
+
+      if (error) throw error;
+
+      await fetchPositionData();
+    } catch (error: any) {
+      message.error('Ошибка сохранения данных ГП: ' + error.message);
+    }
   };
 
   const getRowClassName = (record: BoqItemFull): string => {
@@ -725,7 +936,7 @@ const PositionItems: React.FC = () => {
   return (
     <div style={{ padding: '0 8px' }}>
       <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Button
               icon={<ArrowLeftOutlined />}
@@ -745,26 +956,46 @@ const PositionItems: React.FC = () => {
               <Title level={4} style={{ margin: 0 }}>
                 {position.position_number}. {position.work_name}
               </Title>
-              <Space style={{ marginTop: 8 }}>
+              <div style={{ marginTop: 8 }}>
                 <Text type="secondary">
                   Кол-во заказчика: <Text strong>{position.volume?.toFixed(2) || '-'}</Text> {position.unit_code}
                 </Text>
-                <Text type="secondary">|</Text>
-                <Text type="secondary">
-                  Кол-во ГП: <Text strong>{position.manual_volume?.toFixed(2) || '-'}</Text> {position.unit_code}
-                </Text>
-                <Text type="secondary">|</Text>
-                <Text type="secondary">
-                  Итого: <Text strong>{items.reduce((sum, item) => sum + calculateTotal(item), 0).toLocaleString('ru-RU')}</Text> ₽
-                </Text>
-                <Text type="secondary">|</Text>
-                <Text type="secondary">
-                  <Text strong>
-                    Р {items.filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type)).length},
-                    М {items.filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type)).length}
-                  </Text>
-                </Text>
-              </Space>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                <Text type="secondary">Кол-во ГП:</Text>
+                <InputNumber
+                  value={gpVolume}
+                  onChange={(value) => setGpVolume(value || 0)}
+                  onBlur={handleSaveGPData}
+                  precision={2}
+                  style={{ width: 120 }}
+                  size="small"
+                />
+                <Text type="secondary">{position.unit_code}</Text>
+              </div>
+              <Tag color="success" style={{ fontSize: 14, padding: '4px 12px' }}>
+                Итого: {items.reduce((sum, item) => sum + calculateTotal(item), 0).toLocaleString('ru-RU')} ₽
+              </Tag>
+              <Tag color="success" style={{ fontSize: 14, padding: '4px 12px' }}>
+                Р {items.filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type)).length},
+                М {items.filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type)).length}
+              </Tag>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+              <Text type="secondary">Примечание ГП:</Text>
+              <Input
+                value={gpNote}
+                onChange={(e) => setGpNote(e.target.value)}
+                onBlur={handleSaveGPData}
+                style={{ width: 400 }}
+                size="small"
+                placeholder="Примечание"
+              />
             </div>
           </div>
         </div>
@@ -774,24 +1005,30 @@ const PositionItems: React.FC = () => {
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <AutoComplete
             style={{ flex: 1 }}
-            placeholder="Введите работу (2+ символа)..."
+            placeholder="Выберите или начните вводить работу..."
             options={works
-              .filter(w =>
-                workSearchText.length >= 2 &&
-                w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
-              )
+              .filter(w => {
+                if (!workSearchText) return true; // Показать все при пустом поле
+                return w.work_name.toLowerCase().includes(workSearchText.toLowerCase());
+              })
+              .slice(0, 100) // Ограничение для производительности
               .map(w => ({
-                value: w.work_name_id,
+                value: w.work_name,
                 label: w.work_name,
               }))
             }
             value={workSearchText}
-            onSelect={(value) => {
-              handleAddWork(value);
-            }}
             onChange={(value) => {
               setWorkSearchText(value);
             }}
+            onSelect={(value) => {
+              setWorkSearchText(value);
+            }}
+            onClear={() => {
+              setWorkSearchText('');
+            }}
+            allowClear
+            filterOption={false}
           />
           <Button
             type="primary"
@@ -802,6 +1039,7 @@ const PositionItems: React.FC = () => {
             ).length === 0}
             onClick={() => {
               const work = works.find(w =>
+                w.work_name.toLowerCase() === workSearchText.toLowerCase() ||
                 w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
               );
               if (work) {
@@ -812,24 +1050,30 @@ const PositionItems: React.FC = () => {
 
           <AutoComplete
             style={{ flex: 1 }}
-            placeholder="Введите материал (2+ символа)..."
+            placeholder="Выберите или начните вводить материал..."
             options={materials
-              .filter(m =>
-                materialSearchText.length >= 2 &&
-                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
-              )
+              .filter(m => {
+                if (!materialSearchText) return true; // Показать все при пустом поле
+                return m.material_name.toLowerCase().includes(materialSearchText.toLowerCase());
+              })
+              .slice(0, 100) // Ограничение для производительности
               .map(m => ({
-                value: m.material_name_id,
+                value: m.material_name,
                 label: m.material_name,
               }))
             }
             value={materialSearchText}
-            onSelect={(value) => {
-              handleAddMaterial(value);
-            }}
             onChange={(value) => {
               setMaterialSearchText(value);
             }}
+            onSelect={(value) => {
+              setMaterialSearchText(value);
+            }}
+            onClear={() => {
+              setMaterialSearchText('');
+            }}
+            allowClear
+            filterOption={false}
           />
           <Button
             type="primary"
@@ -840,6 +1084,7 @@ const PositionItems: React.FC = () => {
             ).length === 0}
             onClick={() => {
               const material = materials.find(m =>
+                m.material_name.toLowerCase() === materialSearchText.toLowerCase() ||
                 m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
               );
               if (material) {
@@ -864,14 +1109,15 @@ const PositionItems: React.FC = () => {
             const totalSum = items.reduce((sum, item) => sum + calculateTotal(item), 0);
             return (
               <Table.Summary fixed>
-                <Table.Summary.Row style={{ backgroundColor: '#1a1a1a', fontWeight: 'bold' }}>
-                  <Table.Summary.Cell index={0} colSpan={10} align="right">
-                    ИТОГО:
+                <Table.Summary.Row style={{ fontWeight: 'bold' }}>
+                  <Table.Summary.Cell index={0} colSpan={7} />
+                  <Table.Summary.Cell index={7} align="right">
+                    Итого:
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={10} align="center">
+                  <Table.Summary.Cell index={8} align="center">
                     {totalSum.toLocaleString('ru-RU')}
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={11} colSpan={3} />
+                  <Table.Summary.Cell index={9} colSpan={4} />
                 </Table.Summary.Row>
               </Table.Summary>
             );
@@ -911,6 +1157,7 @@ const PositionItems: React.FC = () => {
                     workItems={workItems}
                     costCategories={costCategories}
                     currencyRates={currencyRates}
+                    gpVolume={gpVolume}
                     onSave={handleFormSave}
                     onCancel={handleFormCancel}
                   />

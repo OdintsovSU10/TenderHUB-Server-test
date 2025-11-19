@@ -103,7 +103,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
   };
 
   return (
-    <div style={{ padding: '16px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+    <div style={{ padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       {/* Строка 1: Тип | Наименование | Кол-во | Ед.изм | Валюта | Цена */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
         <div style={{ width: '120px' }}>
@@ -170,7 +170,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
           <Input
             value={formData.unit_code || '-'}
             disabled
-            style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#888' }}
+            style={{ width: '100%' }}
             size="small"
           />
         </div>
@@ -210,7 +210,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
             disabled
             placeholder="0.00"
             precision={2}
-            style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#888' }}
+            style={{ width: '100%' }}
             size="small"
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
           />
