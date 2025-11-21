@@ -19,10 +19,11 @@ import {
   Radio,
   Modal,
   List,
-  App
+  App,
+  Table
 } from 'antd';
 import { SaveOutlined, ReloadOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, EditOutlined, CloseOutlined, ArrowLeftOutlined, CheckOutlined, CopyOutlined } from '@ant-design/icons';
-import { supabase, Tender, TenderMarkupPercentageInsert, MarkupParameter, MarkupTactic } from '../../../lib/supabase';
+import { supabase, Tender, TenderMarkupPercentageInsert, MarkupParameter, MarkupTactic, PricingDistribution, PricingDistributionInsert, DistributionTarget } from '../../../lib/supabase';
 import { formatNumberWithSpaces, parseNumberWithSpaces } from '../../../utils/numberFormat';
 import dayjs from 'dayjs';
 import './MarkupConstructor.css';
@@ -114,6 +115,11 @@ const MarkupConstructor: React.FC = () => {
   // Состояния для базовых процентов
   const [basePercentagesForm] = Form.useForm();
   const [savingBasePercentages, setSavingBasePercentages] = useState(false);
+
+  // Состояния для ценообразования (распределение затрат между КП и работами)
+  const [pricingDistribution, setPricingDistribution] = useState<PricingDistribution | null>(null);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [savingPricing, setSavingPricing] = useState(false);
 
   // Состояния для порядка наценок на каждой вкладке
   const [markupSequences, setMarkupSequences] = useState<Record<TabKey, MarkupStep[]>>({
@@ -677,7 +683,7 @@ const MarkupConstructor: React.FC = () => {
       const { data, error } = await supabase
         .from('markup_tactics')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false});
 
       if (error) throw error;
       setTactics(data || []);
@@ -687,6 +693,115 @@ const MarkupConstructor: React.FC = () => {
     } finally {
       setLoadingTactics(false);
     }
+  };
+
+  // Загрузка настроек распределения затрат для тендера
+  const fetchPricingDistribution = async (tenderId: string) => {
+    setLoadingPricing(true);
+    try {
+      const { data, error } = await supabase
+        .from('tender_pricing_distribution')
+        .select('*')
+        .eq('tender_id', tenderId)
+        .maybeSingle();
+
+      if (error) throw error;
+      setPricingDistribution(data);
+    } catch (error) {
+      console.error('Ошибка загрузки настроек ценообразования:', error);
+      message.error('Не удалось загрузить настройки ценообразования');
+    } finally {
+      setLoadingPricing(false);
+    }
+  };
+
+  // Обработка изменения настройки распределения
+  const handleDistributionChange = (
+    itemType: string,
+    targetType: 'base' | 'markup',
+    value: DistributionTarget
+  ) => {
+    setPricingDistribution((prev) => {
+      const fieldName =
+        `${itemType}_${targetType}_target` as keyof PricingDistribution;
+
+      return {
+        ...(prev || {
+          id: '',
+          tender_id: selectedTenderId!,
+          created_at: '',
+          updated_at: '',
+        }),
+        [fieldName]: value,
+      };
+    });
+  };
+
+  // Сохранение настроек ценообразования
+  const handleSavePricingDistribution = async () => {
+    if (!selectedTenderId) {
+      message.warning('Выберите тендер');
+      return;
+    }
+
+    setSavingPricing(true);
+    try {
+      const dataToSave: PricingDistributionInsert = {
+        tender_id: selectedTenderId,
+        markup_tactic_id: selectedTacticId,
+        basic_material_base_target: pricingDistribution?.basic_material_base_target || 'material',
+        basic_material_markup_target: pricingDistribution?.basic_material_markup_target || 'work',
+        auxiliary_material_base_target: pricingDistribution?.auxiliary_material_base_target || 'work',
+        auxiliary_material_markup_target: pricingDistribution?.auxiliary_material_markup_target || 'work',
+        subcontract_basic_material_base_target: pricingDistribution?.subcontract_basic_material_base_target || 'work',
+        subcontract_basic_material_markup_target: pricingDistribution?.subcontract_basic_material_markup_target || 'work',
+        subcontract_auxiliary_material_base_target: pricingDistribution?.subcontract_auxiliary_material_base_target || 'work',
+        subcontract_auxiliary_material_markup_target: pricingDistribution?.subcontract_auxiliary_material_markup_target || 'work',
+        work_base_target: pricingDistribution?.work_base_target || 'work',
+        work_markup_target: pricingDistribution?.work_markup_target || 'work',
+      };
+
+      const { data, error } = await supabase
+        .from('tender_pricing_distribution')
+        .upsert(dataToSave, {
+          onConflict: 'tender_id,markup_tactic_id',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setPricingDistribution(data);
+      message.success('Настройки ценообразования успешно сохранены');
+    } catch (error) {
+      console.error('Ошибка сохранения настроек ценообразования:', error);
+      message.error('Не удалось сохранить настройки ценообразования');
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  // Сброс к значениям по умолчанию
+  const handleResetPricingToDefaults = () => {
+    setPricingDistribution((prev) => ({
+      ...(prev || {
+        id: '',
+        tender_id: selectedTenderId!,
+        created_at: '',
+        updated_at: '',
+      }),
+      basic_material_base_target: 'material',
+      basic_material_markup_target: 'work',
+      auxiliary_material_base_target: 'work',
+      auxiliary_material_markup_target: 'work',
+      subcontract_basic_material_base_target: 'work',
+      subcontract_basic_material_markup_target: 'work',
+      subcontract_auxiliary_material_base_target: 'work',
+      subcontract_auxiliary_material_markup_target: 'work',
+      work_base_target: 'work',
+      work_markup_target: 'work',
+    }));
+    message.info('Настройки сброшены к значениям по умолчанию');
   };
 
   // Загрузка данных наценок для выбранного тендера
@@ -746,6 +861,9 @@ const MarkupConstructor: React.FC = () => {
 
     // Загружаем данные наценок для тендера
     fetchMarkupData(tenderId);
+
+    // Загружаем настройки ценообразования для тендера
+    fetchPricingDistribution(tenderId);
   };
 
   // Обработка выбора тактики
@@ -3464,6 +3582,191 @@ const MarkupConstructor: React.FC = () => {
                   </div>
                 </Space>
               </Card>
+            ),
+          },
+          {
+            key: 'pricing',
+            label: 'Ценообразование',
+            children: (
+              <div style={{ padding: '24px 0' }}>
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <div>
+                    <Title level={4} style={{ marginBottom: 8 }}>
+                      Распределение затрат между материалами и работами (КП)
+                    </Title>
+                    <Text type="secondary">
+                      Настройте, как базовые затраты и наценки распределяются между материалами и работами (КП) для выбранного тендера
+                    </Text>
+                  </div>
+
+                  <Divider style={{ margin: '8px 0' }} />
+
+                  {/* Селектор тендера */}
+                  <div style={{ marginBottom: 24 }}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Выберите тендер:</Text>
+                    <Select
+                      showSearch
+                      placeholder="Выберите тендер для настройки"
+                      style={{ width: '100%', maxWidth: '600px' }}
+                      value={selectedTenderId}
+                      onChange={handleTenderChange}
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={tenders.map((tender) => ({
+                        value: tender.id,
+                        label: `${tender.tender_number} - ${tender.title}`,
+                      }))}
+                    />
+                  </div>
+
+                  {!selectedTenderId ? (
+                    <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                      <Text type="secondary">Выберите тендер для настройки распределения затрат</Text>
+                    </div>
+                  ) : (
+                    <Spin spinning={loadingPricing}>
+                      <Table
+                        dataSource={[
+                          {
+                            key: 'basic_material',
+                            type: 'Основные материалы',
+                            description: 'Материалы типа "мат"',
+                            baseTarget: pricingDistribution?.basic_material_base_target || 'material',
+                            markupTarget: pricingDistribution?.basic_material_markup_target || 'work',
+                          },
+                          {
+                            key: 'auxiliary_material',
+                            type: 'Вспомогательные материалы',
+                            description: 'Материалы типа "мат-комп."',
+                            baseTarget: pricingDistribution?.auxiliary_material_base_target || 'work',
+                            markupTarget: pricingDistribution?.auxiliary_material_markup_target || 'work',
+                          },
+                          {
+                            key: 'subcontract_basic_material',
+                            type: 'Субподрядные материалы (основные)',
+                            description: 'Основные субподрядные материалы типа "суб-мат"',
+                            baseTarget: pricingDistribution?.subcontract_basic_material_base_target || 'work',
+                            markupTarget: pricingDistribution?.subcontract_basic_material_markup_target || 'work',
+                          },
+                          {
+                            key: 'subcontract_auxiliary_material',
+                            type: 'Субподрядные материалы (вспомогательные)',
+                            description: 'Вспомогательные субподрядные материалы типа "суб-мат"',
+                            baseTarget: pricingDistribution?.subcontract_auxiliary_material_base_target || 'work',
+                            markupTarget: pricingDistribution?.subcontract_auxiliary_material_markup_target || 'work',
+                          },
+                          {
+                            key: 'work',
+                            type: 'Работы',
+                            description: 'Все типы работ: "раб", "раб-комп.", "суб-раб"',
+                            baseTarget: pricingDistribution?.work_base_target || 'work',
+                            markupTarget: pricingDistribution?.work_markup_target || 'work',
+                          },
+                        ]}
+                        columns={[
+                          {
+                            title: 'Тип элемента',
+                            dataIndex: 'type',
+                            width: 250,
+                            render: (text, record) => (
+                              <Space direction="vertical" size={0}>
+                                <Text strong>{text}</Text>
+                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                  {record.description}
+                                </Text>
+                              </Space>
+                            ),
+                          },
+                          {
+                            title: 'Базовая стоимость',
+                            dataIndex: 'baseTarget',
+                            width: 200,
+                            render: (value: DistributionTarget, record) => (
+                              <Select
+                                value={value}
+                                style={{ width: '100%' }}
+                                onChange={(newValue: DistributionTarget) =>
+                                  handleDistributionChange(record.key, 'base', newValue)
+                                }
+                                options={[
+                                  { label: 'КП (Материалы)', value: 'material' },
+                                  { label: 'Работы', value: 'work' },
+                                ]}
+                              />
+                            ),
+                          },
+                          {
+                            title: 'Наценка',
+                            dataIndex: 'markupTarget',
+                            width: 200,
+                            render: (value: DistributionTarget, record) => (
+                              <Select
+                                value={value}
+                                style={{ width: '100%' }}
+                                onChange={(newValue: DistributionTarget) =>
+                                  handleDistributionChange(record.key, 'markup', newValue)
+                                }
+                                options={[
+                                  { label: 'КП (Материалы)', value: 'material' },
+                                  { label: 'Работы', value: 'work' },
+                                ]}
+                              />
+                            ),
+                          },
+                          {
+                            title: 'Результат',
+                            key: 'result',
+                            render: (_, record) => {
+                              const baseLabel =
+                                record.baseTarget === 'material' ? 'КП' : 'Работы';
+                              const markupLabel =
+                                record.markupTarget === 'material' ? 'КП' : 'Работы';
+
+                              if (baseLabel === markupLabel) {
+                                return (
+                                  <Tag color="blue">
+                                    Всё → {baseLabel}
+                                  </Tag>
+                                );
+                              }
+
+                              return (
+                                <Space direction="vertical" size={0}>
+                                  <Tag color="green">База → {baseLabel}</Tag>
+                                  <Tag color="orange">Наценка → {markupLabel}</Tag>
+                                </Space>
+                              );
+                            },
+                          },
+                        ]}
+                        pagination={false}
+                        size="small"
+                      />
+
+                      <Divider style={{ margin: '16px 0' }} />
+
+                      <Space>
+                        <Button
+                          type="primary"
+                          icon={<SaveOutlined />}
+                          onClick={handleSavePricingDistribution}
+                          loading={savingPricing}
+                        >
+                          Сохранить настройки
+                        </Button>
+                        <Button
+                          icon={<ReloadOutlined />}
+                          onClick={handleResetPricingToDefaults}
+                        >
+                          Сбросить к значениям по умолчанию
+                        </Button>
+                      </Space>
+                    </Spin>
+                  )}
+                </Space>
+              </div>
             ),
           },
         ]}

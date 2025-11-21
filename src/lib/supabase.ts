@@ -579,3 +579,59 @@ export interface ClientPosition extends ClientPositionInsert {
   created_at: string;
   updated_at: string;
 }
+
+// =============================================
+// Типы для таблицы tender_pricing_distribution
+// =============================================
+
+export type DistributionTarget = 'material' | 'work';
+
+export interface PricingDistributionInsert {
+  tender_id: string;
+  markup_tactic_id?: string | null;
+
+  // Основные материалы (мат)
+  basic_material_base_target?: DistributionTarget;
+  basic_material_markup_target?: DistributionTarget;
+
+  // Вспомогательные материалы (мат-комп.)
+  auxiliary_material_base_target?: DistributionTarget;
+  auxiliary_material_markup_target?: DistributionTarget;
+
+  // Субподрядные материалы - основные (суб-мат основные)
+  subcontract_basic_material_base_target?: DistributionTarget;
+  subcontract_basic_material_markup_target?: DistributionTarget;
+
+  // Субподрядные материалы - вспомогательные (суб-мат вспомогательные)
+  subcontract_auxiliary_material_base_target?: DistributionTarget;
+  subcontract_auxiliary_material_markup_target?: DistributionTarget;
+
+  // Работы (раб, раб-комп., суб-раб)
+  work_base_target?: DistributionTarget;
+  work_markup_target?: DistributionTarget;
+}
+
+export interface PricingDistribution extends PricingDistributionInsert {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Вспомогательный тип для маппинга boq_item_type на ключи правил распределения
+export type PricingItemType = 'basic_material' | 'auxiliary_material' | 'subcontract_material' | 'work';
+
+// Функция маппинга boq_item_type на PricingItemType
+export function mapBoqItemTypeToPricingType(boqItemType: BoqItemType): PricingItemType {
+  switch (boqItemType) {
+    case 'мат':
+      return 'basic_material';
+    case 'мат-комп.':
+      return 'auxiliary_material';
+    case 'суб-мат':
+      return 'subcontract_material';
+    case 'раб':
+    case 'раб-комп.':
+    case 'суб-раб':
+      return 'work';
+  }
+}

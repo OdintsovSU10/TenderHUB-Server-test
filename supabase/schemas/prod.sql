@@ -744,6 +744,45 @@ COMMENT ON COLUMN public.tenders.updated_at IS 'Дата и время посл�
 COMMENT ON COLUMN public.tenders.created_by IS 'ID пользователя, создавшего тендер';
 COMMENT ON COLUMN public.tenders.markup_tactic_id IS 'Ссылка на тактику наценок для данного тендера';
 
+-- Table: public.tender_pricing_distribution
+-- Description: Правила распределения затрат и наценок между КП (материалы) и работами для каждого тендера
+CREATE TABLE IF NOT EXISTS public.tender_pricing_distribution (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    tender_id uuid NOT NULL,
+    markup_tactic_id uuid,
+    basic_material_base_target text NOT NULL DEFAULT 'material'::text,
+    basic_material_markup_target text NOT NULL DEFAULT 'work'::text,
+    auxiliary_material_base_target text NOT NULL DEFAULT 'work'::text,
+    auxiliary_material_markup_target text NOT NULL DEFAULT 'work'::text,
+    subcontract_material_base_target text NOT NULL DEFAULT 'work'::text,
+    subcontract_material_markup_target text NOT NULL DEFAULT 'work'::text,
+    work_base_target text NOT NULL DEFAULT 'work'::text,
+    work_markup_target text NOT NULL DEFAULT 'work'::text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT tender_pricing_distribution_pkey PRIMARY KEY (id),
+    CONSTRAINT tender_pricing_distribution_tender_id_markup_tactic_id_key UNIQUE (tender_id, markup_tactic_id),
+    CONSTRAINT tender_pricing_distribution_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id) ON DELETE CASCADE,
+    CONSTRAINT tender_pricing_distribution_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES public.markup_tactics(id) ON DELETE CASCADE,
+    CONSTRAINT tender_pricing_distribution_basic_material_base_target_check CHECK ((basic_material_base_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_basic_material_markup_target_check CHECK ((basic_material_markup_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_auxiliary_material_base_target_check CHECK ((auxiliary_material_base_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_auxiliary_material_markup_target_check CHECK ((auxiliary_material_markup_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_subcontract_material_base_target_check CHECK ((subcontract_material_base_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_subcontract_material_markup_target_check CHECK ((subcontract_material_markup_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_work_base_target_check CHECK ((work_base_target = ANY (ARRAY['material'::text, 'work'::text]))),
+    CONSTRAINT tender_pricing_distribution_work_markup_target_check CHECK ((work_markup_target = ANY (ARRAY['material'::text, 'work'::text])))
+);
+COMMENT ON TABLE public.tender_pricing_distribution IS 'Правила распределения затрат и наценок между КП (материалы) и работами для каждого тендера';
+COMMENT ON COLUMN public.tender_pricing_distribution.basic_material_base_target IS 'Куда направляется базовая стоимость основных материалов: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.basic_material_markup_target IS 'Куда направляется наценка на основные материалы: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.auxiliary_material_base_target IS 'Куда направляется базовая стоимость вспомогательных материалов: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.auxiliary_material_markup_target IS 'Куда направляется наценка на вспомогательные материалы: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.subcontract_material_base_target IS 'Куда направляется базовая стоимость субподрядных материалов: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.subcontract_material_markup_target IS 'Куда направляется наценка на субподрядные материалы: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.work_base_target IS 'Куда направляется базовая стоимость работ: material = КП, work = работы';
+COMMENT ON COLUMN public.tender_pricing_distribution.work_markup_target IS 'Куда направляется наценка на работы: material = КП, work = работы';
+
 -- Table: public.units
 CREATE TABLE IF NOT EXISTS public.units (
     code text NOT NULL,
