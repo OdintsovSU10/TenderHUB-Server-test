@@ -28,6 +28,7 @@ import {
   CloseOutlined,
   LinkOutlined,
   AppstoreAddOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import { supabase } from '../../lib/supabase';
 import type {
@@ -37,6 +38,7 @@ import type {
   MaterialLibraryFull,
 } from '../../lib/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
+import InsertTemplateIntoPositionModal from './InsertTemplateIntoPositionModal';
 
 const { Panel } = Collapse;
 const { Text } = Typography;
@@ -121,6 +123,10 @@ const Templates: React.FC = () => {
   const [filterCostCategory, setFilterCostCategory] = useState<string | null>(null);
   const [filterDetailCategory, setFilterDetailCategory] = useState<string | null>(null);
   const [openedTemplate, setOpenedTemplate] = useState<string | null>(null);
+
+  // Состояния для вставки шаблона в позицию
+  const [insertModalOpen, setInsertModalOpen] = useState(false);
+  const [selectedTemplateForInsert, setSelectedTemplateForInsert] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -552,6 +558,21 @@ const Templates: React.FC = () => {
     } catch (error: any) {
       message.error('Ошибка удаления шаблона: ' + error.message);
     }
+  };
+
+  const handleOpenInsertModal = (templateId: string) => {
+    setSelectedTemplateForInsert(templateId);
+    setInsertModalOpen(true);
+  };
+
+  const handleCloseInsertModal = () => {
+    setInsertModalOpen(false);
+    setSelectedTemplateForInsert(null);
+  };
+
+  const handleInsertSuccess = () => {
+    setInsertModalOpen(false);
+    setSelectedTemplateForInsert(null);
   };
 
   const handleEditTemplate = (template: Template) => {
@@ -1520,6 +1541,16 @@ const Templates: React.FC = () => {
                                 )}
                               </Space>
                               <Space onClick={(e) => e.stopPropagation()}>
+                                <Tooltip title="Вставить шаблон в строку Заказчика">
+                                  <Tag
+                                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                                    color="processing"
+                                    icon={<ExportOutlined />}
+                                    onClick={() => handleOpenInsertModal(template.id)}
+                                  >
+                                    Вставить в позицию
+                                  </Tag>
+                                </Tooltip>
                                 <Tooltip title="Добавить работы/материалы в шаблон">
                                   <Button
                                     type="text"
@@ -1837,6 +1868,14 @@ const Templates: React.FC = () => {
             ),
           },
         ]}
+      />
+
+      {/* Modal для вставки шаблона в позицию */}
+      <InsertTemplateIntoPositionModal
+        open={insertModalOpen}
+        templateId={selectedTemplateForInsert}
+        onCancel={handleCloseInsertModal}
+        onSuccess={handleInsertSuccess}
       />
 
       {/* CSS for row colors */}

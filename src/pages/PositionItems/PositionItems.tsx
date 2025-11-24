@@ -39,6 +39,7 @@ import {
 } from '../../lib/supabase';
 import WorkEditForm from './WorkEditForm';
 import MaterialEditForm from './MaterialEditForm';
+import { insertTemplateItems } from '../../utils/insertTemplateItems';
 
 const { Text, Title } = Typography;
 
@@ -49,6 +50,12 @@ const currencySymbols: Record<CurrencyType, string> = {
   CNY: '¥',
 };
 
+interface Template {
+  id: string;
+  name: string;
+  detail_cost_category_id: string | null;
+}
+
 const PositionItems: React.FC = () => {
   const { positionId } = useParams<{ positionId: string }>();
   const navigate = useNavigate();
@@ -58,10 +65,12 @@ const PositionItems: React.FC = () => {
   const [items, setItems] = useState<BoqItemFull[]>([]);
   const [works, setWorks] = useState<WorkLibraryFull[]>([]);
   const [materials, setMaterials] = useState<MaterialLibraryFull[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [workSearchText, setWorkSearchText] = useState<string>('');
   const [materialSearchText, setMaterialSearchText] = useState<string>('');
+  const [templateSearchText, setTemplateSearchText] = useState<string>('');
 
   // Состояния для expandable форм
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
@@ -85,6 +94,7 @@ const PositionItems: React.FC = () => {
       fetchItems();
       fetchWorks();
       fetchMaterials();
+      fetchTemplates();
       fetchCostCategories();
       fetchWorkNames();
       fetchMaterialNames();
@@ -150,7 +160,8 @@ const PositionItems: React.FC = () => {
           *,
           material_names(name, unit),
           work_names(name, unit),
-          parent_work:parent_work_item_id(work_names(name))
+          parent_work:parent_work_item_id(work_names(name)),
+          detail_cost_categories(name, cost_categories(name), location)
         `)
         .eq('client_position_id', positionId)
         .order('sort_number', { ascending: true });
@@ -193,20 +204,32 @@ const PositionItems: React.FC = () => {
         }, {} as Record<string, number>);
       }
 
-      const formattedItems: BoqItemFull[] = (data || []).map((item: any) => ({
-        ...item,
-        material_name: item.material_names?.name,
-        material_unit: item.material_names?.unit,
-        work_name: item.work_names?.name,
-        work_unit: item.work_names?.unit,
-        parent_work_name: item.parent_work?.work_names?.name,
-        // Используем unit_rate из item, если он установлен, иначе берем из библиотеки
-        unit_rate: (item.unit_rate !== null && item.unit_rate !== undefined)
-          ? item.unit_rate
-          : (item.material_name_id
-            ? materialRates[item.material_name_id]
-            : workRates[item.work_name_id]),
-      }));
+      const formattedItems: BoqItemFull[] = (data || []).map((item: any) => {
+        // Format detail_cost_category display
+        let detailCostCategoryFull = '-';
+        if (item.detail_cost_categories) {
+          const categoryName = item.detail_cost_categories.cost_categories?.name || '';
+          const detailName = item.detail_cost_categories.name || '';
+          const location = item.detail_cost_categories.location || '';
+          detailCostCategoryFull = `${categoryName} / ${detailName} / ${location}`;
+        }
+
+        return {
+          ...item,
+          material_name: item.material_names?.name,
+          material_unit: item.material_names?.unit,
+          work_name: item.work_names?.name,
+          work_unit: item.work_names?.unit,
+          parent_work_name: item.parent_work?.work_names?.name,
+          detail_cost_category_full: detailCostCategoryFull,
+          // Используем unit_rate из item, если он установлен, иначе берем из библиотеки
+          unit_rate: (item.unit_rate !== null && item.unit_rate !== undefined)
+            ? item.unit_rate
+            : (item.material_name_id
+              ? materialRates[item.material_name_id]
+              : workRates[item.work_name_id]),
+        };
+      });
 
       // Сортировка: работы с их материалами, потом непривязанные материалы
       const sortedItems = sortItemsByHierarchy(formattedItems);
@@ -302,6 +325,20 @@ const PositionItems: React.FC = () => {
       setMaterials(formatted);
     } catch (error: any) {
       message.error('Ошибка загрузки материалов: ' + error.message);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('templates')
+        .select('id, name, detail_cost_category_id')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error: any) {
+      message.error('Ошибка загрузки шаблонов: ' + error.message);
     }
   };
 
@@ -462,6 +499,29 @@ const PositionItems: React.FC = () => {
       await updateClientPositionTotals();
     } catch (error: any) {
       message.error('Ошибка добавления материала: ' + error.message);
+    }
+  };
+
+  const handleAddTemplate = async (templateId: string) => {
+    if (!templateId || !position) {
+      message.error('Выберите шаблон');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const result = await insertTemplateItems(templateId, position.id, position.tender_id);
+
+      message.success(
+        `Вставлено из шаблона: ${result.worksCount} работ, ${result.materialsCount} материалов`
+      );
+      setTemplateSearchText('');
+      await fetchItems();
+      await updateClientPositionTotals();
+    } catch (error: any) {
+      message.error('Ошибка вставки шаблона: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1057,13 +1117,31 @@ const PositionItems: React.FC = () => {
                       value={workName}
                       onChange={(e) => setWorkName(e.target.value)}
                       onBlur={handleSaveAdditionalWorkData}
-                      style={{ width: 400 }}
+                      style={{ width: 300 }}
                       size="small"
                       placeholder="Наименование работы"
                     />
+                    <Text type="secondary" style={{ marginLeft: 16 }}>Примечание ГП:</Text>
+                    <Input
+                      value={gpNote}
+                      onChange={(e) => setGpNote(e.target.value)}
+                      onBlur={handleSaveGPData}
+                      style={{ width: 300 }}
+                      size="small"
+                      placeholder="Примечание"
+                    />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Text type="secondary">Единица измерения:</Text>
+                    <Text type="secondary">Кол-во ГП:</Text>
+                    <InputNumber
+                      value={gpVolume}
+                      onChange={(value) => setGpVolume(value || 0)}
+                      onBlur={handleSaveGPData}
+                      precision={2}
+                      style={{ width: 120 }}
+                      size="small"
+                    />
+                    <Text type="secondary" style={{ marginLeft: 16 }}>Ед. изм:</Text>
                     <Select
                       value={unitCode}
                       onChange={(value) => {
@@ -1071,17 +1149,17 @@ const PositionItems: React.FC = () => {
                         // Сохраняем автоматически при изменении
                         setTimeout(() => handleSaveAdditionalWorkData(), 100);
                       }}
-                      style={{ width: 200 }}
+                      style={{ width: 100 }}
                       size="small"
                       showSearch
-                      placeholder="Выберите единицу"
+                      placeholder="Выберите"
                       optionFilterProp="children"
                       filterOption={(input, option) =>
                         (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                       }
                       options={units.map(unit => ({
                         value: unit.code,
-                        label: `${unit.code} - ${unit.name}`,
+                        label: unit.code,
                       }))}
                     />
                   </div>
@@ -1091,126 +1169,184 @@ const PositionItems: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-                <Text type="secondary">Кол-во ГП:</Text>
-                <InputNumber
-                  value={gpVolume}
-                  onChange={(value) => setGpVolume(value || 0)}
-                  onBlur={handleSaveGPData}
-                  precision={2}
-                  style={{ width: 120 }}
-                  size="small"
-                />
-                <Text type="secondary">{position.unit_code}</Text>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-              <Text type="secondary">Примечание ГП:</Text>
-              <Input
-                value={gpNote}
-                onChange={(e) => setGpNote(e.target.value)}
-                onBlur={handleSaveGPData}
-                style={{ width: 400 }}
-                size="small"
-                placeholder="Примечание"
-              />
-            </div>
+            {/* Для обычных позиций показываем Кол-во ГП и Примечание ГП */}
+            {!position.is_additional && (
+              <>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                    <Text type="secondary">Кол-во ГП:</Text>
+                    <InputNumber
+                      value={gpVolume}
+                      onChange={(value) => setGpVolume(value || 0)}
+                      onBlur={handleSaveGPData}
+                      precision={2}
+                      style={{ width: 120 }}
+                      size="small"
+                    />
+                    <Text type="secondary">{position.unit_code}</Text>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                  <Text type="secondary">Примечание ГП:</Text>
+                  <Input
+                    value={gpNote}
+                    onChange={(e) => setGpNote(e.target.value)}
+                    onBlur={handleSaveGPData}
+                    style={{ width: 400 }}
+                    size="small"
+                    placeholder="Примечание"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </Card>
 
       <Card title="Добавление работ и материалов" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <AutoComplete
-            style={{ flex: 1 }}
-            placeholder="Выберите или начните вводить работу..."
-            options={works
-              .filter(w => {
-                if (!workSearchText) return true; // Показать все при пустом поле
-                return w.work_name.toLowerCase().includes(workSearchText.toLowerCase());
-              })
-              .slice(0, 100) // Ограничение для производительности
-              .map(w => ({
-                value: w.work_name,
-                label: w.work_name,
-              }))
-            }
-            value={workSearchText}
-            onChange={(value) => {
-              setWorkSearchText(value);
-            }}
-            onSelect={(value) => {
-              setWorkSearchText(value);
-            }}
-            onClear={() => {
-              setWorkSearchText('');
-            }}
-            allowClear
-            filterOption={false}
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            style={{ background: '#10b981' }}
-            disabled={!workSearchText || works.filter(w =>
-              w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
-            ).length === 0}
-            onClick={() => {
-              const work = works.find(w =>
-                w.work_name.toLowerCase() === workSearchText.toLowerCase() ||
+          {/* Колонка 1: Добавить работу */}
+          <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AutoComplete
+              style={{ flex: 1 }}
+              placeholder="Выберите или начните вводить работу..."
+              options={works
+                .filter(w => {
+                  if (!workSearchText) return true;
+                  return w.work_name.toLowerCase().includes(workSearchText.toLowerCase());
+                })
+                .slice(0, 100)
+                .map(w => ({
+                  value: w.work_name,
+                  label: w.work_name,
+                }))
+              }
+              value={workSearchText}
+              onChange={(value) => {
+                setWorkSearchText(value);
+              }}
+              onSelect={(value) => {
+                setWorkSearchText(value);
+              }}
+              onClear={() => {
+                setWorkSearchText('');
+              }}
+              allowClear
+              filterOption={false}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              style={{ background: '#10b981' }}
+              disabled={!workSearchText || works.filter(w =>
                 w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
-              );
-              if (work) {
-                handleAddWork(work.work_name_id);
-              }
-            }}
-          />
+              ).length === 0}
+              onClick={() => {
+                const work = works.find(w =>
+                  w.work_name.toLowerCase() === workSearchText.toLowerCase() ||
+                  w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+                );
+                if (work) {
+                  handleAddWork(work.work_name_id);
+                }
+              }}
+            />
+          </div>
 
-          <AutoComplete
-            style={{ flex: 1 }}
-            placeholder="Выберите или начните вводить материал..."
-            options={materials
-              .filter(m => {
-                if (!materialSearchText) return true; // Показать все при пустом поле
-                return m.material_name.toLowerCase().includes(materialSearchText.toLowerCase());
-              })
-              .slice(0, 100) // Ограничение для производительности
-              .map(m => ({
-                value: m.material_name,
-                label: m.material_name,
-              }))
-            }
-            value={materialSearchText}
-            onChange={(value) => {
-              setMaterialSearchText(value);
-            }}
-            onSelect={(value) => {
-              setMaterialSearchText(value);
-            }}
-            onClear={() => {
-              setMaterialSearchText('');
-            }}
-            allowClear
-            filterOption={false}
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            style={{ background: '#10b981' }}
-            disabled={!materialSearchText || materials.filter(m =>
-              m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
-            ).length === 0}
-            onClick={() => {
-              const material = materials.find(m =>
-                m.material_name.toLowerCase() === materialSearchText.toLowerCase() ||
-                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
-              );
-              if (material) {
-                handleAddMaterial(material.material_name_id);
+          {/* Колонка 2: Добавить материал */}
+          <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AutoComplete
+              style={{ flex: 1 }}
+              placeholder="Выберите или начните вводить материал..."
+              options={materials
+                .filter(m => {
+                  if (!materialSearchText) return true;
+                  return m.material_name.toLowerCase().includes(materialSearchText.toLowerCase());
+                })
+                .slice(0, 100)
+                .map(m => ({
+                  value: m.material_name,
+                  label: m.material_name,
+                }))
               }
-            }}
-          />
+              value={materialSearchText}
+              onChange={(value) => {
+                setMaterialSearchText(value);
+              }}
+              onSelect={(value) => {
+                setMaterialSearchText(value);
+              }}
+              onClear={() => {
+                setMaterialSearchText('');
+              }}
+              allowClear
+              filterOption={false}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              style={{ background: '#10b981' }}
+              disabled={!materialSearchText || materials.filter(m =>
+                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+              ).length === 0}
+              onClick={() => {
+                const material = materials.find(m =>
+                  m.material_name.toLowerCase() === materialSearchText.toLowerCase() ||
+                  m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+                );
+                if (material) {
+                  handleAddMaterial(material.material_name_id);
+                }
+              }}
+            />
+          </div>
+
+          {/* Колонка 3: Добавить по шаблону */}
+          <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AutoComplete
+              style={{ flex: 1 }}
+              placeholder="Выберите или начните вводить шаблон..."
+              options={templates
+                .filter(t => {
+                  if (!templateSearchText) return true;
+                  return t.name.toLowerCase().includes(templateSearchText.toLowerCase());
+                })
+                .map(t => ({
+                  value: t.name,
+                  label: t.name,
+                }))
+              }
+              value={templateSearchText}
+              onChange={(value) => {
+                setTemplateSearchText(value);
+              }}
+              onSelect={(value) => {
+                setTemplateSearchText(value);
+              }}
+              onClear={() => {
+                setTemplateSearchText('');
+              }}
+              allowClear
+              filterOption={false}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              style={{ background: '#10b981' }}
+              disabled={!templateSearchText || templates.filter(t =>
+                t.name.toLowerCase().includes(templateSearchText.toLowerCase())
+              ).length === 0}
+              onClick={() => {
+                const template = templates.find(t =>
+                  t.name.toLowerCase() === templateSearchText.toLowerCase() ||
+                  t.name.toLowerCase().includes(templateSearchText.toLowerCase())
+                );
+                if (template) {
+                  handleAddTemplate(template.id);
+                }
+              }}
+            />
+          </div>
         </div>
       </Card>
 
