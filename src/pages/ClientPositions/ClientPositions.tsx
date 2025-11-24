@@ -764,7 +764,7 @@ const ClientPositions: React.FC = () => {
             </Card>
           </Col>
         </Row>
-      </div>
+        </div>
 
         {/* Строка с дедлайном - шкала состояния */}
         {selectedTender && selectedTender.submission_deadline && (() => {
