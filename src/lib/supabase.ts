@@ -598,6 +598,10 @@ export interface PricingDistributionInsert {
   auxiliary_material_base_target?: DistributionTarget;
   auxiliary_material_markup_target?: DistributionTarget;
 
+  // Компонентные материалы (мат-комп.)
+  component_material_base_target?: DistributionTarget;
+  component_material_markup_target?: DistributionTarget;
+
   // Субподрядные материалы - основные (суб-мат основные)
   subcontract_basic_material_base_target?: DistributionTarget;
   subcontract_basic_material_markup_target?: DistributionTarget;
@@ -606,9 +610,13 @@ export interface PricingDistributionInsert {
   subcontract_auxiliary_material_base_target?: DistributionTarget;
   subcontract_auxiliary_material_markup_target?: DistributionTarget;
 
-  // Работы (раб, раб-комп., суб-раб)
+  // Работы (раб)
   work_base_target?: DistributionTarget;
   work_markup_target?: DistributionTarget;
+
+  // Компонентные работы (раб-комп.)
+  component_work_base_target?: DistributionTarget;
+  component_work_markup_target?: DistributionTarget;
 }
 
 export interface PricingDistribution extends PricingDistributionInsert {

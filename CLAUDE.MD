@@ -32,9 +32,14 @@ supabase db push     # Apply migrations
 supabase db reset    # Reset local database
 
 # Utility scripts (Node.js scripts for debugging/maintenance)
-node scripts/recalculate-boq-items.js  # Recalculate BOQ item prices
-node scripts/check-tender-params.js    # Check tender parameters
-node scripts/show-tactic-details.js    # Show markup tactic details
+# Located in /scripts/ directory - ~30+ debugging and calculation verification scripts
+node scripts/recalculate-boq-items.js        # Recalculate BOQ item prices
+node scripts/check-tender-params.js          # Check tender parameters
+node scripts/show-tactic-details.js          # Show markup tactic details
+node scripts/check-commercial-costs.js       # Verify commercial cost calculations
+node scripts/debug-position-calculation.js   # Debug position-level calculations
+node scripts/test-material-growth.js         # Test material growth coefficients
+# See /scripts/ directory for complete list of debugging utilities
 ```
 
 ## 🚨 CRITICAL DATABASE RULES 🚨
@@ -47,6 +52,12 @@ supabase/schemas/prod.sql
 - NEVER trust TypeScript types over prod.sql definitions
 - prod.sql contains ALL Supabase system tables and extensions
 - Business tables defined in migrations (001-014+)
+
+MIGRATION WORKFLOW:
+- Create migration files in supabase/migrations/
+- NEVER apply migrations automatically or update prod.sql directly
+- ALWAYS provide SQL code to user for manual execution in Supabase SQL Editor
+- User will manually run SQL and update prod.sql when needed
 ```
 
 **Current Tables**:
@@ -123,7 +134,8 @@ Both accept: `size`, `color`, `className` props
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.9.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
@@ -186,11 +198,15 @@ The system implements a complex multi-stage price calculation for BOQ items:
    - Affects final material pricing
 
 ### Calculation Scripts
-Utility scripts in `/scripts/` for debugging and maintenance:
+Utility scripts in `/scripts/` for debugging and maintenance (~30+ scripts available):
 - `recalculate-boq-items.js` - Recalculate all BOQ item prices
 - `check-tender-params.js` - Verify tender markup parameters
+- `check-commercial-costs.js` - Verify commercial cost calculations
 - `debug-position-calculation.js` - Debug position-level calculations
 - `test-material-growth.js` - Test material growth coefficients
+- `check-admiral-tactic.js` - Check specific tactic details
+- `simulate-mat-calculation.js` - Simulate material calculations
+- And many more in `/scripts/` directory
 
 ## Dashboard Design System
 

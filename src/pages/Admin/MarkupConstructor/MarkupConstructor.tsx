@@ -753,12 +753,16 @@ const MarkupConstructor: React.FC = () => {
         basic_material_markup_target: pricingDistribution?.basic_material_markup_target || 'work',
         auxiliary_material_base_target: pricingDistribution?.auxiliary_material_base_target || 'work',
         auxiliary_material_markup_target: pricingDistribution?.auxiliary_material_markup_target || 'work',
+        component_material_base_target: pricingDistribution?.component_material_base_target || 'work',
+        component_material_markup_target: pricingDistribution?.component_material_markup_target || 'work',
         subcontract_basic_material_base_target: pricingDistribution?.subcontract_basic_material_base_target || 'work',
         subcontract_basic_material_markup_target: pricingDistribution?.subcontract_basic_material_markup_target || 'work',
         subcontract_auxiliary_material_base_target: pricingDistribution?.subcontract_auxiliary_material_base_target || 'work',
         subcontract_auxiliary_material_markup_target: pricingDistribution?.subcontract_auxiliary_material_markup_target || 'work',
         work_base_target: pricingDistribution?.work_base_target || 'work',
         work_markup_target: pricingDistribution?.work_markup_target || 'work',
+        component_work_base_target: pricingDistribution?.component_work_base_target || 'work',
+        component_work_markup_target: pricingDistribution?.component_work_markup_target || 'work',
       };
 
       const { data, error } = await supabase
@@ -794,12 +798,16 @@ const MarkupConstructor: React.FC = () => {
       basic_material_markup_target: 'work',
       auxiliary_material_base_target: 'work',
       auxiliary_material_markup_target: 'work',
+      component_material_base_target: 'work',
+      component_material_markup_target: 'work',
       subcontract_basic_material_base_target: 'work',
       subcontract_basic_material_markup_target: 'work',
       subcontract_auxiliary_material_base_target: 'work',
       subcontract_auxiliary_material_markup_target: 'work',
       work_base_target: 'work',
       work_markup_target: 'work',
+      component_work_base_target: 'work',
+      component_work_markup_target: 'work',
     }));
     message.info('Настройки сброшены к значениям по умолчанию');
   };
@@ -3601,24 +3609,45 @@ const MarkupConstructor: React.FC = () => {
 
                   <Divider style={{ margin: '8px 0' }} />
 
-                  {/* Селектор тендера */}
+                  {/* Селектор тендера и версии */}
                   <div style={{ marginBottom: 24 }}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Выберите тендер:</Text>
-                    <Select
-                      showSearch
-                      placeholder="Выберите тендер для настройки"
-                      style={{ width: '100%', maxWidth: '600px' }}
-                      value={selectedTenderId}
-                      onChange={handleTenderChange}
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                      options={tenders.map((tender) => ({
-                        value: tender.id,
-                        label: `${tender.tender_number} - ${tender.title}`,
-                      }))}
-                    />
+                    <Space direction="horizontal" size="large" style={{ width: '100%', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <Text strong style={{ display: 'block', marginBottom: 8 }}>Выберите тендер:</Text>
+                        <Select
+                          showSearch
+                          placeholder="Выберите тендер для настройки"
+                          style={{ width: '100%', minWidth: '400px' }}
+                          value={selectedTenderId}
+                          onChange={handleTenderChange}
+                          optionFilterProp="children"
+                          filterOption={(input, option) =>
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                          }
+                          options={tenders.map((tender) => ({
+                            value: tender.id,
+                            label: `${tender.tender_number} - ${tender.title}`,
+                          }))}
+                        />
+                      </div>
+                      {selectedTenderId && (
+                        <div>
+                          <Text strong style={{ display: 'block', marginBottom: 8 }}>Версия:</Text>
+                          <Select
+                            placeholder="Версия тендера"
+                            style={{ width: '120px' }}
+                            value={tenders.find(t => t.id === selectedTenderId)?.version || 1}
+                            disabled
+                            options={[
+                              {
+                                value: tenders.find(t => t.id === selectedTenderId)?.version || 1,
+                                label: `v${tenders.find(t => t.id === selectedTenderId)?.version || 1}`,
+                              },
+                            ]}
+                          />
+                        </div>
+                      )}
+                    </Space>
                   </div>
 
                   {!selectedTenderId ? (
@@ -3633,13 +3662,15 @@ const MarkupConstructor: React.FC = () => {
                             key: 'basic_material',
                             type: 'Основные материалы',
                             description: 'Материалы типа "мат"',
+                            tags: [{ label: 'мат', color: 'blue' }, { label: 'основн.', color: 'orange' }],
                             baseTarget: pricingDistribution?.basic_material_base_target || 'material',
                             markupTarget: pricingDistribution?.basic_material_markup_target || 'work',
                           },
                           {
                             key: 'auxiliary_material',
                             type: 'Вспомогательные материалы',
-                            description: 'Материалы типа "мат-комп."',
+                            description: 'Вспомогательные материалы',
+                            tags: [{ label: 'мат', color: 'blue' }, { label: 'вспом', color: 'blue' }],
                             baseTarget: pricingDistribution?.auxiliary_material_base_target || 'work',
                             markupTarget: pricingDistribution?.auxiliary_material_markup_target || 'work',
                           },
@@ -3647,6 +3678,7 @@ const MarkupConstructor: React.FC = () => {
                             key: 'subcontract_basic_material',
                             type: 'Субподрядные материалы (основные)',
                             description: 'Основные субподрядные материалы типа "суб-мат"',
+                            tags: [{ label: 'суб-мат', color: 'cyan' }, { label: 'основн.', color: 'orange' }],
                             baseTarget: pricingDistribution?.subcontract_basic_material_base_target || 'work',
                             markupTarget: pricingDistribution?.subcontract_basic_material_markup_target || 'work',
                           },
@@ -3654,25 +3686,50 @@ const MarkupConstructor: React.FC = () => {
                             key: 'subcontract_auxiliary_material',
                             type: 'Субподрядные материалы (вспомогательные)',
                             description: 'Вспомогательные субподрядные материалы типа "суб-мат"',
+                            tags: [{ label: 'суб-мат', color: 'cyan' }, { label: 'вспом', color: 'blue' }],
                             baseTarget: pricingDistribution?.subcontract_auxiliary_material_base_target || 'work',
                             markupTarget: pricingDistribution?.subcontract_auxiliary_material_markup_target || 'work',
                           },
                           {
                             key: 'work',
                             type: 'Работы',
-                            description: 'Все типы работ: "раб", "раб-комп.", "суб-раб"',
+                            description: 'Работы типа "раб" и "суб-раб"',
+                            tags: [{ label: 'раб', color: 'orange' }, { label: 'суб-раб', color: 'purple' }],
                             baseTarget: pricingDistribution?.work_base_target || 'work',
                             markupTarget: pricingDistribution?.work_markup_target || 'work',
+                          },
+                          {
+                            key: 'component_material',
+                            type: 'Материалы компании',
+                            description: 'Компонентные материалы типа "мат-комп."',
+                            tags: [{ label: 'мат-комп.', color: 'cyan' }, { label: 'основн.', color: 'orange' }],
+                            baseTarget: pricingDistribution?.component_material_base_target || 'work',
+                            markupTarget: pricingDistribution?.component_material_markup_target || 'work',
+                          },
+                          {
+                            key: 'component_work',
+                            type: 'Работы компании',
+                            description: 'Компонентные работы типа "раб-комп."',
+                            tags: [{ label: 'раб-комп.', color: 'magenta' }],
+                            baseTarget: pricingDistribution?.component_work_base_target || 'work',
+                            markupTarget: pricingDistribution?.component_work_markup_target || 'work',
                           },
                         ]}
                         columns={[
                           {
                             title: 'Тип элемента',
                             dataIndex: 'type',
-                            width: 250,
+                            width: 300,
                             render: (text, record) => (
-                              <Space direction="vertical" size={0}>
-                                <Text strong>{text}</Text>
+                              <Space direction="vertical" size={4}>
+                                <Space size={8}>
+                                  <Text strong>{text}</Text>
+                                  {record.tags && record.tags.map((tag: { label: string; color: string }) => (
+                                    <Tag key={tag.label} color={tag.color} style={{ fontSize: '11px' }}>
+                                      {tag.label}
+                                    </Tag>
+                                  ))}
+                                </Space>
                                 <Text type="secondary" style={{ fontSize: '12px' }}>
                                   {record.description}
                                 </Text>
@@ -3691,8 +3748,8 @@ const MarkupConstructor: React.FC = () => {
                                   handleDistributionChange(record.key, 'base', newValue)
                                 }
                                 options={[
-                                  { label: 'КП (Материалы)', value: 'material' },
-                                  { label: 'Работы', value: 'work' },
+                                  { label: 'Материалы КП', value: 'material' },
+                                  { label: 'Работы КП', value: 'work' },
                                 ]}
                               />
                             ),
@@ -3709,8 +3766,8 @@ const MarkupConstructor: React.FC = () => {
                                   handleDistributionChange(record.key, 'markup', newValue)
                                 }
                                 options={[
-                                  { label: 'КП (Материалы)', value: 'material' },
-                                  { label: 'Работы', value: 'work' },
+                                  { label: 'Материалы КП', value: 'material' },
+                                  { label: 'Работы КП', value: 'work' },
                                 ]}
                               />
                             ),
@@ -3720,9 +3777,9 @@ const MarkupConstructor: React.FC = () => {
                             key: 'result',
                             render: (_, record) => {
                               const baseLabel =
-                                record.baseTarget === 'material' ? 'КП' : 'Работы';
+                                record.baseTarget === 'material' ? 'Материалы КП' : 'Работы КП';
                               const markupLabel =
-                                record.markupTarget === 'material' ? 'КП' : 'Работы';
+                                record.markupTarget === 'material' ? 'Материалы КП' : 'Работы КП';
 
                               if (baseLabel === markupLabel) {
                                 return (

@@ -403,8 +403,9 @@ export default function Commerce() {
       'Количество (ГП)': pos.manual_volume || 0,
       'Кол-во элементов': pos.items_count || 0,
       'Базовая стоимость': pos.base_total || 0,
+      'Итого материалов (КП), руб': pos.material_cost_total || 0,
+      'Итого работ (КП), руб': pos.work_cost_total || 0,
       'Коммерческая стоимость': pos.commercial_total || 0,
-      'Коэффициент': pos.markup_percentage?.toFixed(4) || '1.0000',
       'За единицу (база)': pos.manual_volume && pos.manual_volume > 0 ? (pos.base_total || 0) / pos.manual_volume : 0,
       'За единицу (коммерч.)': pos.manual_volume && pos.manual_volume > 0 ? (pos.commercial_total || 0) / pos.manual_volume : 0,
       'За единицу материалов': pos.manual_volume && pos.manual_volume > 0 ? (pos.material_cost_total || 0) / pos.manual_volume : 0,
@@ -413,6 +414,8 @@ export default function Commerce() {
 
     // Добавляем итоговую строку
     const totalBase = positions.reduce((sum, pos) => sum + (pos.base_total || 0), 0);
+    const totalMaterials = positions.reduce((sum, pos) => sum + (pos.material_cost_total || 0), 0);
+    const totalWorks = positions.reduce((sum, pos) => sum + (pos.work_cost_total || 0), 0);
     const totalCommercial = positions.reduce((sum, pos) => sum + (pos.commercial_total || 0), 0);
     const avgMarkup = totalBase > 0 ? ((totalCommercial - totalBase) / totalBase) * 100 : 0;
 
@@ -424,6 +427,8 @@ export default function Commerce() {
       'Количество (ГП)': positions.reduce((sum, pos) => sum + (pos.manual_volume || 0), 0),
       'Кол-во элементов': positions.reduce((sum, pos) => sum + (pos.items_count || 0), 0),
       'Базовая стоимость': totalBase,
+      'Итого материалов (КП), руб': totalMaterials,
+      'Итого работ (КП), руб': totalWorks,
       'Коммерческая стоимость': totalCommercial,
       'Наценка, %': avgMarkup.toFixed(2),
       'За единицу (база)': 0,
@@ -587,11 +592,26 @@ export default function Commerce() {
       width: 150,
       align: 'right',
       render: (_, record) => (
-        <Tooltip title="Сумма total_amount всех элементов позиции">
-          <Text>{formatCommercialCost(record.base_total || 0)}</Text>
-        </Tooltip>
+        <Text>{formatCommercialCost(record.base_total || 0)}</Text>
       ),
-      sorter: (a, b) => (a.base_total || 0) - (b.base_total || 0),
+    },
+    {
+      title: 'Итого материалов (КП), руб',
+      key: 'material_cost_total',
+      width: 180,
+      align: 'right',
+      render: (_, record) => (
+        <Text>{formatCommercialCost(record.material_cost_total || 0)}</Text>
+      ),
+    },
+    {
+      title: 'Итого работ (КП), руб',
+      key: 'work_cost_total',
+      width: 180,
+      align: 'right',
+      render: (_, record) => (
+        <Text>{formatCommercialCost(record.work_cost_total || 0)}</Text>
+      ),
     },
     {
       title: 'Коммерческая стоимость',
@@ -599,16 +619,13 @@ export default function Commerce() {
       width: 180,
       align: 'right',
       render: (_, record) => (
-        <Tooltip title="Сумма коммерческих стоимостей всех элементов">
-          <Text strong style={{ color: '#52c41a' }}>
-            {formatCommercialCost(record.commercial_total || 0)}
-          </Text>
-        </Tooltip>
+        <Text strong style={{ color: '#52c41a' }}>
+          {formatCommercialCost(record.commercial_total || 0)}
+        </Text>
       ),
-      sorter: (a, b) => (a.commercial_total || 0) - (b.commercial_total || 0),
     },
     {
-      title: 'Коэффициент',
+      title: 'Коэфф.',
       key: 'markup',
       width: 120,
       align: 'center',
@@ -616,14 +633,11 @@ export default function Commerce() {
         const coefficient = record.markup_percentage || 1; // Теперь это коэффициент
         const color = coefficient > 1 ? 'green' : coefficient < 1 ? 'red' : 'default';
         return (
-          <Tooltip title={`Наценка: ${((coefficient - 1) * 100).toFixed(2)}%`}>
-            <Tag color={color}>
-              {coefficient.toFixed(4)}
-            </Tag>
-          </Tooltip>
+          <Tag color={color}>
+            {coefficient.toFixed(4)}
+          </Tag>
         );
       },
-      sorter: (a, b) => (a.markup_percentage || 0) - (b.markup_percentage || 0),
     },
     {
       title: 'Примечание ГП',
@@ -860,23 +874,31 @@ export default function Commerce() {
                 scroll={{ y: 'calc(100vh - 320px)' }}
                 summary={() => {
                   const totalBase = positions.reduce((sum, pos) => sum + (pos.base_total || 0), 0);
+                  const totalMaterials = positions.reduce((sum, pos) => sum + (pos.material_cost_total || 0), 0);
+                  const totalWorks = positions.reduce((sum, pos) => sum + (pos.work_cost_total || 0), 0);
                   const totalCommercial = positions.reduce((sum, pos) => sum + (pos.commercial_total || 0), 0);
 
                   return (
                     <Table.Summary fixed>
                       <Table.Summary.Row>
-                        <Table.Summary.Cell index={0} colSpan={3}>
+                        <Table.Summary.Cell index={0} colSpan={5}>
                           <Text strong>Итого:</Text>
                         </Table.Summary.Cell>
-                        <Table.Summary.Cell index={1} align="right">
+                        <Table.Summary.Cell index={5} align="right">
                           <Text strong>{formatCommercialCost(totalBase)}</Text>
                         </Table.Summary.Cell>
-                        <Table.Summary.Cell index={2} align="right">
+                        <Table.Summary.Cell index={6} align="right">
+                          <Text strong>{formatCommercialCost(totalMaterials)}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={7} align="right">
+                          <Text strong>{formatCommercialCost(totalWorks)}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={8} align="right">
                           <Text strong style={{ color: '#52c41a' }}>
                             {formatCommercialCost(totalCommercial)}
                           </Text>
                         </Table.Summary.Cell>
-                        <Table.Summary.Cell index={3} colSpan={3} />
+                        <Table.Summary.Cell index={9} colSpan={2} />
                       </Table.Summary.Row>
                     </Table.Summary>
                   );

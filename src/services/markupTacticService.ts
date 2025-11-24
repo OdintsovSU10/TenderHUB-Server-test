@@ -288,19 +288,24 @@ export async function applyTacticToBoqItem(
     // Выполняем расчет
     const result = calculateMarkupResult(context);
 
-    // Определяем, какое поле обновлять в зависимости от типа
-    const isMaterial = ['мат', 'суб-мат', 'мат-комп.'].includes(boqItem.boq_item_type);
+    // Загружаем настройки ценообразования для тендера
+    const pricingDistribution = await loadPricingDistribution(boqItem.tender_id);
+
+    // Применяем распределение ценообразования
+    const { materialCost, workCost } = applyPricingDistribution(
+      boqItem.total_amount || 0,
+      result.commercialCost,
+      boqItem.boq_item_type,
+      pricingDistribution
+    );
+
+    // Готовим данные для обновления
     const updateData: any = {
       commercial_markup: result.markupCoefficient,
+      total_commercial_material_cost: materialCost,
+      total_commercial_work_cost: workCost,
       updated_at: new Date().toISOString()
     };
-
-    // Устанавливаем значение в нужное поле, остальное оставляем без изменений
-    if (isMaterial) {
-      updateData.total_commercial_material_cost = result.commercialCost;
-    } else {
-      updateData.total_commercial_work_cost = result.commercialCost;
-    }
 
     // Обновляем элемент BOQ
     const { error: updateError } = await supabase
@@ -386,6 +391,9 @@ export async function applyTacticToPosition(
     const tenderId = boqItems[0].tender_id;
     const markupParameters = await loadMarkupParameters(tenderId);
 
+    // Загружаем настройки ценообразования один раз для всех элементов
+    const pricingDistribution = await loadPricingDistribution(tenderId);
+
     // Применяем тактику к каждому элементу
     const details: TacticApplicationResult['details'] = [];
     let successCount = 0;
@@ -411,19 +419,21 @@ export async function applyTacticToPosition(
 
         const result = calculateMarkupResult(context);
 
-        // Определяем тип и обновляем
-        const isMaterial = ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type);
+        // Применяем распределение ценообразования
+        const { materialCost, workCost } = applyPricingDistribution(
+          item.total_amount || 0,
+          result.commercialCost,
+          item.boq_item_type,
+          pricingDistribution
+        );
+
+        // Готовим данные для обновления
         const updateData: any = {
           commercial_markup: result.markupCoefficient,
+          total_commercial_material_cost: materialCost,
+          total_commercial_work_cost: workCost,
           updated_at: new Date().toISOString()
         };
-
-        // Устанавливаем значение в нужное поле
-        if (isMaterial) {
-          updateData.total_commercial_material_cost = result.commercialCost;
-        } else {
-          updateData.total_commercial_work_cost = result.commercialCost;
-        }
 
         const { error: updateError } = await supabase
           .from('boq_items')
@@ -475,12 +485,16 @@ interface PricingDistribution {
   basic_material_markup_target: 'material' | 'work';
   auxiliary_material_base_target: 'material' | 'work';
   auxiliary_material_markup_target: 'material' | 'work';
+  component_material_base_target?: 'material' | 'work';
+  component_material_markup_target?: 'material' | 'work';
   subcontract_basic_material_base_target?: 'material' | 'work';
   subcontract_basic_material_markup_target?: 'material' | 'work';
   subcontract_auxiliary_material_base_target?: 'material' | 'work';
   subcontract_auxiliary_material_markup_target?: 'material' | 'work';
   work_base_target: 'material' | 'work';
   work_markup_target: 'material' | 'work';
+  component_work_base_target?: 'material' | 'work';
+  component_work_markup_target?: 'material' | 'work';
 }
 
 /**
@@ -504,18 +518,18 @@ async function loadPricingDistribution(tenderId: string): Promise<PricingDistrib
 /**
  * Определяет тип материала на основе boq_item_type
  */
-function getMaterialType(boqItemType: string): 'basic' | 'auxiliary' | 'subcontract_basic' | 'subcontract_auxiliary' | 'work' | null {
+function getMaterialType(boqItemType: string): 'basic' | 'auxiliary' | 'component_material' | 'subcontract_basic' | 'subcontract_auxiliary' | 'work' | 'component_work' | null {
   // Определяем тип на основе названия типа элемента
   if (boqItemType === 'мат') return 'basic';
-  if (boqItemType === 'мат-комп.') return 'auxiliary';
+  if (boqItemType === 'мат-комп.') return 'component_material';
   if (boqItemType === 'суб-мат') {
     // Для субматериалов нужно различать основные и вспомогательные
     // Пока возвращаем subcontract_basic по умолчанию
     return 'subcontract_basic';
   }
-  if (boqItemType === 'раб' || boqItemType === 'раб-комп.' || boqItemType === 'суб-раб') {
-    return 'work';
-  }
+  if (boqItemType === 'раб') return 'work';
+  if (boqItemType === 'раб-комп.') return 'component_work';
+  if (boqItemType === 'суб-раб') return 'work'; // Субподрядные работы обрабатываются как обычные работы
   return null;
 }
 
@@ -567,6 +581,21 @@ function applyPricingDistribution(
       workCost += distribution.auxiliary_material_markup_target === 'work' ? markup : 0;
       break;
 
+    case 'component_material':
+      if (distribution.component_material_base_target && distribution.component_material_markup_target) {
+        materialCost += distribution.component_material_base_target === 'material' ? baseAmount : 0;
+        workCost += distribution.component_material_base_target === 'work' ? baseAmount : 0;
+        materialCost += distribution.component_material_markup_target === 'material' ? markup : 0;
+        workCost += distribution.component_material_markup_target === 'work' ? markup : 0;
+      } else {
+        // Fallback к auxiliary если нет настроек для component_material
+        materialCost += distribution.auxiliary_material_base_target === 'material' ? baseAmount : 0;
+        workCost += distribution.auxiliary_material_base_target === 'work' ? baseAmount : 0;
+        materialCost += distribution.auxiliary_material_markup_target === 'material' ? markup : 0;
+        workCost += distribution.auxiliary_material_markup_target === 'work' ? markup : 0;
+      }
+      break;
+
     case 'subcontract_basic':
       if (distribution.subcontract_basic_material_base_target && distribution.subcontract_basic_material_markup_target) {
         materialCost += distribution.subcontract_basic_material_base_target === 'material' ? baseAmount : 0;
@@ -596,6 +625,21 @@ function applyPricingDistribution(
       workCost += distribution.work_base_target === 'work' ? baseAmount : 0;
       materialCost += distribution.work_markup_target === 'material' ? markup : 0;
       workCost += distribution.work_markup_target === 'work' ? markup : 0;
+      break;
+
+    case 'component_work':
+      if (distribution.component_work_base_target && distribution.component_work_markup_target) {
+        materialCost += distribution.component_work_base_target === 'material' ? baseAmount : 0;
+        workCost += distribution.component_work_base_target === 'work' ? baseAmount : 0;
+        materialCost += distribution.component_work_markup_target === 'material' ? markup : 0;
+        workCost += distribution.component_work_markup_target === 'work' ? markup : 0;
+      } else {
+        // Fallback к work если нет настроек для component_work
+        materialCost += distribution.work_base_target === 'material' ? baseAmount : 0;
+        workCost += distribution.work_base_target === 'work' ? baseAmount : 0;
+        materialCost += distribution.work_markup_target === 'material' ? markup : 0;
+        workCost += distribution.work_markup_target === 'work' ? markup : 0;
+      }
       break;
   }
 
