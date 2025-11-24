@@ -11,16 +11,45 @@ ALTER TABLE public.tender_pricing_distribution
 ADD COLUMN IF NOT EXISTS component_work_base_target text NOT NULL DEFAULT 'work',
 ADD COLUMN IF NOT EXISTS component_work_markup_target text NOT NULL DEFAULT 'work';
 
--- Добавляем CHECK constraints для новых полей
-ALTER TABLE public.tender_pricing_distribution
-ADD CONSTRAINT tender_pricing_distribution_component_material_base_target_check
-  CHECK (component_material_base_target = ANY (ARRAY['material'::text, 'work'::text])),
-ADD CONSTRAINT tender_pricing_distribution_component_material_markup_target_check
-  CHECK (component_material_markup_target = ANY (ARRAY['material'::text, 'work'::text])),
-ADD CONSTRAINT tender_pricing_distribution_component_work_base_target_check
-  CHECK (component_work_base_target = ANY (ARRAY['material'::text, 'work'::text])),
-ADD CONSTRAINT tender_pricing_distribution_component_work_markup_target_check
-  CHECK (component_work_markup_target = ANY (ARRAY['material'::text, 'work'::text]));
+-- Добавляем CHECK constraints для новых полей (с проверкой на существование)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'tender_pricing_distribution_component_material_base_target_chec'
+  ) THEN
+    ALTER TABLE public.tender_pricing_distribution
+    ADD CONSTRAINT tender_pricing_distribution_component_material_base_target_check
+      CHECK (component_material_base_target = ANY (ARRAY['material'::text, 'work'::text]));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'tender_pricing_distribution_component_material_markup_target_ch'
+  ) THEN
+    ALTER TABLE public.tender_pricing_distribution
+    ADD CONSTRAINT tender_pricing_distribution_component_material_markup_target_check
+      CHECK (component_material_markup_target = ANY (ARRAY['material'::text, 'work'::text]));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'tender_pricing_distribution_component_work_base_target_check'
+  ) THEN
+    ALTER TABLE public.tender_pricing_distribution
+    ADD CONSTRAINT tender_pricing_distribution_component_work_base_target_check
+      CHECK (component_work_base_target = ANY (ARRAY['material'::text, 'work'::text]));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'tender_pricing_distribution_component_work_markup_target_check'
+  ) THEN
+    ALTER TABLE public.tender_pricing_distribution
+    ADD CONSTRAINT tender_pricing_distribution_component_work_markup_target_check
+      CHECK (component_work_markup_target = ANY (ARRAY['material'::text, 'work'::text]));
+  END IF;
+END $$;
 
 -- Добавляем комментарии к новым полям
 COMMENT ON COLUMN public.tender_pricing_distribution.component_material_base_target IS 'Куда направляется базовая стоимость компонентных материалов (мат-комп.): material = КП, work = работы';

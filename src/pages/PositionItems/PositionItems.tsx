@@ -74,6 +74,11 @@ const PositionItems: React.FC = () => {
   const [gpVolume, setGpVolume] = useState<number>(0);
   const [gpNote, setGpNote] = useState<string>('');
 
+  // Состояния для редактирования доп работ
+  const [workName, setWorkName] = useState<string>('');
+  const [unitCode, setUnitCode] = useState<string>('');
+  const [units, setUnits] = useState<Array<{ code: string; name: string }>>([]);
+
   useEffect(() => {
     if (positionId) {
       fetchPositionData();
@@ -83,6 +88,7 @@ const PositionItems: React.FC = () => {
       fetchCostCategories();
       fetchWorkNames();
       fetchMaterialNames();
+      fetchUnits();
     }
   }, [positionId]);
 
@@ -115,6 +121,12 @@ const PositionItems: React.FC = () => {
       // Инициализация полей ГП
       setGpVolume(data.manual_volume || 0);
       setGpNote(data.manual_note || '');
+
+      // Инициализация полей доп работ (если это дополнительная работа)
+      if (data.is_additional) {
+        setWorkName(data.work_name || '');
+        setUnitCode(data.unit_code || '');
+      }
 
       // Сохранить курсы валют
       if (data.tenders) {
@@ -621,6 +633,41 @@ const PositionItems: React.FC = () => {
     }
   };
 
+  const handleSaveAdditionalWorkData = async () => {
+    if (!positionId || !position?.is_additional) return;
+
+    try {
+      const { error } = await supabase
+        .from('client_positions')
+        .update({
+          work_name: workName,
+          unit_code: unitCode,
+        })
+        .eq('id', positionId);
+
+      if (error) throw error;
+
+      await fetchPositionData();
+      message.success('Данные дополнительной работы сохранены');
+    } catch (error: any) {
+      message.error('Ошибка сохранения данных: ' + error.message);
+    }
+  };
+
+  const fetchUnits = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('units')
+        .select('code, name')
+        .order('code', { ascending: true });
+
+      if (error) throw error;
+      setUnits(data || []);
+    } catch (error: any) {
+      console.error('Ошибка загрузки единиц измерения:', error);
+    }
+  };
+
   const getRowClassName = (record: BoqItemFull): string => {
     const itemType = record.boq_item_type;
 
@@ -985,14 +1032,61 @@ const PositionItems: React.FC = () => {
               Назад
             </Button>
             <div>
-              <Title level={4} style={{ margin: 0 }}>
-                {position.position_number}. {position.work_name}
-              </Title>
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">
-                  Кол-во заказчика: <Text strong>{position.volume?.toFixed(2) || '-'}</Text> {position.unit_code}
-                </Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {position.is_additional && <Tag color="orange">ДОП</Tag>}
+                <Title level={4} style={{ margin: 0 }}>
+                  {position.position_number}. {position.work_name}
+                </Title>
               </div>
+
+              {/* Для обычных позиций показываем данные заказчика */}
+              {!position.is_additional && (
+                <div style={{ marginTop: 8 }}>
+                  <Text type="secondary">
+                    Кол-во заказчика: <Text strong>{position.volume?.toFixed(2) || '-'}</Text> {position.unit_code}
+                  </Text>
+                </div>
+              )}
+
+              {/* Для доп работ показываем редактируемые поля */}
+              {position.is_additional && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Text type="secondary">Наименование:</Text>
+                    <Input
+                      value={workName}
+                      onChange={(e) => setWorkName(e.target.value)}
+                      onBlur={handleSaveAdditionalWorkData}
+                      style={{ width: 400 }}
+                      size="small"
+                      placeholder="Наименование работы"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Text type="secondary">Единица измерения:</Text>
+                    <Select
+                      value={unitCode}
+                      onChange={(value) => {
+                        setUnitCode(value);
+                        // Сохраняем автоматически при изменении
+                        setTimeout(() => handleSaveAdditionalWorkData(), 100);
+                      }}
+                      style={{ width: 200 }}
+                      size="small"
+                      showSearch
+                      placeholder="Выберите единицу"
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={units.map(unit => ({
+                        value: unit.code,
+                        label: `${unit.code} - ${unit.name}`,
+                      }))}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1010,12 +1104,6 @@ const PositionItems: React.FC = () => {
                 />
                 <Text type="secondary">{position.unit_code}</Text>
               </div>
-              <Tag color="success" style={{ fontSize: 14, padding: '4px 12px', fontWeight: 600 }}>
-                Итого: {Math.round(items.reduce((sum, item) => sum + calculateTotal(item), 0)).toLocaleString('ru-RU')}
-              </Tag>
-              <Tag color="success" style={{ fontSize: 14, padding: '4px 12px', fontWeight: 600 }}>
-                Р {items.filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type)).length} М {items.filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type)).length}
-              </Tag>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
               <Text type="secondary">Примечание ГП:</Text>

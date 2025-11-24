@@ -420,7 +420,7 @@ COMMENT ON COLUMN public.boq_items.parent_work_item_id IS 'Привязка ма
 CREATE TABLE IF NOT EXISTS public.client_positions (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     tender_id uuid NOT NULL,
-    position_number integer(32) NOT NULL,
+    position_number numeric(10,2) NOT NULL,
     unit_code text,
     volume numeric(18,6),
     client_note text,

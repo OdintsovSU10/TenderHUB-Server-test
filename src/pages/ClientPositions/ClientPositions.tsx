@@ -14,6 +14,7 @@ import {
   message,
   Input,
   InputNumber,
+  Tooltip,
 } from 'antd';
 import {
   CalendarOutlined,
@@ -24,6 +25,7 @@ import {
   ArrowLeftOutlined,
   DashboardOutlined,
   FileSearchOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
@@ -31,6 +33,7 @@ import { supabase, type Tender, type ClientPosition } from '../../lib/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
+import AddAdditionalPositionModal from './AddAdditionalPositionModal';
 
 dayjs.extend(duration);
 
@@ -62,6 +65,8 @@ const ClientPositions: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [scrollToPositionId, setScrollToPositionId] = useState<string | null>(null);
   const [positionCounts, setPositionCounts] = useState<Record<string, { works: number; materials: number }>>({});
+  const [additionalModalOpen, setAdditionalModalOpen] = useState(false);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
 
   // Загрузка тендеров
   useEffect(() => {
@@ -338,6 +343,23 @@ const ClientPositions: React.FC = () => {
     }
   };
 
+  // Открытие модального окна добавления доп работы
+  const handleOpenAdditionalModal = (parentId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Предотвращаем переход к позиции
+    setSelectedParentId(parentId);
+    setAdditionalModalOpen(true);
+  };
+
+  // Обработка успешного добавления доп работы
+  const handleAdditionalSuccess = () => {
+    setAdditionalModalOpen(false);
+    setSelectedParentId(null);
+    // Перезагружаем позиции для отображения новой доп работы
+    if (selectedTenderId) {
+      fetchClientPositions(selectedTenderId);
+    }
+  };
+
   // Колонки таблицы
   const columns: ColumnsType<ClientPosition> = [
     {
@@ -356,6 +378,10 @@ const ClientPositions: React.FC = () => {
       render: (_, record, index) => {
         const isLeaf = isLeafPosition(index);
         const sectionColor = isLeaf ? '#52c41a' : '#ff7875'; // Зеленый для конечных, бледно-красный для неконечных
+        const isAdditional = record.is_additional;
+
+        // Отступ только для дополнительных работ
+        const paddingLeft = isAdditional ? 20 : 0;
 
         // Если это конечная позиция (лист), оборачиваем в RouterLink для поддержки открытия в новой вкладке
         if (isLeaf && selectedTender) {
@@ -366,12 +392,17 @@ const ClientPositions: React.FC = () => {
                 textDecoration: 'none',
                 color: 'inherit',
                 display: 'block',
+                paddingLeft: `${paddingLeft}px`,
               }}
             >
-              {record.item_no && (
-                <Text strong style={{ color: sectionColor, marginRight: 8 }}>
-                  {record.item_no}
-                </Text>
+              {isAdditional ? (
+                <Tag color="orange" style={{ marginRight: 8 }}>ДОП</Tag>
+              ) : (
+                record.item_no && (
+                  <Text strong style={{ color: sectionColor, marginRight: 8 }}>
+                    {record.item_no}
+                  </Text>
+                )
               )}
               <Text>{record.work_name}</Text>
             </RouterLink>
@@ -380,11 +411,15 @@ const ClientPositions: React.FC = () => {
 
         // Для неконечных позиций просто отображаем текст
         return (
-          <div>
-            {record.item_no && (
-              <Text strong style={{ color: sectionColor, marginRight: 8 }}>
-                {record.item_no}
-              </Text>
+          <div style={{ paddingLeft: `${paddingLeft}px` }}>
+            {isAdditional ? (
+              <Tag color="orange" style={{ marginRight: 8 }}>ДОП</Tag>
+            ) : (
+              record.item_no && (
+                <Text strong style={{ color: sectionColor, marginRight: 8 }}>
+                  {record.item_no}
+                </Text>
+              )
             )}
             <Text>{record.work_name}</Text>
           </div>
@@ -455,29 +490,46 @@ const ClientPositions: React.FC = () => {
     {
       title: <div style={{ textAlign: 'center' }}>Итого</div>,
       key: 'total',
-      width: 180,
+      width: 220,
       align: 'center',
       render: (_, record, index) => {
         const total = (record.total_material || 0) + (record.total_works || 0);
         const counts = positionCounts[record.id] || { works: 0, materials: 0 };
         const isLeaf = isLeafPosition(index);
-
-        // Показываем итоги только для конечных (листовых) позиций
-        if (!isLeaf) {
-          return '-';
-        }
+        const isAdditional = record.is_additional;
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-            <Text style={{ margin: 0, fontWeight: 600, fontSize: 15, color: currentTheme === 'dark' ? '#52c41a' : '#389e0d' }}>
-              {Math.round(total).toLocaleString('ru-RU')}
-            </Text>
-            {(counts.works > 0 || counts.materials > 0) && (
-              <div style={{ display: 'flex', gap: 8, fontSize: 15, fontWeight: 600 }}>
-                <span style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Р:</span>
-                <span style={{ color: '#ff9800' }}>{counts.works}</span>
-                <span style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>М:</span>
-                <span style={{ color: '#1890ff' }}>{counts.materials}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {/* Кнопка добавления доп работы (только для обычных позиций, не для доп работ) */}
+            {!isAdditional && (
+              <Tooltip title="Добавить ДОП работу">
+                <Button
+                  type="text"
+                  icon={<PlusOutlined />}
+                  size="small"
+                  style={{
+                    color: '#52c41a',
+                    padding: '4px 8px',
+                  }}
+                  onClick={(e) => handleOpenAdditionalModal(record.id, e)}
+                />
+              </Tooltip>
+            )}
+
+            {/* Итоги только для конечных позиций */}
+            {isLeaf && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                <Text style={{ margin: 0, fontWeight: 600, fontSize: 15, color: currentTheme === 'dark' ? '#52c41a' : '#389e0d' }}>
+                  {Math.round(total).toLocaleString('ru-RU')}
+                </Text>
+                {(counts.works > 0 || counts.materials > 0) && (
+                  <div style={{ display: 'flex', gap: 8, fontSize: 15, fontWeight: 600 }}>
+                    <span style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Р:</span>
+                    <span style={{ color: '#ff9800' }}>{counts.works}</span>
+                    <span style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>М:</span>
+                    <span style={{ color: '#1890ff' }}>{counts.materials}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -625,145 +677,139 @@ const ClientPositions: React.FC = () => {
         <div style={{
           padding: '16px',
         }}>
-        <Row gutter={16}>
-          {/* Левая карточка: Фильтры */}
-          <Col span={7}>
-            <Card
-              bordered={false}
-              bodyStyle={{ padding: '16px' }}
-              style={{ borderRadius: '8px' }}
-            >
-              <Row gutter={8}>
-                <Col span={16}>
-                  <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000', fontSize: 14 }}>Тендер:</Text>
-                  <Select
-                    style={{ width: '100%', marginTop: 6 }}
-                    placeholder="Выберите тендер..."
-                    value={selectedTenderTitle}
-                    onChange={handleTenderTitleChange}
-                    options={getTenderTitles()}
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                  />
-                </Col>
-                <Col span={8}>
-                  <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000', fontSize: 14 }}>Версия:</Text>
-                  <Select
-                    style={{ width: '100%', marginTop: 6 }}
-                    placeholder="Выберите..."
-                    disabled={!selectedTenderTitle}
-                    value={selectedVersion}
-                    onChange={handleVersionChange}
-                    options={selectedTenderTitle ? getVersionsForTitle(selectedTenderTitle) : []}
-                  />
-                </Col>
-              </Row>
-            </Card>
-          </Col>
+          <Card
+            bordered={false}
+            bodyStyle={{ padding: '16px' }}
+            style={{ borderRadius: '8px' }}
+          >
+            <Row gutter={16}>
+              {/* Левый блок: Фильтры */}
+              <Col span={9}>
+                <Row gutter={8}>
+                  <Col span={16}>
+                    <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000', fontSize: 14 }}>Тендер:</Text>
+                    <Select
+                      style={{ width: '100%', marginTop: 6 }}
+                      placeholder="Выберите тендер..."
+                      value={selectedTenderTitle}
+                      onChange={handleTenderTitleChange}
+                      options={getTenderTitles()}
+                      showSearch
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000', fontSize: 14 }}>Версия:</Text>
+                    <Select
+                      style={{ width: '100%', marginTop: 6 }}
+                      placeholder="Выберите..."
+                      disabled={!selectedTenderTitle}
+                      value={selectedVersion}
+                      onChange={handleVersionChange}
+                      options={selectedTenderTitle ? getVersionsForTitle(selectedTenderTitle) : []}
+                    />
+                  </Col>
+                </Row>
+              </Col>
 
-          {/* Правая карточка: Информация о тендере */}
-          <Col span={10} offset={7}>
-            <Card
-              bordered={false}
-              bodyStyle={{ padding: '16px' }}
-              style={{ borderRadius: '8px' }}
-            >
-              {selectedTender ? (
-                <div style={{ textAlign: 'right' }}>
-                  {/* Строка 1: Название и заказчик */}
-                  <div style={{ marginBottom: 4, fontSize: 14 }}>
-                    <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Название: </Text>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.title}</Text>
-                    <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
-                    <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Заказчик: </Text>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.client_name}</Text>
-                  </div>
+              {/* Правый блок: Информация о тендере */}
+              <Col span={10} offset={5}>
+                {selectedTender ? (
+                  <div style={{ textAlign: 'right' }}>
+                    {/* Строка 1: Название и заказчик */}
+                    <div style={{ marginBottom: 4, fontSize: 14 }}>
+                      <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Название: </Text>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.title}</Text>
+                      <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
+                      <Text strong style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Заказчик: </Text>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.client_name}</Text>
+                    </div>
 
-                  {/* Строка 2: Площади */}
-                  <div style={{ marginBottom: 4, fontSize: 14 }}>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь по СП: </Text>
-                    <Text strong style={{ color: '#10b981' }}>105 000 м²</Text>
-                    <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь Заказчика: </Text>
-                    <Text strong style={{ color: '#10b981' }}>116 000 м²</Text>
-                  </div>
+                    {/* Строка 2: Площади */}
+                    <div style={{ marginBottom: 4, fontSize: 14 }}>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь по СП: </Text>
+                      <Text strong style={{ color: '#10b981' }}>105 000 м²</Text>
+                      <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь Заказчика: </Text>
+                      <Text strong style={{ color: '#10b981' }}>116 000 м²</Text>
+                    </div>
 
-                  {/* Строка 3: Курсы валют */}
-                  <div style={{ marginBottom: 4, fontSize: 14 }}>
-                    <Text strong style={{ color: '#10b981' }}>Курс USD: </Text>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.usd_rate?.toFixed(2) || '0.00'} Р/$</Text>
-                    <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
-                    <Text strong style={{ color: '#10b981' }}>Курс EUR: </Text>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.eur_rate?.toFixed(2) || '0.00'} Р/€</Text>
-                    <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
-                    <Text strong style={{ color: '#10b981' }}>Курс CNY: </Text>
-                    <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.cny_rate?.toFixed(2) || '0.00'} Р/¥</Text>
-                  </div>
+                    {/* Строка 3: Курсы валют */}
+                    <div style={{ marginBottom: 4, fontSize: 14 }}>
+                      <Text strong style={{ color: '#10b981' }}>Курс USD: </Text>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.usd_rate?.toFixed(2) || '0.00'} Р/$</Text>
+                      <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
+                      <Text strong style={{ color: '#10b981' }}>Курс EUR: </Text>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.eur_rate?.toFixed(2) || '0.00'} Р/€</Text>
+                      <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
+                      <Text strong style={{ color: '#10b981' }}>Курс CNY: </Text>
+                      <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>{selectedTender.cny_rate?.toFixed(2) || '0.00'} Р/¥</Text>
+                    </div>
 
-                  {/* Строка 4: Кнопки */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Space wrap size="small">
-                      {selectedTender.upload_folder && (
-                        <Button
-                          icon={<LinkOutlined />}
-                          href={selectedTender.upload_folder}
-                          target="_blank"
-                          size="small"
-                        >
-                          Папка КП
-                        </Button>
-                      )}
-                      {selectedTender.bsm_link && (
-                        <Button
-                          icon={<FileTextOutlined />}
-                          href={selectedTender.bsm_link}
-                          target="_blank"
-                          size="small"
-                        >
-                          БСМ
-                        </Button>
-                      )}
-                      {selectedTender.tz_link && (
-                        <Button
-                          icon={<FileTextOutlined />}
-                          href={selectedTender.tz_link}
-                          target="_blank"
-                          size="small"
-                        >
-                          Уточнение ТЗ
-                        </Button>
-                      )}
-                      {selectedTender.qa_form_link && (
-                        <Button
-                          icon={<QuestionCircleOutlined />}
-                          href={selectedTender.qa_form_link}
-                          target="_blank"
-                          size="small"
-                        >
-                          Вопросы
-                        </Button>
-                      )}
-                    </Space>
+                    {/* Строка 4: Кнопки */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Space wrap size="small">
+                        {selectedTender.upload_folder && (
+                          <Button
+                            icon={<LinkOutlined />}
+                            href={selectedTender.upload_folder}
+                            target="_blank"
+                            size="small"
+                          >
+                            Папка КП
+                          </Button>
+                        )}
+                        {selectedTender.bsm_link && (
+                          <Button
+                            icon={<FileTextOutlined />}
+                            href={selectedTender.bsm_link}
+                            target="_blank"
+                            size="small"
+                          >
+                            БСМ
+                          </Button>
+                        )}
+                        {selectedTender.tz_link && (
+                          <Button
+                            icon={<FileTextOutlined />}
+                            href={selectedTender.tz_link}
+                            target="_blank"
+                            size="small"
+                          >
+                            Уточнение ТЗ
+                          </Button>
+                        )}
+                        {selectedTender.qa_form_link && (
+                          <Button
+                            icon={<QuestionCircleOutlined />}
+                            href={selectedTender.qa_form_link}
+                            target="_blank"
+                            size="small"
+                          >
+                            Вопросы
+                          </Button>
+                        )}
+                      </Space>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  color: currentTheme === 'dark' ? '#666' : '#999'
-                }}>
-                  <Text style={{ fontSize: 14, color: currentTheme === 'dark' ? '#666' : '#999' }}>
-                    Выберите тендер для отображения данных
-                  </Text>
-                </div>
-              )}
-            </Card>
-          </Col>
-        </Row>
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    color: currentTheme === 'dark' ? '#666' : '#999'
+                  }}>
+                    <Text style={{ fontSize: 14, color: currentTheme === 'dark' ? '#666' : '#999' }}>
+                      Выберите тендер для отображения данных
+                    </Text>
+                  </div>
+                )}
+              </Col>
+            </Row>
+          </Card>
         </div>
 
         {/* Строка с дедлайном - шкала состояния */}
@@ -922,6 +968,17 @@ const ClientPositions: React.FC = () => {
         </Card>
       )}
 
+      {/* Модальное окно добавления доп работы */}
+      <AddAdditionalPositionModal
+        open={additionalModalOpen}
+        parentPositionId={selectedParentId}
+        tenderId={selectedTenderId || ''}
+        onCancel={() => {
+          setAdditionalModalOpen(false);
+          setSelectedParentId(null);
+        }}
+        onSuccess={handleAdditionalSuccess}
+      />
     </div>
   );
 };
