@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Input, Space, Typography } from 'antd';
+import { Button, Input, Space, Typography, Tag } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
@@ -17,6 +17,7 @@ interface TacticEditorHeaderProps {
   isEditingName: boolean;
   editingName: string;
   canDelete: boolean;
+  isGlobal?: boolean;
   onBackToList: () => void;
   onStartEditingName: () => void;
   onSaveName: () => void;
@@ -32,6 +33,7 @@ export const TacticEditorHeader: React.FC<TacticEditorHeaderProps> = ({
   isEditingName,
   editingName,
   canDelete,
+  isGlobal,
   onBackToList,
   onStartEditingName,
   onSaveName,
@@ -85,6 +87,11 @@ export const TacticEditorHeader: React.FC<TacticEditorHeaderProps> = ({
                 <Title level={4} style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   {currentTacticName || 'Новая схема'}
                 </Title>
+                {isGlobal && (
+                  <Tag color="gold" style={{ margin: 0 }}>
+                    глобальная
+                  </Tag>
+                )}
                 <Button type="text" size="small" icon={<EditOutlined />} onClick={onStartEditingName} />
               </div>
             )}

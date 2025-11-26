@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Input, List, Card, Space, Typography, Spin, theme } from 'antd';
+import { Button, Input, List, Card, Space, Typography, Spin, theme, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { MarkupTactic } from '../../../../lib/supabase';
 import dayjs from 'dayjs';
@@ -28,6 +28,10 @@ export const TacticsList: React.FC<TacticsListProps> = ({
   const filteredTactics = tactics
     .filter(t => !searchText || t.name?.toLowerCase().includes(searchText.toLowerCase()))
     .sort((a, b) => {
+      // Глобальные тактики всегда первыми
+      if (a.is_global && !b.is_global) return -1;
+      if (!a.is_global && b.is_global) return 1;
+
       // Сортировка по дате создания (новые первыми)
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -77,14 +81,20 @@ export const TacticsList: React.FC<TacticsListProps> = ({
                 style={{
                   height: '100%',
                   cursor: 'pointer',
+                  border: tactic.is_global ? `2px solid ${token.colorPrimary}` : undefined,
                 }}
                 bodyStyle={{ padding: 16 }}
               >
                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                     <Title level={5} style={{ margin: 0, flex: 1 }}>
                       {tactic.name || 'Без названия'}
                     </Title>
+                    {tactic.is_global && (
+                      <Tag color="gold" style={{ margin: 0 }}>
+                        глобальная
+                      </Tag>
+                    )}
                   </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     {tactic.created_at
