@@ -1,4 +1,4 @@
-import { EditOutlined, CopyOutlined, FileZipOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, CopyOutlined, SwapOutlined, FileZipOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { TenderRecord } from '../hooks/useTendersData';
 
@@ -7,12 +7,13 @@ interface GetActionMenuParams {
   onEdit: (record: TenderRecord) => void;
   onDelete: (record: TenderRecord) => void;
   onCopy: (record: TenderRecord) => void;
+  onNewVersion: (record: TenderRecord) => void;
   onArchive: (record: TenderRecord) => void;
   onExport: (record: TenderRecord) => void;
 }
 
 export const getTendersActionMenu = (params: GetActionMenuParams): MenuProps['items'] => {
-  const { record, onEdit, onDelete, onCopy, onArchive, onExport } = params;
+  const { record, onEdit, onDelete, onCopy, onNewVersion, onArchive, onExport } = params;
 
   return [
     {
@@ -26,6 +27,12 @@ export const getTendersActionMenu = (params: GetActionMenuParams): MenuProps['it
       label: 'Дублировать',
       icon: <CopyOutlined />,
       onClick: () => onCopy(record),
+    },
+    {
+      key: 'new_version',
+      label: 'Новая версия',
+      icon: <SwapOutlined />,
+      onClick: () => onNewVersion(record),
     },
     {
       type: 'divider',
