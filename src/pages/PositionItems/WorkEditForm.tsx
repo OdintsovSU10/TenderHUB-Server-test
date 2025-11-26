@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button, Select, AutoComplete, InputNumber, Input, message } from 'antd';
 import { CloseOutlined, SaveOutlined } from '@ant-design/icons';
-import type { BoqItemFull, BoqItemType, CurrencyType } from '../../lib/supabase';
+import type { BoqItemFull, CurrencyType } from '../../lib/supabase';
 
 interface WorkEditFormProps {
   record: BoqItemFull;

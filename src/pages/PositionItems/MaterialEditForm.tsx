@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Select, AutoComplete, InputNumber, Input, message } from 'antd';
 import { CloseOutlined, SaveOutlined, LinkOutlined } from '@ant-design/icons';
-import type { BoqItemFull, BoqItemType, MaterialType, CurrencyType, DeliveryPriceType } from '../../lib/supabase';
+import type { BoqItemFull, CurrencyType } from '../../lib/supabase';
 
 interface MaterialEditFormProps {
   record: BoqItemFull;

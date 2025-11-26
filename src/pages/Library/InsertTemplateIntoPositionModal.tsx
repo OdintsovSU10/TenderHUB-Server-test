@@ -46,7 +46,6 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
   const [tenderTitleSearch, setTenderTitleSearch] = useState<string>('');
   const [tenderVersionSearch, setTenderVersionSearch] = useState<string>('');
   const [selectedTenderTitle, setSelectedTenderTitle] = useState<string | null>(null);
-  const [selectedTenderVersion, setSelectedTenderVersion] = useState<number | null>(null);
   const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
 
   // Состояния для позиции
@@ -66,7 +65,6 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
     setTenderTitleSearch('');
     setTenderVersionSearch('');
     setSelectedTenderTitle(null);
-    setSelectedTenderVersion(null);
     setSelectedTenderId(null);
     setLeafPositions([]);
   };
@@ -141,17 +139,15 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
 
     // Сбросить версию и позицию
     setTenderVersionSearch('');
-    setSelectedTenderVersion(null);
     setSelectedTenderId(null);
     resetPositionSelection();
     setLeafPositions([]);
     form.setFieldsValue({ tender_version: undefined, position_id: undefined });
   };
 
-  const handleTenderVersionSelect = (value: string) => {
-    const version = parseInt(value);
-    setTenderVersionSearch(value);
-    setSelectedTenderVersion(version);
+  const handleTenderVersionSelect = (_value: string) => {
+    const version = parseInt(_value);
+    setTenderVersionSearch(_value);
 
     // Найти ID тендера по названию и версии
     const tender = tenders.find(t => t.title === selectedTenderTitle && t.version === version);
@@ -165,7 +161,7 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
     }
   };
 
-  const handlePositionSelect = (value: string, option: any) => {
+  const handlePositionSelect = (_value: string, option: any) => {
     setPositionSearch(option.label);
     setSelectedPositionId(option.key);
   };
@@ -192,8 +188,7 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
 
       const result = await insertTemplateItems(
         templateId,
-        selectedPositionId,
-        selectedTenderId
+        selectedPositionId
       );
 
       message.success(
@@ -260,7 +255,6 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
                   setTenderTitleSearch('');
                   setSelectedTenderTitle(null);
                   setTenderVersionSearch('');
-                  setSelectedTenderVersion(null);
                   setSelectedTenderId(null);
                   setLeafPositions([]);
                   resetPositionSelection();
@@ -290,7 +284,6 @@ const InsertTemplateIntoPositionModal: React.FC<InsertTemplateIntoPositionModalP
                 allowClear
                 onClear={() => {
                   setTenderVersionSearch('');
-                  setSelectedTenderVersion(null);
                   setSelectedTenderId(null);
                   setLeafPositions([]);
                   resetPositionSelection();

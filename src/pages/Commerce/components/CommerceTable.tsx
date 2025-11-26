@@ -1,0 +1,235 @@
+/**
+ * Таблица коммерческих стоимостей позиций
+ */
+
+import { Table, Typography, Tag, Empty } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import type { PositionWithCommercialCost } from '../types';
+import { formatCommercialCost } from '../../../utils/markupCalculator';
+
+const { Text } = Typography;
+
+interface CommerceTableProps {
+  positions: PositionWithCommercialCost[];
+  selectedTenderId: string | undefined;
+  onNavigateToPosition: (positionId: string) => void;
+}
+
+export default function CommerceTable({
+  positions,
+  selectedTenderId,
+  onNavigateToPosition
+}: CommerceTableProps) {
+  // Определение конечной позиции (листового узла) на основе иерархии
+  const isLeafPosition = (record: PositionWithCommercialCost, index: number): boolean => {
+    // Последняя строка всегда конечная
+    if (index === positions.length - 1) {
+      return true;
+    }
+
+    const currentLevel = record.hierarchy_level || 0;
+    const nextLevel = positions[index + 1]?.hierarchy_level || 0;
+
+    // Если текущий уровень >= следующего, значит это листовой узел
+    return currentLevel >= nextLevel;
+  };
+
+  const columns: ColumnsType<PositionWithCommercialCost> = [
+    {
+      title: 'Наименование',
+      key: 'work_name',
+      width: 350,
+      render: (_, record, index) => {
+        const isLeaf = isLeafPosition(record, index);
+        const sectionColor = isLeaf ? '#52c41a' : '#ff7875';
+
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              cursor: isLeaf ? 'pointer' : 'default',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word'
+            }}
+            onClick={() => {
+              if (isLeaf && selectedTenderId) {
+                onNavigateToPosition(record.id);
+              }
+            }}
+          >
+            {record.item_no && (
+              <Text strong style={{ color: sectionColor, marginRight: 8, flexShrink: 0 }}>
+                {record.item_no}
+              </Text>
+            )}
+            <Text style={{ textDecoration: isLeaf ? 'underline' : 'none' }}>{record.work_name}</Text>
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Кол-во',
+      key: 'volume',
+      width: 100,
+      render: (_, record) => (
+        <div>
+          <div>{record.manual_volume || 0} {record.unit_code || ''}</div>
+          <div style={{ fontSize: '11px', color: '#999' }}>
+            {record.items_count || 0} элем.
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Цена за единицу',
+      key: 'per_unit',
+      width: 150,
+      align: 'right',
+      render: (_, record) => {
+        if (!record.manual_volume || record.manual_volume === 0) return '-';
+        const perUnit = (record.commercial_total || 0) / record.manual_volume;
+        return (
+          <Text type="secondary">
+            {formatCommercialCost(perUnit)}
+          </Text>
+        );
+      },
+    },
+    {
+      title: 'Цена за единицу материалов, Руб.',
+      key: 'per_unit_material',
+      width: 150,
+      align: 'right',
+      render: (_, record) => {
+        if (!record.manual_volume || record.manual_volume === 0) return '-';
+        const perUnitMaterial = (record.material_cost_total || 0) / record.manual_volume;
+        return (
+          <Text type="secondary" style={{ color: '#1890ff' }}>
+            {formatCommercialCost(perUnitMaterial)}
+          </Text>
+        );
+      },
+    },
+    {
+      title: 'Цена за единицу работ, Руб.',
+      key: 'per_unit_work',
+      width: 150,
+      align: 'right',
+      render: (_, record) => {
+        if (!record.manual_volume || record.manual_volume === 0) return '-';
+        const perUnitWork = (record.work_cost_total || 0) / record.manual_volume;
+        return (
+          <Text type="secondary" style={{ color: '#52c41a' }}>
+            {formatCommercialCost(perUnitWork)}
+          </Text>
+        );
+      },
+    },
+    {
+      title: 'Базовая стоимость',
+      key: 'base_total',
+      width: 150,
+      align: 'right',
+      render: (_, record) => (
+        <Text>{formatCommercialCost(record.base_total || 0)}</Text>
+      ),
+    },
+    {
+      title: 'Итого материалов (КП), руб',
+      key: 'material_cost_total',
+      width: 180,
+      align: 'right',
+      render: (_, record) => (
+        <Text>{formatCommercialCost(record.material_cost_total || 0)}</Text>
+      ),
+    },
+    {
+      title: 'Итого работ (КП), руб',
+      key: 'work_cost_total',
+      width: 180,
+      align: 'right',
+      render: (_, record) => (
+        <Text>{formatCommercialCost(record.work_cost_total || 0)}</Text>
+      ),
+    },
+    {
+      title: 'Коммерческая стоимость',
+      key: 'commercial_total',
+      width: 180,
+      align: 'right',
+      render: (_, record) => (
+        <Text strong style={{ color: '#52c41a' }}>
+          {formatCommercialCost(record.commercial_total || 0)}
+        </Text>
+      ),
+    },
+    {
+      title: 'Коэфф.',
+      key: 'markup',
+      width: 120,
+      align: 'center',
+      render: (_, record) => {
+        const coefficient = record.markup_percentage || 1;
+        const color = coefficient > 1 ? 'green' : coefficient < 1 ? 'red' : 'default';
+        return (
+          <Tag color={color}>
+            {coefficient.toFixed(4)}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Примечание ГП',
+      dataIndex: 'manual_note',
+      key: 'manual_note',
+      width: 200,
+      responsive: ['lg'],
+    },
+  ];
+
+  return (
+    <Table
+      columns={columns}
+      dataSource={positions}
+      rowKey="id"
+      size="small"
+      locale={{
+        emptyText: <Empty description="Нет позиций заказчика" />
+      }}
+      pagination={false}
+      scroll={{ y: 'calc(100vh - 320px)' }}
+      summary={() => {
+        const totalBase = positions.reduce((sum, pos) => sum + (pos.base_total || 0), 0);
+        const totalMaterials = positions.reduce((sum, pos) => sum + (pos.material_cost_total || 0), 0);
+        const totalWorks = positions.reduce((sum, pos) => sum + (pos.work_cost_total || 0), 0);
+        const totalCommercial = positions.reduce((sum, pos) => sum + (pos.commercial_total || 0), 0);
+
+        return (
+          <Table.Summary fixed>
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0} colSpan={5}>
+                <Text strong>Итого:</Text>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={5} align="right">
+                <Text strong>{formatCommercialCost(totalBase)}</Text>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={6} align="right">
+                <Text strong>{formatCommercialCost(totalMaterials)}</Text>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={7} align="right">
+                <Text strong>{formatCommercialCost(totalWorks)}</Text>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={8} align="right">
+                <Text strong style={{ color: '#52c41a' }}>
+                  {formatCommercialCost(totalCommercial)}
+                </Text>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={9} colSpan={2} />
+            </Table.Summary.Row>
+          </Table.Summary>
+        );
+      }}
+    />
+  );
+}

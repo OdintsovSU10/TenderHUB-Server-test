@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Table, Typography, theme, Input, Tag, Button, Space, message, Card, Progress, Tooltip } from 'antd';
 import {
   SearchOutlined,
-  CheckCircleFilled,
   SyncOutlined,
   DashboardOutlined,
   ClockCircleOutlined,
@@ -125,7 +124,7 @@ const Dashboard: React.FC = () => {
   }, [searchText, tenders]);
 
   // Обновление расчета для тендера
-  const handleUpdateCalculation = async (tenderId: string) => {
+  const handleUpdateCalculation = async () => {
     try {
       // Перезагружаем данные тендеров для обновления расчетов
       await fetchTenders();
@@ -288,7 +287,7 @@ const Dashboard: React.FC = () => {
       key: 'action',
       width: '4%',
       align: 'center' as const,
-      render: (_: any, record: TenderTableData) => (
+      render: () => (
         <Tooltip title="Обновить расчет">
           <Button
             type="text"
@@ -296,7 +295,7 @@ const Dashboard: React.FC = () => {
             icon={<SyncOutlined />}
             onClick={(e) => {
               e.stopPropagation();
-              handleUpdateCalculation(record.id);
+              handleUpdateCalculation();
             }}
             style={{ color: token.colorPrimary }}
           />

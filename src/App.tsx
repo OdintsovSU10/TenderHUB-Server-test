@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, theme, App as AntApp } from 'antd';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
@@ -7,7 +6,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Nomenclatures from './pages/Admin/Nomenclatures/Nomenclatures';
 import Tenders from './pages/Admin/Tenders/Tenders';
 import ConstructionCost from './pages/Admin/ConstructionCost/ConstructionCost';
-import ConstructionCostNew from './pages/Admin/ConstructionCostNew/ConstructionCostNew';
+import ConstructionCostNew from './pages/Admin/ConstructionCostNew';
 import MarkupConstructor from './pages/Admin/MarkupConstructor/MarkupConstructor';
 import MarkupPercentages from './pages/Admin/MarkupPercentages/MarkupPercentages';
 import Library from './pages/Library';
@@ -19,9 +18,6 @@ import Bsm from './pages/Bsm/Bsm';
 import ObjectComparison from './pages/Analytics/ObjectComparison';
 import FinancialIndicators from './pages/FinancialIndicators/FinancialIndicators';
 import './App.css';
-
-// Временный импорт для тестирования Supabase (удалить после проверки)
-import './test-supabase';
 
 function AppContent() {
   const { theme: currentTheme } = useTheme();

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Badge, Input, Switch, theme, Dropdown, List, Typography, Space, Empty } from 'antd';
+import { Layout, Menu, Avatar, Badge, Switch, theme, Dropdown, List, Typography, Space, Empty } from 'antd';
 import type { MenuProps } from 'antd';
 const { Text } = Typography;
 import {
-  HomeOutlined,
   DashboardOutlined,
   ShoppingCartOutlined,
   CalculatorOutlined,
@@ -11,7 +10,6 @@ import {
   DollarOutlined,
   SettingOutlined,
   UserOutlined,
-  SearchOutlined,
   BellOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,

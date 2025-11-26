@@ -12,8 +12,7 @@ interface InsertTemplateResult {
  */
 export async function insertTemplateItems(
   templateId: string,
-  clientPositionId: string,
-  tenderId: string
+  clientPositionId: string
 ): Promise<InsertTemplateResult> {
   // Validate template exists and get its default detail_cost_category_id
   const { data: template, error: templateError } = await supabase

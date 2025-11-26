@@ -12,8 +12,7 @@ interface LogoIconProps {
  */
 export const LogoIcon: React.FC<LogoIconProps> = ({
   size = 24,
-  className = '',
-  color = 'currentColor'
+  className = ''
 }) => {
   return (
     <svg

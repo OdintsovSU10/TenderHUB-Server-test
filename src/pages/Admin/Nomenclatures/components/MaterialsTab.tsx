@@ -1,0 +1,202 @@
+import React, { useState } from 'react';
+import { Table, Button, Space, Tooltip, Tag, Modal, Form, AutoComplete, Select } from 'antd';
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import { MaterialRecord } from '../hooks/useMaterials.tsx';
+
+interface MaterialsTabProps {
+  data: MaterialRecord[];
+  loading: boolean;
+  unitsList: {code: string, name: string}[];
+  unitColors: Record<string, string>;
+  currentPage: number;
+  pageSize: number;
+  onDelete: (record: MaterialRecord) => void;
+  onSave: (values: any, editingId?: string) => Promise<boolean>;
+  onPageChange: (page: number, newPageSize: number) => void;
+}
+
+export const MaterialsTab: React.FC<MaterialsTabProps> = ({
+  data,
+  loading,
+  unitsList,
+  unitColors,
+  currentPage,
+  pageSize,
+  onDelete,
+  onSave,
+  onPageChange,
+}) => {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialRecord | null>(null);
+  const [form] = Form.useForm();
+
+  const handleEditClick = (record: MaterialRecord) => {
+    setEditingMaterial(record);
+    form.setFieldsValue({
+      name: record.name,
+      unit: record.unit,
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      const success = await onSave(values, editingMaterial?.id);
+      if (success) {
+        setModalOpen(false);
+        form.resetFields();
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+    }
+  };
+
+  const columns: ColumnsType<MaterialRecord> = [
+    {
+      title: '№',
+      key: 'index',
+      width: 60,
+      align: 'center',
+      render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
+    },
+    {
+      title: 'Наименование',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: 'Единица измерения',
+      dataIndex: 'unit',
+      key: 'unit',
+      width: 150,
+      align: 'center',
+      render: (unit: string) => (
+        <Tag color={unitColors[unit] || 'default'}>{unit}</Tag>
+      ),
+    },
+    {
+      title: 'Дата создания',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 150,
+      align: 'center',
+    },
+    {
+      title: 'Действия',
+      key: 'action',
+      width: 120,
+      align: 'center',
+      render: (_: any, record: MaterialRecord) => (
+        <Space size="small">
+          <Tooltip title="Редактировать">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditClick(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Удалить">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => onDelete(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  const paginationConfig = {
+    current: currentPage,
+    pageSize: pageSize,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    pageSizeOptions: ['10', '20', '50', '100'],
+    showTotal: (total: number, range: [number, number]) =>
+      `${range[0]}-${range[1]} из ${total} записей`,
+    onChange: onPageChange,
+  };
+
+  return (
+    <>
+      <Table
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        pagination={paginationConfig}
+        size="middle"
+        scroll={{ y: 600 }}
+      />
+
+      <Modal
+        title={editingMaterial ? 'Редактировать материал' : 'Добавить материал'}
+        open={modalOpen}
+        onOk={handleSave}
+        onCancel={() => {
+          setModalOpen(false);
+          form.resetFields();
+        }}
+        okText="Сохранить"
+        cancelText="Отмена"
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          style={{ marginTop: 20 }}
+        >
+          <Form.Item
+            name="name"
+            label="Наименование материала"
+            rules={[
+              { required: true, message: 'Введите наименование материала' },
+              {
+                validator: async (_, value) => {
+                  if (!value) return;
+                  const isDuplicate = data.some(
+                    item => item.name.toLowerCase() === value.toLowerCase() &&
+                            (!editingMaterial || item.id !== editingMaterial.id)
+                  );
+                  if (isDuplicate) {
+                    throw new Error('Материал с таким наименованием уже существует');
+                  }
+                },
+              },
+            ]}
+          >
+            <AutoComplete
+              placeholder="Например: Кирпич керамический"
+              options={data.map(item => ({ value: item.name }))}
+              filterOption={(inputValue, option) =>
+                option?.value.toLowerCase().includes(inputValue.toLowerCase()) || false
+              }
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="unit"
+            label="Единица измерения"
+            rules={[{ required: true, message: 'Выберите единицу измерения' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Выберите или введите единицу измерения"
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={unitsList.map(unit => ({
+                value: unit.code,
+                label: `${unit.name} (${unit.code})`,
+              }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+};

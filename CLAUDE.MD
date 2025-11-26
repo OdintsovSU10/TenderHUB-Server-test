@@ -105,6 +105,9 @@ App.tsx
 - `/positions/:positionId/items` - BOQ items management for each position (✅ complete with price calculations)
 - `/commerce` - Commercial calculations with BOQ analysis (✅ complete with calculations)
 - `/costs` - Затраты на строительство (Construction costs analysis by tender) (✅ complete with calculations and pricing distribution)
+- `/bsm` - BSM (Building Systems Model) page (✅ complete)
+- `/analytics/comparison` - Object comparison analytics (✅ complete)
+- `/financial-indicators` - Financial indicators with Chart.js visualizations (✅ complete)
 - `/settings` - Application settings and configuration (✅ complete)
 - `/users` - Placeholder page
 
@@ -131,8 +134,11 @@ Both accept: `size`, `color`, `className` props
     "@ant-design/icons": "^6.1.0",
     "@supabase/supabase-js": "^2.80.0",
     "antd": "^5.28.0",
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-datalabels": "^2.2.0",
     "dayjs": "^1.11.19",
     "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.9.5",
     "xlsx": "^0.18.5",
@@ -272,11 +278,16 @@ All database migrations have been executed and consolidated into `supabase/schem
 - `/admin/nomenclatures` - CRUD for Materials, Works, Locations, Cost Categories
 - `/admin/markup_constructor` - Markup calculation constructor with tactics and parameters
 - `/admin/markup` - Markup percentages management (base percentages and tender-specific)
+- `/admin/construction_cost` - Cost reference catalog management
 - `/library` - Materials/Works library with inline editing, pagination, search
 - `/library/templates` - Template management with hierarchical works/materials structure
 - `/positions` - Client positions with hierarchical structure and inline editing
 - `/positions/:positionId/items` - BOQ items with calculated prices and instant add
 - `/commerce` - Commercial calculations with position analysis and profit tracking
+- `/costs` - Construction costs analysis with tender-specific calculations
+- `/bsm` - Building Systems Model page
+- `/analytics/comparison` - Object comparison analytics
+- `/financial-indicators` - Financial indicators with Chart.js visualizations
 - `/settings` - Application settings (font configuration, etc.)
 
 **UI Complete (Supabase Ready):**

@@ -113,7 +113,7 @@ export async function checkCommercialData(tenderId?: string) {
       let hasCommercial = false;
       let hasBase = false;
 
-      boqItems.forEach((item, idx) => {
+      boqItems.forEach((item) => {
         const commercialCost = (item.total_commercial_material_cost || 0) + (item.total_commercial_work_cost || 0);
         const status = commercialCost > 0 ? '✓' : '✗';
 

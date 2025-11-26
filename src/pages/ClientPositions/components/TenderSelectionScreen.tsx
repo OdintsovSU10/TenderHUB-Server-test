@@ -1,0 +1,106 @@
+import React from 'react';
+import { Card, Select, Row, Col, Typography, Tag } from 'antd';
+import type { Tender } from '../../../lib/supabase';
+
+const { Title, Text } = Typography;
+
+interface TenderOption {
+  value: string;
+  label: string;
+  clientName: string;
+}
+
+interface TenderSelectionScreenProps {
+  tenders: Tender[];
+  selectedTenderTitle: string | null;
+  selectedVersion: number | null;
+  tenderTitles: TenderOption[];
+  versions: { value: number; label: string }[];
+  onTenderTitleChange: (title: string) => void;
+  onVersionChange: (version: number) => void;
+  onTenderCardClick: (tender: Tender) => void;
+}
+
+export const TenderSelectionScreen: React.FC<TenderSelectionScreenProps> = ({
+  tenders,
+  selectedTenderTitle,
+  selectedVersion,
+  tenderTitles,
+  versions,
+  onTenderTitleChange,
+  onVersionChange,
+  onTenderCardClick,
+}) => {
+  return (
+    <Card bordered={false} style={{ height: '100%' }}>
+      <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <Title level={3} style={{ marginBottom: 24 }}>
+          Позиции заказчика
+        </Title>
+        <Text type="secondary" style={{ fontSize: 16, marginBottom: 24, display: 'block' }}>
+          Выберите тендер для просмотра позиций
+        </Text>
+        <Select
+          style={{ width: 400, marginBottom: 32 }}
+          placeholder="Выберите тендер"
+          value={selectedTenderTitle}
+          onChange={onTenderTitleChange}
+          showSearch
+          optionFilterProp="children"
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={tenderTitles}
+          size="large"
+        />
+
+        {selectedTenderTitle && (
+          <Select
+            style={{ width: 200, marginBottom: 32, marginLeft: 16 }}
+            placeholder="Выберите версию"
+            value={selectedVersion}
+            onChange={onVersionChange}
+            options={versions}
+            size="large"
+          />
+        )}
+
+        {tenders.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              Или выберите из списка:
+            </Text>
+            <Row gutter={[16, 16]} justify="center">
+              {tenders.slice(0, 6).map(tender => (
+                <Col key={tender.id}>
+                  <Card
+                    hoverable
+                    style={{
+                      width: 200,
+                      textAlign: 'center',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => onTenderCardClick(tender)}
+                  >
+                    <div style={{ marginBottom: 8 }}>
+                      <Tag color="blue">{tender.tender_number}</Tag>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <Text strong style={{ marginRight: 8 }}>
+                        {tender.title}
+                      </Text>
+                      <Tag color="orange">v{tender.version || 1}</Tag>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {tender.client_name}
+                    </Text>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};

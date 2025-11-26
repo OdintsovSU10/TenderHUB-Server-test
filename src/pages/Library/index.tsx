@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Tabs, Input, Button, Space, Typography } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import MaterialsTab from './MaterialsTab';
-import WorksTab from './WorksTab';
+import MaterialsTab from './MaterialsTab/MaterialsTab';
+import WorksTab from './WorksTab/WorksTab';
 
 const { Title } = Typography;
 
