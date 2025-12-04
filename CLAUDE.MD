@@ -80,19 +80,28 @@ node scripts/generate-ai-context.cjs
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
    - `VITE_SUPABASE_SERVICE_ROLE_KEY`
 
+**Git remotes:**
+- `origin` → `https://github.com/OdintsovSU10/HUBTender` (main repository)
+- `leonsky` → `https://github.com/Leonsky1/HUBTender` (fork for Vercel deployment)
+
 **Deploy workflow:**
 ```bash
 git add .
 git commit -m "message"
-git push origin main    # Auto-deploys to Vercel (production)
-vercel --prod           # Manual deploy to production
-vercel                  # Deploy to preview
+git push origin main     # Push to main repository
+git push leonsky main    # Push to fork (triggers Vercel auto-deploy)
+```
+
+Alternative (push to both at once):
+```bash
+git push origin main && git push leonsky main
 ```
 
 **Shared database:**
 - Local and Vercel use same Supabase instance
 - No separate staging database needed
 - All changes immediately visible on both environments
+- **ВАЖНО**: Всегда пушить в оба репозитория для деплоя на Vercel
 
 ## 🚨 CRITICAL DATABASE RULES 🚨
 
