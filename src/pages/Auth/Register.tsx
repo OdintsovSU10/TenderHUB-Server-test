@@ -3,7 +3,6 @@ import { Form, Input, Button, Card, message, Typography } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_ROLE_PAGES } from '../../lib/supabase/types';
 import { HeaderIcon } from '../../components/Icons/HeaderIcon';
 
 const { Title, Text } = Typography;
@@ -88,14 +87,15 @@ const Register: React.FC = () => {
         .eq('access_status', 'approved');
 
       // 4. Создаем уведомления для администраторов, руководителей и разработчиков
-      if (admins && admins.length > 0) {
+      const userId = authData.user?.id;
+      if (admins && admins.length > 0 && userId) {
         const notifications = admins.map((admin) => ({
           user_id: admin.id,
           type: 'pending' as const,
           title: 'Новый запрос на регистрацию',
           message: `${values.full_name} (${values.email}) запросил доступ к системе`,
           related_entity_type: 'registration_request',
-          related_entity_id: authData.user.id,
+          related_entity_id: userId,
           is_read: false,
         }));
 

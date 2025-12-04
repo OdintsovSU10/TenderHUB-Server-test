@@ -64,7 +64,7 @@ export function useSaveResults() {
           added_amount: result.added_amount,
           final_work_cost: result.final_work_cost,
           redistribution_rules,
-          created_by: user?.id || null,
+          created_by: user?.id,
         }));
 
         // Удаляем старые результаты для этого тендера и тактики

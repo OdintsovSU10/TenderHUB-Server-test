@@ -688,7 +688,6 @@ export interface CostRedistributionResult extends CostRedistributionResultInsert
   id: string;
   created_at: string;
   updated_at: string;
-  created_by?: string | null;
 }
 
 // =============================================

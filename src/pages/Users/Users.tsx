@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { canManageUsers, ALL_PAGES, PAGE_LABELS, PAGES_STRUCTURE, DEFAULT_ROLE_PAGES, type UserRole, type AccessStatus } from '../../lib/supabase/types';
+import { canManageUsers, ALL_PAGES, PAGE_LABELS, PAGES_STRUCTURE, type AccessStatus } from '../../lib/supabase/types';
 import dayjs from 'dayjs';
 
 const { TabPane } = Tabs;
@@ -49,7 +49,7 @@ interface RoleRecord {
 
 const Users: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const { currentTheme } = useTheme();
+  const { theme: currentTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('pending');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);

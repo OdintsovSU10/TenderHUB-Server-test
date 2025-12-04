@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Result, Spin, Button } from 'antd';
 import { LoadingOutlined, ClockCircleOutlined, StopOutlined } from '@ant-design/icons';

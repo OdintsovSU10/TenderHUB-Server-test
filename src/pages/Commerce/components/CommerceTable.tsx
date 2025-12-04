@@ -61,9 +61,9 @@ export default function CommerceTable({
                 <Tag color="orange" style={{ marginRight: 8 }}>
                   ДОП
                 </Tag>
-              ) : record.section_number ? (
+              ) : record.position_number ? (
                 <Tag color="blue" style={{ marginRight: 8 }}>
-                  {record.section_number}
+                  {record.position_number}
                 </Tag>
               ) : null}
               {record.item_no && (
