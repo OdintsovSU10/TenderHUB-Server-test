@@ -17,7 +17,9 @@ export const DeadlineBar: React.FC<DeadlineBarProps> = ({ selectedTender, curren
   const now = dayjs();
   const isExpired = deadline.isBefore(now);
 
-  const totalDays = 30;
+  // Вычисляем общую длительность от даты создания до дедлайна
+  const createdAt = dayjs(selectedTender.created_at);
+  const totalDays = deadline.diff(createdAt, 'day', true);
   const daysRemaining = deadline.diff(now, 'day', true);
   const progress = isExpired ? 100 : Math.max(0, Math.min(100, ((totalDays - daysRemaining) / totalDays) * 100));
 

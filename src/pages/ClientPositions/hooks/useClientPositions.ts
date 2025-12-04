@@ -66,35 +66,64 @@ export const useClientPositions = () => {
   const fetchClientPositions = async (tenderId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('client_positions')
-        .select('*')
-        .eq('tender_id', tenderId)
-        .order('position_number', { ascending: true });
+      // Загружаем данные батчами, так как Supabase ограничивает 1000 строк за запрос
+      let allPositions: ClientPosition[] = [];
+      let from = 0;
+      const positionsBatchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setClientPositions(data || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('client_positions')
+          .select('*')
+          .eq('tender_id', tenderId)
+          .order('position_number', { ascending: true })
+          .range(from, from + positionsBatchSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPositions = [...allPositions, ...data];
+          from += positionsBatchSize;
+          hasMore = data.length === positionsBatchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setClientPositions(allPositions);
 
       // Вычисляем листовые позиции для оптимизации рендеринга
-      const leafIndices = computeLeafPositions(data || []);
+      const leafIndices = computeLeafPositions(allPositions);
       setLeafPositionIndices(leafIndices);
 
-      // Загружаем счетчики работ/материалов и общую сумму одним запросом
-      if (data && data.length > 0) {
-        const positionIds = data.map(p => p.id);
+      // Загружаем счетчики работ/материалов и общую сумму батчами
+      if (allPositions.length > 0) {
+        const positionIds = allPositions.map(p => p.id);
 
-        const { data: boqData, error: boqError } = await supabase
-          .from('boq_items')
-          .select('client_position_id, boq_item_type, total_amount')
-          .in('client_position_id', positionIds);
+        // Разбиваем на батчи по 100 ID для избежания ошибки 400 (URL too long)
+        const boqBatchSize = 100;
+        const batches = [];
+        for (let i = 0; i < positionIds.length; i += boqBatchSize) {
+          batches.push(positionIds.slice(i, i + boqBatchSize));
+        }
 
-        if (boqError) throw boqError;
+        let allBoqData: any[] = [];
+        for (const batch of batches) {
+          const { data: boqData, error: boqError } = await supabase
+            .from('boq_items')
+            .select('client_position_id, boq_item_type, total_amount')
+            .in('client_position_id', batch);
+
+          if (boqError) throw boqError;
+          allBoqData = [...allBoqData, ...(boqData || [])];
+        }
 
         // Обрабатываем данные в памяти
         const counts: Record<string, { works: number; materials: number }> = {};
         let sum = 0;
 
-        (boqData || []).forEach((item) => {
+        allBoqData.forEach((item) => {
           // Подсчет работ и материалов
           if (!counts[item.client_position_id]) {
             counts[item.client_position_id] = { works: 0, materials: 0 };

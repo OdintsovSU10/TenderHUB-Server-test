@@ -217,28 +217,33 @@ export const useBoqUpload = () => {
     setUploadProgress(0);
 
     try {
-      const positions: ClientPositionInsert[] = parsedData.map((row, index) => ({
-        tender_id: tenderId,
-        position_number: index + 1,
-        unit_code: getFinalUnitCode(row.unit_code),
-        volume: row.volume || undefined,
-        client_note: row.client_note || undefined,
-        item_no: row.item_no || undefined,
-        work_name: row.work_name,
-        hierarchy_level: row.hierarchy_level || 0,
-        is_additional: false,
-        manual_volume: undefined,
-        manual_note: undefined,
-        parent_position_id: undefined,
-        total_material: 0,
-        total_works: 0,
-        material_cost_per_unit: 0,
-        work_cost_per_unit: 0,
-        total_commercial_material: 0,
-        total_commercial_work: 0,
-        total_commercial_material_per_unit: 0,
-        total_commercial_work_per_unit: 0,
-      }));
+      const positions: ClientPositionInsert[] = parsedData.map((row, index) => {
+        const finalUnitCode = getFinalUnitCode(row.unit_code);
+
+        return {
+          tender_id: tenderId,
+          position_number: index + 1,
+          // Только устанавливаем unit_code если есть валидный код
+          ...(finalUnitCode ? { unit_code: finalUnitCode } : {}),
+          volume: row.volume || undefined,
+          client_note: row.client_note || undefined,
+          item_no: row.item_no || undefined,
+          work_name: row.work_name,
+          hierarchy_level: row.hierarchy_level || 0,
+          is_additional: false,
+          manual_volume: undefined,
+          manual_note: undefined,
+          parent_position_id: undefined,
+          total_material: 0,
+          total_works: 0,
+          material_cost_per_unit: 0,
+          work_cost_per_unit: 0,
+          total_commercial_material: 0,
+          total_commercial_work: 0,
+          total_commercial_material_per_unit: 0,
+          total_commercial_work_per_unit: 0,
+        };
+      });
 
       const batchSize = 100;
       const totalBatches = Math.ceil(positions.length / batchSize);
