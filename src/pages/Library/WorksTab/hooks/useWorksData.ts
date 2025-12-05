@@ -41,13 +41,31 @@ export const useWorksData = () => {
 
   const fetchWorkNames = async () => {
     try {
-      const { data: namesData, error } = await supabase
-        .from('work_names')
-        .select('*')
-        .order('name');
+      // Загружаем все записи батчами (Supabase ограничение 1000 строк)
+      let allNames: WorkName[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setWorkNames(namesData || []);
+      while (hasMore) {
+        const { data: namesData, error } = await supabase
+          .from('work_names')
+          .select('*')
+          .order('name')
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+
+        if (namesData && namesData.length > 0) {
+          allNames = [...allNames, ...namesData];
+          from += batchSize;
+          hasMore = namesData.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setWorkNames(allNames);
     } catch (error) {
       console.error('Error fetching work names:', error);
     }

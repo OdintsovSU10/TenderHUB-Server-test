@@ -41,13 +41,31 @@ export const useMaterialsData = () => {
 
   const fetchMaterialNames = async () => {
     try {
-      const { data: namesData, error } = await supabase
-        .from('material_names')
-        .select('*')
-        .order('name');
+      // Загружаем все записи батчами (Supabase ограничение 1000 строк)
+      let allNames: MaterialName[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setMaterialNames(namesData || []);
+      while (hasMore) {
+        const { data: namesData, error } = await supabase
+          .from('material_names')
+          .select('*')
+          .order('name')
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+
+        if (namesData && namesData.length > 0) {
+          allNames = [...allNames, ...namesData];
+          from += batchSize;
+          hasMore = namesData.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setMaterialNames(allNames);
     } catch (error) {
       console.error('Error fetching material names:', error);
     }

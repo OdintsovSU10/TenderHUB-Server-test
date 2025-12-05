@@ -80,7 +80,7 @@ export const WorksAddForm: React.FC<WorksAddFormProps> = ({
               rules={[{ required: true, message: 'Обязательное поле' }]}
             >
               <AutoComplete
-                options={workNames.map(w => ({ value: w.name }))}
+                options={workNames.map(w => ({ key: w.id, value: w.name }))}
                 onSelect={onWorkNameSelect}
                 filterOption={(inputValue, option) =>
                   option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1

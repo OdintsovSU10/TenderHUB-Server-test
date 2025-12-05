@@ -99,7 +99,7 @@ export const MaterialsAddForm: React.FC<MaterialsAddFormProps> = ({
               rules={[{ required: true, message: 'Обязательное поле' }]}
             >
               <AutoComplete
-                options={materialNames.map(m => ({ value: m.name }))}
+                options={materialNames.map(m => ({ key: m.id, value: m.name }))}
                 onSelect={onMaterialNameSelect}
                 filterOption={(inputValue, option) =>
                   option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
