@@ -20,21 +20,39 @@ export const useMaterials = () => {
   const loadMaterials = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('material_names')
-        .select('*')
-        .order('name');
+      // Загружаем данные батчами, так как Supabase ограничивает 1000 строк за запрос
+      let allMaterials: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('material_names')
+          .select('*')
+          .order('name')
+          .range(from, from + batchSize - 1);
 
-      const formattedData: MaterialRecord[] = data?.map((item: any) => ({
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allMaterials = [...allMaterials, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const formattedData: MaterialRecord[] = allMaterials.map((item: any) => ({
         key: item.id,
         id: item.id,
         name: item.name,
         unit: item.unit,
         created_at: new Date(item.created_at).toLocaleDateString('ru-RU'),
-      })) || [];
+      }));
 
+      console.log(`[Nomenclatures/Materials] Loaded ${formattedData.length} materials`);
       setMaterialsData(formattedData);
     } catch (error) {
       console.error('Ошибка загрузки материалов:', error);

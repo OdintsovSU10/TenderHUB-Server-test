@@ -20,21 +20,39 @@ export const useWorks = () => {
   const loadWorks = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('work_names')
-        .select('*')
-        .order('name');
+      // Загружаем данные батчами, так как Supabase ограничивает 1000 строк за запрос
+      let allWorks: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('work_names')
+          .select('*')
+          .order('name')
+          .range(from, from + batchSize - 1);
 
-      const formattedData: WorkRecord[] = data?.map((item: any) => ({
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allWorks = [...allWorks, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const formattedData: WorkRecord[] = allWorks.map((item: any) => ({
         key: item.id,
         id: item.id,
         name: item.name,
         unit: item.unit,
         created_at: new Date(item.created_at).toLocaleDateString('ru-RU'),
-      })) || [];
+      }));
 
+      console.log(`[Nomenclatures/Works] Loaded ${formattedData.length} works`);
       setWorksData(formattedData);
     } catch (error) {
       console.error('Ошибка загрузки работ:', error);

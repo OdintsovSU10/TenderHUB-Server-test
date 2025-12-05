@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import { supabase, WorkLibraryFull, WorkName } from '../../../../lib/supabase';
 
@@ -6,6 +6,7 @@ export const useWorksData = () => {
   const [data, setData] = useState<WorkLibraryFull[]>([]);
   const [loading, setLoading] = useState(false);
   const [workNames, setWorkNames] = useState<WorkName[]>([]);
+  const hasFetchedNames = useRef(false);
 
   const fetchWorks = async () => {
     setLoading(true);
@@ -40,6 +41,9 @@ export const useWorksData = () => {
   };
 
   const fetchWorkNames = async () => {
+    if (hasFetchedNames.current) return;
+    hasFetchedNames.current = true;
+
     try {
       // Загружаем все записи батчами (Supabase ограничение 1000 строк)
       let allNames: WorkName[] = [];
@@ -65,9 +69,19 @@ export const useWorksData = () => {
         }
       }
 
-      setWorkNames(allNames);
+      // Дедупликация: сначала по name (оставляем первое вхождение), потом по id
+      const uniqueByName = Array.from(
+        new Map(allNames.map(item => [item.name, item])).values()
+      );
+      const uniqueNames = Array.from(
+        new Map(uniqueByName.map(item => [item.id, item])).values()
+      );
+
+      console.log(`[WorksData] Loaded ${allNames.length} raw, ${uniqueNames.length} unique work names`);
+      setWorkNames(uniqueNames);
     } catch (error) {
       console.error('Error fetching work names:', error);
+      hasFetchedNames.current = false; // Сброс при ошибке
     }
   };
 

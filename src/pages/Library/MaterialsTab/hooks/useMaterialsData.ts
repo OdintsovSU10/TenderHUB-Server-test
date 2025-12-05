@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import { supabase, MaterialLibraryFull, MaterialName } from '../../../../lib/supabase';
 
@@ -6,6 +6,7 @@ export const useMaterialsData = () => {
   const [data, setData] = useState<MaterialLibraryFull[]>([]);
   const [loading, setLoading] = useState(false);
   const [materialNames, setMaterialNames] = useState<MaterialName[]>([]);
+  const hasFetchedNames = useRef(false);
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -40,6 +41,9 @@ export const useMaterialsData = () => {
   };
 
   const fetchMaterialNames = async () => {
+    if (hasFetchedNames.current) return;
+    hasFetchedNames.current = true;
+
     try {
       // Загружаем все записи батчами (Supabase ограничение 1000 строк)
       let allNames: MaterialName[] = [];
@@ -65,9 +69,19 @@ export const useMaterialsData = () => {
         }
       }
 
-      setMaterialNames(allNames);
+      // Дедупликация: сначала по name (оставляем первое вхождение), потом по id
+      const uniqueByName = Array.from(
+        new Map(allNames.map(item => [item.name, item])).values()
+      );
+      const uniqueNames = Array.from(
+        new Map(uniqueByName.map(item => [item.id, item])).values()
+      );
+
+      console.log(`[MaterialsData] Loaded ${allNames.length} raw, ${uniqueNames.length} unique material names`);
+      setMaterialNames(uniqueNames);
     } catch (error) {
       console.error('Error fetching material names:', error);
+      hasFetchedNames.current = false; // Сброс при ошибке
     }
   };
 
