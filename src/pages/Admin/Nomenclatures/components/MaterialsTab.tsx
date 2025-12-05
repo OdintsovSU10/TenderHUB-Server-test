@@ -77,6 +77,7 @@ export const MaterialsTab = forwardRef<MaterialsTabRef, MaterialsTabProps>(({
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     },
     {
       title: 'Единица измерения',

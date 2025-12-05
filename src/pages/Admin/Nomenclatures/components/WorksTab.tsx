@@ -77,6 +77,7 @@ export const WorksTab = forwardRef<WorksTabRef, WorksTabProps>(({
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     },
     {
       title: 'Единица измерения',

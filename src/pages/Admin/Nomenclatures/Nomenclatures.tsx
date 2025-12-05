@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, Button, Space, Input, Typography } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
 import type { TabsProps } from 'antd';
 import { useMaterials } from './hooks/useMaterials.tsx';
 import { useWorks } from './hooks/useWorks.tsx';
@@ -8,6 +8,7 @@ import { useUnits } from './hooks/useUnits.tsx';
 import { MaterialsTab, type MaterialsTabRef } from './components/MaterialsTab';
 import { WorksTab, type WorksTabRef } from './components/WorksTab';
 import { UnitsTab, type UnitsTabRef } from './components/UnitsTab';
+import { NomenclatureImport } from './components/NomenclatureImport';
 
 const { Title } = Typography;
 
@@ -28,6 +29,8 @@ const Nomenclatures: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('materials');
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'materials' | 'works'>('materials');
 
   const materialsTabRef = useRef<MaterialsTabRef>(null);
   const worksTabRef = useRef<WorksTabRef>(null);
@@ -148,14 +151,38 @@ const Nomenclatures: React.FC = () => {
             <Input
               placeholder="Поиск..."
               prefix={<SearchOutlined />}
-              style={{ width: 200 }}
+              style={{ width: 400 }}
               onChange={(e) => setSearchText(e.target.value)}
             />
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
               Добавить
             </Button>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => {
+                setImportMode(activeTab === 'materials' ? 'materials' : 'works');
+                setImportModalOpen(true);
+              }}
+            >
+              Импорт из Excel
+            </Button>
           </Space>
         }
+      />
+
+      <NomenclatureImport
+        open={importModalOpen}
+        mode={importMode}
+        onClose={(success) => {
+          setImportModalOpen(false);
+          if (success) {
+            if (importMode === 'materials') {
+              materials.loadMaterials();
+            } else {
+              works.loadWorks();
+            }
+          }
+        }}
       />
     </div>
   );

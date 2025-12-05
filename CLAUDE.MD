@@ -279,6 +279,89 @@ Both accept: `size`, `color`, `className` props
 - **Base URL**: http://localhost:3001 (for tests, different from dev port)
 - **Test Files**: Commerce flow tests, markup calculation verification tests
 
+## Supabase Query Patterns
+
+### Batch Loading for Large Datasets
+**CRITICAL**: Supabase has a hard limit of 1000 rows per query. Always use batching for large datasets:
+
+```typescript
+// BAD: Will only return 1000 rows even with .limit(10000)
+const { data } = await supabase
+  .from('client_positions')
+  .select('*')
+  .eq('tender_id', tenderId);
+
+// GOOD: Batch loading with .range()
+let allPositions = [];
+let from = 0;
+const batchSize = 1000;
+let hasMore = true;
+
+while (hasMore) {
+  const { data } = await supabase
+    .from('client_positions')
+    .select('*')
+    .eq('tender_id', tenderId)
+    .order('position_number', { ascending: true })
+    .range(from, from + batchSize - 1);
+
+  if (data && data.length > 0) {
+    allPositions = [...allPositions, ...data];
+    from += batchSize;
+    hasMore = data.length === batchSize;
+  } else {
+    hasMore = false;
+  }
+}
+```
+
+### Avoiding URL Length Errors
+**CRITICAL**: Long `.in()` clauses (1000+ IDs) cause HTTP 400 errors. Batch the IDs:
+
+```typescript
+// BAD: URL too long with 1000+ IDs
+const { data } = await supabase
+  .from('boq_items')
+  .select('*')
+  .in('client_position_id', positionIds); // 1000+ IDs
+
+// GOOD: Batch by 100 IDs
+const batchSize = 100;
+const batches = [];
+for (let i = 0; i < positionIds.length; i += batchSize) {
+  batches.push(positionIds.slice(i, i + batchSize));
+}
+
+let allData = [];
+for (const batch of batches) {
+  const { data } = await supabase
+    .from('boq_items')
+    .select('*')
+    .in('client_position_id', batch);
+  allData = [...allData, ...(data || [])];
+}
+```
+
+### Foreign Key Constraint Handling
+**CRITICAL**: When inserting records with optional FK fields, use conditional spread to avoid FK violations:
+
+```typescript
+// BAD: Sets unit_code to undefined → FK constraint violation
+const position = {
+  tender_id: tenderId,
+  unit_code: getFinalUnitCode(row.unit_code), // might return undefined
+  work_name: row.work_name,
+};
+
+// GOOD: Only set unit_code if valid
+const finalUnitCode = getFinalUnitCode(row.unit_code);
+const position = {
+  tender_id: tenderId,
+  ...(finalUnitCode ? { unit_code: finalUnitCode } : {}),
+  work_name: row.work_name,
+};
+```
+
 ## Performance Optimization Patterns
 
 ### React Performance Best Practices
