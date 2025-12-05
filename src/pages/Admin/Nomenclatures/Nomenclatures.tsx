@@ -9,6 +9,7 @@ import { MaterialsTab, type MaterialsTabRef } from './components/MaterialsTab';
 import { WorksTab, type WorksTabRef } from './components/WorksTab';
 import { UnitsTab, type UnitsTabRef } from './components/UnitsTab';
 import { NomenclatureImport } from './components/NomenclatureImport';
+import './Nomenclatures.css';
 
 const { Title } = Typography;
 
@@ -137,7 +138,16 @@ const Nomenclatures: React.FC = () => {
   ];
 
   return (
-    <div style={{ margin: '-16px', padding: '24px' }}>
+    <div
+      className="nomenclatures-page"
+      style={{
+        margin: '-16px',
+        padding: '24px',
+        height: 'calc(100vh - 64px)',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
       <Title level={4} style={{ margin: '0 0 16px 0' }}>
         Номенклатуры
       </Title>
@@ -146,6 +156,11 @@ const Nomenclatures: React.FC = () => {
         items={tabItems}
         size="large"
         onChange={(key) => setActiveTab(key)}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
         tabBarExtraContent={
           <Space>
             <Input

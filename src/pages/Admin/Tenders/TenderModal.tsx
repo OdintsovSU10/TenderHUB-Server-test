@@ -180,9 +180,10 @@ const TenderModal: React.FC<TenderModalProps> = ({
               rules={[{ required: true, message: 'Пожалуйста, выберите дату' }]}
             >
               <DatePicker
+                showTime={{ format: 'HH:mm' }}
                 style={{ width: '100%' }}
-                format="DD.MM.YYYY"
-                placeholder="Выберите дату"
+                format="DD.MM.YYYY HH:mm"
+                placeholder="Выберите дату и время"
               />
             </Form.Item>
           </Col>

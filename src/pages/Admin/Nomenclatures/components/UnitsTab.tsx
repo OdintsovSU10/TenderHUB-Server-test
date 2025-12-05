@@ -171,7 +171,7 @@ export const UnitsTab = forwardRef<UnitsTabRef, UnitsTabProps>(({
         loading={loading}
         pagination={paginationConfig}
         size="middle"
-        scroll={{ y: 600 }}
+        scroll={{ y: 'calc(100vh - 340px)' }}
       />
 
       <Modal

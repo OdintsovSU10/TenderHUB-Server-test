@@ -1,0 +1,19 @@
+/* Заставляем Tabs занимать всю доступную высоту */
+.nomenclatures-page .ant-tabs {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.nomenclatures-page .ant-tabs-content-holder {
+  flex: 1 !important;
+  overflow: hidden !important;
+}
+
+.nomenclatures-page .ant-tabs-content {
+  height: 100% !important;
+}
+
+.nomenclatures-page .ant-tabs-tabpane {
+  height: 100% !important;
+}

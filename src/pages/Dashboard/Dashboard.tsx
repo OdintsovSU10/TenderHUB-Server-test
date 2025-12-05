@@ -63,15 +63,31 @@ const Dashboard: React.FC = () => {
         // Загружаем позиции тендера
         const { data: positions } = await supabase
           .from('client_positions')
-          .select('total_material, total_works')
+          .select('id')
           .eq('tender_id', tender.id);
 
-        // Рассчитываем итоговую стоимость BOQ (сумма материалов и работ всех позиций)
+        // Рассчитываем итоговую стоимость BOQ из boq_items
         let boqCost = 0;
         if (positions && positions.length > 0) {
-          boqCost = positions.reduce((sum, position) => {
-            return sum + (position.total_material || 0) + (position.total_works || 0);
-          }, 0);
+          const positionIds = positions.map(p => p.id);
+
+          // Разбиваем на батчи по 100 ID для избежания ошибки 400 (URL too long)
+          const boqBatchSize = 100;
+          const batches = [];
+          for (let i = 0; i < positionIds.length; i += boqBatchSize) {
+            batches.push(positionIds.slice(i, i + boqBatchSize));
+          }
+
+          for (const batch of batches) {
+            const { data: boqData } = await supabase
+              .from('boq_items')
+              .select('total_amount')
+              .in('client_position_id', batch);
+
+            if (boqData && boqData.length > 0) {
+              boqCost += boqData.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+            }
+          }
         }
 
         // Рассчитываем стоимость за м²
@@ -140,6 +156,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'number',
       key: 'number',
       width: '10%',
+      align: 'center' as const,
       render: (text: string) => (
         <Text strong style={{ fontSize: 13 }}>{text || '-'}</Text>
       ),
@@ -149,6 +166,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'name',
       key: 'name',
       width: '20%',
+      align: 'center' as const,
       ellipsis: true,
       render: (text: string, record: TenderTableData) => (
         <div>
@@ -247,7 +265,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'construction_area',
       key: 'construction_area',
       width: '8%',
-      align: 'right' as const,
+      align: 'center' as const,
       render: (value: number) => (
         <Text style={{ fontSize: 12 }}>{formatNumberWithSpaces(value)} м²</Text>
       ),
@@ -257,9 +275,9 @@ const Dashboard: React.FC = () => {
       dataIndex: 'boq_cost',
       key: 'boq_cost',
       width: '10%',
-      align: 'right' as const,
+      align: 'center' as const,
       render: (value: number) => (
-        <Text strong style={{ fontSize: 12 }}>{formatNumberWithSpaces(value)} ₽</Text>
+        <Text strong style={{ fontSize: 12 }}>{formatNumberWithSpaces(Math.round(value))}</Text>
       ),
     },
     {
@@ -267,7 +285,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'cost_per_sqm',
       key: 'cost_per_sqm',
       width: '10%',
-      align: 'right' as const,
+      align: 'center' as const,
       render: (value: number) => (
         <Text style={{ fontSize: 12 }}>{formatNumberWithSpaces(Math.round(value))} ₽/м²</Text>
       ),

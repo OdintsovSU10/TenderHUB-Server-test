@@ -142,7 +142,7 @@ export const MaterialsTab = forwardRef<MaterialsTabRef, MaterialsTabProps>(({
         loading={loading}
         pagination={paginationConfig}
         size="middle"
-        scroll={{ y: 600 }}
+        scroll={{ y: 'calc(100vh - 340px)' }}
       />
 
       <Modal
