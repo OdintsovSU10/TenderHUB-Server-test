@@ -22,6 +22,7 @@ export const MaterialsEditableCell: React.FC<MaterialsEditableCellProps> = ({
 }) => {
   const deliveryPriceType = Form.useWatch('delivery_price_type');
   const currentItemType = Form.useWatch('item_type');
+  const unitRate = Form.useWatch('unit_rate');
 
   const getEditBorderColor = () => {
     if (!editing) return undefined;
@@ -191,6 +192,11 @@ export const MaterialsEditableCell: React.FC<MaterialsEditableCellProps> = ({
       break;
 
     case 'delivery_amount':
+      if (deliveryPriceType === 'не в цене') {
+        const rate = unitRate || record.unit_rate || 0;
+        const calculatedAmount = (rate * 0.03).toFixed(2);
+        return <td style={cellStyle}>{calculatedAmount}</td>;
+      }
       if (deliveryPriceType !== 'суммой') {
         return <td style={cellStyle}>-</td>;
       }

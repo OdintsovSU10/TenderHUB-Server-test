@@ -236,6 +236,10 @@ export const createTemplateColumns = (
         if (record.material_delivery_price_type === 'суммой') {
           return record.material_delivery_amount ? record.material_delivery_amount.toFixed(2) : '0.00';
         }
+        if (record.material_delivery_price_type === 'не в цене') {
+          const unitRate = record.material_unit_rate || 0;
+          return (unitRate * 0.03).toFixed(2);
+        }
         return '-';
       },
     },

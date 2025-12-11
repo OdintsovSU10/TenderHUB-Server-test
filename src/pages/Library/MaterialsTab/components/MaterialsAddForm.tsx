@@ -30,6 +30,7 @@ export const MaterialsAddForm: React.FC<MaterialsAddFormProps> = ({
   onCancel,
 }) => {
   const { token } = theme.useToken();
+  const addUnitRate = Form.useWatch('unit_rate', form);
 
   const getAddFormBorderColor = () => {
     switch (addItemType) {
@@ -193,14 +194,26 @@ export const MaterialsAddForm: React.FC<MaterialsAddFormProps> = ({
                 })
               ]}
             >
-              <InputNumber
-                min={0}
-                step={0.01}
-                precision={2}
-                style={{ width: '100%' }}
-                disabled={addDeliveryType !== 'суммой'}
-                parser={(value) => parseFloat(value!.replace(/,/g, '.'))}
-              />
+              {addDeliveryType === 'не в цене' ? (
+                <InputNumber
+                  min={0}
+                  step={0.01}
+                  precision={2}
+                  style={{ width: '100%' }}
+                  disabled
+                  value={((addUnitRate || 0) * 0.03)}
+                  parser={(value) => parseFloat(value!.replace(/,/g, '.'))}
+                />
+              ) : (
+                <InputNumber
+                  min={0}
+                  step={0.01}
+                  precision={2}
+                  style={{ width: '100%' }}
+                  disabled={addDeliveryType !== 'суммой'}
+                  parser={(value) => parseFloat(value!.replace(/,/g, '.'))}
+                />
+              )}
             </Form.Item>
           </Col>
         </Row>

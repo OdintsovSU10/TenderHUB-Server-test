@@ -27,6 +27,42 @@ export interface TemplateItemWithDetails extends TemplateItem {
 export const useTemplateItems = () => {
   const [loadedTemplateItems, setLoadedTemplateItems] = useState<Record<string, TemplateItemWithDetails[]>>({});
 
+  const sortItemsByHierarchy = (items: TemplateItemWithDetails[]): TemplateItemWithDetails[] => {
+    const works = items.filter(item => item.kind === 'work');
+    const materials = items.filter(item => item.kind === 'material');
+
+    const linkedMaterials = materials.filter(m => m.parent_work_item_id);
+    const unlinkedMaterials = materials.filter(m => !m.parent_work_item_id);
+
+    const result: TemplateItemWithDetails[] = [];
+
+    works.sort((a, b) => (a.position || 0) - (b.position || 0));
+
+    const worksWithMaterials: TemplateItemWithDetails[] = [];
+    const worksWithoutMaterials: TemplateItemWithDetails[] = [];
+
+    works.forEach(work => {
+      const workMaterials = linkedMaterials.filter(m => m.parent_work_item_id === work.id);
+      if (workMaterials.length > 0) {
+        worksWithMaterials.push(work);
+      } else {
+        worksWithoutMaterials.push(work);
+      }
+    });
+
+    worksWithMaterials.forEach(work => {
+      result.push(work);
+      const workMaterials = linkedMaterials.filter(m => m.parent_work_item_id === work.id);
+      workMaterials.sort((a, b) => (a.position || 0) - (b.position || 0));
+      result.push(...workMaterials);
+    });
+
+    result.push(...worksWithoutMaterials);
+    result.push(...unlinkedMaterials);
+
+    return result;
+  };
+
   const fetchAllTemplateItems = async () => {
     try {
       const { data, error } = await supabase
@@ -86,7 +122,13 @@ export const useTemplateItems = () => {
         itemsByTemplate[item.template_id].push(formatted);
       });
 
-      setLoadedTemplateItems(itemsByTemplate);
+      // Применяем иерархическую сортировку для каждого шаблона
+      const sortedItemsByTemplate: Record<string, TemplateItemWithDetails[]> = {};
+      Object.keys(itemsByTemplate).forEach(templateId => {
+        sortedItemsByTemplate[templateId] = sortItemsByHierarchy(itemsByTemplate[templateId]);
+      });
+
+      setLoadedTemplateItems(sortedItemsByTemplate);
     } catch (error: any) {
       message.error('Ошибка загрузки элементов шаблонов: ' + error.message);
     }

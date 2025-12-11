@@ -130,8 +130,16 @@ export const getMaterialsTableColumns = (params: GetColumnsParams): any[] => {
       width: 110,
       editable: true,
       align: 'center' as const,
-      render: (value: number, record: MaterialLibraryFull) =>
-        record.delivery_price_type === 'суммой' ? value?.toFixed(2) : '-',
+      render: (value: number, record: MaterialLibraryFull) => {
+        if (record.delivery_price_type === 'суммой') {
+          return value?.toFixed(2);
+        }
+        if (record.delivery_price_type === 'не в цене') {
+          const unitRate = record.unit_rate || 0;
+          return (unitRate * 0.03).toFixed(2);
+        }
+        return '-';
+      },
     },
     {
       title: 'Действия',
