@@ -143,6 +143,7 @@ MIGRATION WORKFLOW:
 - `subcontract_growth_exclusions` - Exclusions from subcontract growth markup (separate for works and materials)
 - `roles` - Role definitions with page permissions (code, name, allowed_pages, color)
 - `users` - Custom user management table (id, full_name, email, password, role_code, access_status, allowed_pages)
+- `user_tasks` - User task tracking per tender (task_status: 'running', 'paused', 'completed')
 - ENUM: `boq_item_type` ('мат', 'суб-мат', 'мат-комп.', 'раб', 'суб-раб', 'раб-комп.')
 - ENUM: `access_status_type` ('pending', 'approved', 'rejected')
 
@@ -215,6 +216,7 @@ App.tsx
 - `/login` - Login page with authentication (✅ complete)
 - `/register` - Registration page with role assignment (✅ complete)
 - `/` and `/dashboard` - Tender dashboard with statistics and tender table (✅ complete)
+- `/tasks` - Task management with two tabs: personal task list and employee task tracking for managers (✅ complete, Supabase integrated)
 - `/admin/nomenclatures` - Materials, Works, Locations, Cost Categories (✅ complete, Supabase integrated)
 - `/admin/tenders` - Tender management table (✅ UI complete, Supabase ready)
 - `/admin/construction_cost` - Справочник затрат (Cost reference catalog with CRUD operations) (✅ complete, Supabase integrated)
@@ -555,6 +557,7 @@ All database migrations have been executed and consolidated into `supabase/schem
 ### UI Implementation Status
 **Fully Implemented with Supabase:**
 - `/dashboard` - Tender dashboard with tender statistics and management table
+- `/tasks` - Task management with role-based tabs (personal tasks + employee tracking for managers)
 - `/admin/nomenclatures` - CRUD for Materials, Works, Locations, Cost Categories
 - `/admin/markup_constructor` - Markup calculation constructor with tactics and parameters
 - `/admin/markup` - Markup percentages management (base percentages and tender-specific)
@@ -901,3 +904,50 @@ const { data } = await supabase
 
 **Protected Routes:**
 All routes except `/login` and `/register` require authentication and appropriate permissions.
+
+## Task Management System (`/tasks`)
+
+### Architecture
+**File**: `src/pages/Tasks/index.tsx`
+**Purpose**: Track user tasks per tender with timer functionality
+
+### Two Tab Views:
+1. **"Список задач" (My Tasks)** - Personal task list
+   - Start/pause/complete task tracking with timer
+   - Add new tasks with tender, work type, description
+   - Track time spent on each tender/task
+   - Visual timer display and status indicators
+
+2. **"Данные о задачах сотрудников" (Employee Tasks)** - Manager view
+   - Only visible to users with `canManageUsers` permission
+   - Search/filter tasks by employee name
+   - View all employee task history and time tracking
+   - Statistics and reports on team productivity
+
+### Database Table: `user_tasks`
+```typescript
+{
+  id: uuid;
+  user_id: uuid;              // FK to users.id
+  tender_id: uuid;            // FK to tenders.id
+  work_type: string;          // Type of work being performed
+  task_description: string;   // Task details
+  task_status: 'running' | 'paused' | 'completed';
+  start_time: timestamp;      // Task start timestamp
+  end_time: timestamp;        // Task completion timestamp
+  total_time_seconds: number; // Total time spent in seconds
+  created_at: timestamp;
+  updated_at: timestamp;
+}
+```
+
+**Indexes:**
+- `idx_user_tasks_user_id` - Fast lookup by user
+- `idx_user_tasks_tender_id` - Fast lookup by tender
+- `idx_user_tasks_status` - Fast filtering by status
+
+**Use Cases:**
+- Time tracking for tender work
+- Employee productivity monitoring
+- Historical task analysis
+- Project time allocation reports

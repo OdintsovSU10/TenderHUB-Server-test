@@ -64,19 +64,14 @@ const Register: React.FC = () => {
         p_email: values.email,
         p_role_code: 'engineer',
         p_allowed_pages: engineerRole?.allowed_pages || [],
-        p_password: values.password, // Сохраняем пароль в открытом виде для reference
+        // Пароль хранится только в auth.users в зашифрованном виде
       });
 
       if (userInsertError) {
         console.error('Ошибка создания записи пользователя:', userInsertError);
 
-        // Если не удалось создать запись в public.users - удаляем из auth.users
-        // (это предотвратит создание "зомби" пользователей)
-        try {
-          await supabase.auth.admin.deleteUser(authData.user.id);
-        } catch (deleteError) {
-          console.warn('Не удалось удалить пользователя из auth.users:', deleteError);
-        }
+        // Выходим из созданной сессии (auth.users останется, но пользователь не сможет войти без public.users)
+        await supabase.auth.signOut();
 
         message.error(`Ошибка при создании профиля: ${userInsertError.message}`);
         return;

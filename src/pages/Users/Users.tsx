@@ -284,14 +284,7 @@ const Users: React.FC = () => {
         return;
       }
 
-      // Удаляем из auth.users через admin API (если доступно)
-      // В production это должно делаться через backend function
-      try {
-        await supabase.auth.admin.deleteUser(request.id);
-      } catch (authError) {
-        console.warn('Не удалось удалить из auth.users:', authError);
-      }
-
+      // auth.users удалится автоматически через FK constraint ON DELETE CASCADE
       message.success(`Запрос от ${request.full_name} отклонен`);
       loadPendingRequests();
     } catch (err) {
@@ -303,6 +296,7 @@ const Users: React.FC = () => {
   // Удаление пользователя
   const deleteUser = async (user: UserRecord) => {
     try {
+      // Удаление из public.users автоматически удалит из auth.users через FK constraint ON DELETE CASCADE
       const { error } = await supabase
         .from('users')
         .delete()

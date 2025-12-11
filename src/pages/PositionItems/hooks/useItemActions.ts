@@ -117,7 +117,8 @@ export const useItemActions = ({
 
       // Для непривязанных материалов используем количество ГП из позиции
       const gpVolume = position.manual_volume || 0;
-      const baseQuantity = gpVolume;
+      // base_quantity должно быть > 0 из-за CHECK constraint
+      const baseQuantity = gpVolume > 0 ? gpVolume : 1;
       const consumptionCoeff = matLib.consumption_coefficient || 1;
       const quantity = baseQuantity * consumptionCoeff;
       const unitRate = matLib.unit_rate || 0;

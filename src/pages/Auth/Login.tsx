@@ -89,15 +89,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      // 3. Проверяем пароль из таблицы users (если установлен)
-      if (userData.password && userData.password !== values.password) {
-        await supabase.auth.signOut(); // Выходим из auth
-        message.error('Неверный пароль');
-        setLoading(false);
-        return;
-      }
-
-      // 4. Проверяем access_enabled
+      // 3. Проверяем access_enabled
       if (!userData.access_enabled) {
         await supabase.auth.signOut(); // Выходим из auth
         message.error('Доступ запрещен. Обратитесь к Администратору');
@@ -105,7 +97,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      // 5. Проверяем статус одобрения
+      // 4. Проверяем статус одобрения
       if (userData.access_status !== 'approved') {
         await supabase.auth.signOut(); // Выходим из auth
 
@@ -118,7 +110,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      // 6. Успешный вход - AuthContext автоматически обновит пользователя через onAuthStateChange
+      // 5. Успешный вход - AuthContext автоматически обновит пользователя через onAuthStateChange
       // useEffect сработает когда user загрузится и сделает редирект
       message.success('Вход выполнен успешно');
     } catch (error) {
@@ -218,6 +210,12 @@ const Login: React.FC = () => {
               Войти
             </Button>
           </Form.Item>
+
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <Link to="/forgot-password" style={{ color: '#10b981' }}>
+              Забыли пароль?
+            </Link>
+          </div>
 
           <div style={{ textAlign: 'center' }}>
             <Text type="secondary">

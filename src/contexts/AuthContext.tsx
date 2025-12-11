@@ -210,15 +210,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        console.error('Ошибка при выходе:', error);
-        message.error('Не удалось выйти из системы');
-      } else {
-        setUser(null);
-        message.info('Вы вышли из системы');
+        // Если сессия уже отсутствует (AuthSessionMissingError), это не критично
+        if (error.message.includes('Auth session missing')) {
+          console.warn('Сессия уже отсутствует, очищаем локальное состояние');
+        } else {
+          console.error('Ошибка при выходе:', error);
+        }
       }
-    } catch (error) {
+      // В любом случае очищаем локальное состояние
+      setUser(null);
+      message.info('Вы вышли из системы');
+    } catch (error: any) {
       console.error('Неожиданная ошибка при выходе:', error);
-      message.error('Произошла ошибка при выходе из системы');
+      // Даже при ошибке очищаем локальное состояние
+      setUser(null);
+      message.info('Вы вышли из системы');
     }
   };
 
