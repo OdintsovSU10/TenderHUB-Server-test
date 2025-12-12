@@ -318,18 +318,34 @@ export async function applyTacticToTender(
       console.log(`🚫 Найдено ${totalExclusions} исключений роста субподряда (работ: ${exclusions.works.size}, материалов: ${exclusions.materials.size})`);
     }
 
-    // Загружаем ВСЕ элементы BOQ тендера за один запрос
-    const { data: allBoqItems, error: itemsError } = await supabase
-      .from('boq_items')
-      .select('*')
-      .eq('tender_id', tenderId)
-      .order('sort_number');
+    // Загружаем ВСЕ элементы BOQ тендера с батчингом (Supabase лимит 1000 строк)
+    let allBoqItems: any[] = [];
+    let from = 0;
+    const loadBatchSize = 1000;
+    let hasMore = true;
 
-    if (itemsError || !allBoqItems) {
-      return {
-        success: false,
-        errors: [`Ошибка загрузки элементов тендера: ${itemsError?.message}`]
-      };
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('boq_items')
+        .select('*')
+        .eq('tender_id', tenderId)
+        .order('sort_number')
+        .range(from, from + loadBatchSize - 1);
+
+      if (error) {
+        return {
+          success: false,
+          errors: [`Ошибка загрузки элементов тендера: ${error.message}`]
+        };
+      }
+
+      if (data && data.length > 0) {
+        allBoqItems = [...allBoqItems, ...data];
+        from += loadBatchSize;
+        hasMore = data.length === loadBatchSize;
+      } else {
+        hasMore = false;
+      }
     }
 
     if (allBoqItems.length === 0) {
@@ -417,14 +433,34 @@ export async function applyTacticToTender(
  */
 async function updatePositionTotals(positionId: string): Promise<void> {
   try {
-    // Загружаем все элементы позиции
-    const { data: boqItems, error } = await supabase
-      .from('boq_items')
-      .select('total_commercial_material_cost, total_commercial_work_cost')
-      .eq('client_position_id', positionId);
+    // Загружаем все элементы позиции с батчингом
+    let boqItems: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
 
-    if (error || !boqItems) {
-      console.error('Ошибка загрузки элементов для расчета итогов:', error);
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('boq_items')
+        .select('total_commercial_material_cost, total_commercial_work_cost')
+        .eq('client_position_id', positionId)
+        .range(from, from + batchSize - 1);
+
+      if (error) {
+        console.error('Ошибка загрузки элементов для расчета итогов:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        boqItems = [...boqItems, ...data];
+        from += batchSize;
+        hasMore = data.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    if (boqItems.length === 0) {
       return;
     }
 

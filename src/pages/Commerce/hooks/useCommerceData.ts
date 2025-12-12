@@ -92,15 +92,32 @@ export function useCommerceData() {
       console.log('🔄 Загрузка позиций для тендера:', tenderId);
       const startTime = Date.now();
 
-      // Загружаем позиции заказчика
-      const { data: clientPositions, error: posError } = await supabase
-        .from('client_positions')
-        .select('*')
-        .eq('tender_id', tenderId)
-        .order('position_number');
+      // Загружаем позиции заказчика с батчингом (Supabase лимит 1000 строк)
+      let clientPositions: any[] = [];
+      let posFrom = 0;
+      const posBatchSize = 1000;
+      let posHasMore = true;
 
-      if (posError) throw posError;
-      console.log(`📋 Загружено позиций: ${clientPositions?.length || 0}`);
+      while (posHasMore) {
+        const { data, error } = await supabase
+          .from('client_positions')
+          .select('*')
+          .eq('tender_id', tenderId)
+          .order('position_number')
+          .range(posFrom, posFrom + posBatchSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          clientPositions = [...clientPositions, ...data];
+          posFrom += posBatchSize;
+          posHasMore = data.length === posBatchSize;
+        } else {
+          posHasMore = false;
+        }
+      }
+
+      console.log(`📋 Загружено позиций: ${clientPositions.length}`);
 
       // Загружаем ВСЕ BOQ элементы для тендера с батчингом (Supabase лимит 1000 строк)
       let allBoqItems: any[] = [];
