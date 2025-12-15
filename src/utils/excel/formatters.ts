@@ -89,6 +89,16 @@ export function createBoqItemRow(item: BoqItemFull, position: ClientPosition): E
     ? item.work_names?.unit || ''
     : item.material_names?.unit || '';
 
+  // Рассчитать стоимость доставки в зависимости от типа
+  let deliveryCost: number | null = null;
+  if (item.delivery_price_type === 'не в цене' && item.unit_rate) {
+    // 3% от цены материала за единицу
+    deliveryCost = item.unit_rate * 0.03;
+  } else if (item.delivery_price_type === 'суммой' && item.delivery_amount) {
+    deliveryCost = item.delivery_amount;
+  }
+  // Если тип "в цене" или не указан - оставляем null
+
   return {
     itemNo: '',
     positionNumber: position.position_number,
@@ -103,7 +113,7 @@ export function createBoqItemRow(item: BoqItemFull, position: ClientPosition): E
     gpVolume: item.quantity || null,
     currency: item.currency_type || '',
     deliveryType: item.delivery_price_type || '',
-    deliveryCost: item.delivery_amount || null,
+    deliveryCost: deliveryCost,
     unitPrice: item.unit_rate || null,
     totalAmount: item.total_amount || null,
     quoteLink: item.quote_link || '',
