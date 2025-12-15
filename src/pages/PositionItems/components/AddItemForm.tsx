@@ -62,10 +62,16 @@ const AddItemForm: React.FC<AddItemFormProps> = ({
             w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
           ).length === 0}
           onClick={() => {
-            const work = works.find(w =>
-              w.work_name.toLowerCase() === workSearchText.toLowerCase() ||
-              w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+            // Сначала ищем точное совпадение
+            let work = works.find(w =>
+              w.work_name.toLowerCase() === workSearchText.toLowerCase()
             );
+            // Если не найдено точное - ищем частичное
+            if (!work) {
+              work = works.find(w =>
+                w.work_name.toLowerCase().includes(workSearchText.toLowerCase())
+              );
+            }
             if (work) {
               onAddWork(work.work_name_id);
             }
@@ -105,10 +111,16 @@ const AddItemForm: React.FC<AddItemFormProps> = ({
             m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
           ).length === 0}
           onClick={() => {
-            const material = materials.find(m =>
-              m.material_name.toLowerCase() === materialSearchText.toLowerCase() ||
-              m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+            // Сначала ищем точное совпадение
+            let material = materials.find(m =>
+              m.material_name.toLowerCase() === materialSearchText.toLowerCase()
             );
+            // Если не найдено точное - ищем частичное
+            if (!material) {
+              material = materials.find(m =>
+                m.material_name.toLowerCase().includes(materialSearchText.toLowerCase())
+              );
+            }
             if (material) {
               onAddMaterial(material.material_name_id);
             }
