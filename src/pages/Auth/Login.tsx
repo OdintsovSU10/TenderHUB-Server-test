@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Form, Input, Button, Card, message, Typography, Spin } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useNavigate, Link } from 'react-router-dom';
@@ -18,12 +18,19 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Автоматический редирект если пользователь уже авторизован
   useEffect(() => {
     // Если пользователь уже авторизован и одобрен, перенаправляем
     // Не ждем authLoading - редиректим сразу как только user доступен
     if (user && user.access_status === 'approved') {
+      // Отменяем таймаут загрузки если он был установлен
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+
       // Всегда перенаправляем на dashboard после входа
       const targetPath = user.allowed_pages.length === 0
         ? '/dashboard'
@@ -99,6 +106,11 @@ const Login: React.FC = () => {
 
       // 5. Успешный вход - AuthContext обновит user, и useEffect сделает редирект
       // Оставляем loading=true, чтобы показать индикатор загрузки
+      // Но добавляем fallback таймаут на случай если AuthContext не загрузит user
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoading(false);
+        message.error('Превышено время ожидания загрузки. Попробуйте обновить страницу');
+      }, 10000);
     } catch (error) {
       console.error('Неожиданная ошибка при входе:', error);
       message.error('Произошла неожиданная ошибка при входе');
