@@ -452,10 +452,17 @@ export const PositionTable: React.FC<PositionTableProps> = ({
           const isLeaf = leafPositionIndices.has(index!);
           return {
             onClick: () => onRowClick(record, index!),
-            onAuxClick: (e: React.MouseEvent) => {
+            onMouseUp: (e: React.MouseEvent) => {
               if (e.button === 1 && isLeaf && selectedTender) {
                 e.preventDefault();
-                window.open(`/positions/${record.id}/items?tenderId=${selectedTender.id}&positionId=${record.id}`, '_blank');
+                e.stopPropagation();
+                const url = `/positions/${record.id}/items?tenderId=${selectedTender.id}&positionId=${record.id}`;
+                // Открываем в фоновой вкладке
+                const newWindow = window.open(url, '_blank');
+                // Возвращаем фокус на текущее окно
+                if (newWindow) {
+                  window.focus();
+                }
               }
             },
             style: {
