@@ -153,7 +153,8 @@ export const useCostData = () => {
           .select(`
             detail_cost_category_id,
             boq_item_type,
-            ${costType === 'base' ? 'total_amount' : 'total_commercial_material_cost, total_commercial_work_cost'},
+            material_type,
+            ${costType === 'base' ? 'total_amount' : 'total_amount, total_commercial_material_cost, total_commercial_work_cost'},
             client_positions!inner(tender_id)
           `)
           .eq('client_positions.tender_id', selectedTenderId)
@@ -214,6 +215,8 @@ export const useCostData = () => {
           const materialCost = item.total_commercial_material_cost || 0;
           const workCost = item.total_commercial_work_cost || 0;
 
+          // Просто распределяем по типам элементов
+          // total_commercial_material_cost и total_commercial_work_cost уже содержат правильные суммы
           switch (item.boq_item_type) {
             case 'мат':
               costs.materials += materialCost;
@@ -585,6 +588,27 @@ export const useCostData = () => {
 
       rows = restoreGroupVolumes(rows, groupVolumesMap);
       console.log('Rows after restoring group volumes:', rows.length);
+
+      // Логирование итоговых сумм
+      const totalSums = rows.reduce((sum, row) => ({
+        materials: sum.materials + row.materials_cost,
+        works: sum.works + row.works_cost,
+        subMaterials: sum.subMaterials + row.sub_materials_cost,
+        subWorks: sum.subWorks + row.sub_works_cost,
+        materialsComp: sum.materialsComp + row.materials_comp_cost,
+        worksComp: sum.worksComp + row.works_comp_cost,
+        total: sum.total + row.total_cost
+      }), { materials: 0, works: 0, subMaterials: 0, subWorks: 0, materialsComp: 0, worksComp: 0, total: 0 });
+
+      console.log('\n=== ИТОГОВЫЕ СУММЫ COSTS PAGE (costType=' + costType + ') ===');
+      console.log('Материалы:', totalSums.materials.toLocaleString('ru-RU'));
+      console.log('Работы:', totalSums.works.toLocaleString('ru-RU'));
+      console.log('Суб-материалы:', totalSums.subMaterials.toLocaleString('ru-RU'));
+      console.log('Суб-работы:', totalSums.subWorks.toLocaleString('ru-RU'));
+      console.log('Комп. материалы:', totalSums.materialsComp.toLocaleString('ru-RU'));
+      console.log('Комп. работы:', totalSums.worksComp.toLocaleString('ru-RU'));
+      console.log('ИТОГО:', totalSums.total.toLocaleString('ru-RU'));
+      console.log('Ожидается: 5,613,631,822');
 
       setData(rows);
     } catch (error: any) {

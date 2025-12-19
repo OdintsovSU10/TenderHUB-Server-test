@@ -63,20 +63,25 @@ export async function loadPricingDistribution(tenderId: string): Promise<Pricing
 }
 
 /**
- * Определяет тип материала на основе boq_item_type
+ * Определяет тип материала на основе boq_item_type и material_type
  */
-function getMaterialType(boqItemType: string): 'basic' | 'auxiliary' | 'component_material' | 'subcontract_basic' | 'subcontract_auxiliary' | 'work' | 'component_work' | null {
-  // Определяем тип на основе названия типа элемента
-  if (boqItemType === 'мат') return 'basic';
-  if (boqItemType === 'мат-комп.') return 'component_material';
+function getMaterialType(
+  boqItemType: string,
+  materialType?: string | null
+): 'basic' | 'auxiliary' | 'component_material' | 'subcontract_basic' | 'subcontract_auxiliary' | 'work' | 'component_work' | null {
+  // Для материалов проверяем material_type (основн./вспомогат.)
+  if (boqItemType === 'мат') {
+    return materialType === 'вспомогат.' ? 'auxiliary' : 'basic';
+  }
+  if (boqItemType === 'мат-комп.') {
+    return materialType === 'вспомогат.' ? 'auxiliary' : 'component_material';
+  }
   if (boqItemType === 'суб-мат') {
-    // Для субматериалов нужно различать основные и вспомогательные
-    // Пока возвращаем subcontract_basic по умолчанию
-    return 'subcontract_basic';
+    return materialType === 'вспомогат.' ? 'subcontract_auxiliary' : 'subcontract_basic';
   }
   if (boqItemType === 'раб') return 'work';
   if (boqItemType === 'раб-комп.') return 'component_work';
-  if (boqItemType === 'суб-раб') return 'work'; // Субподрядные работы обрабатываются как обычные работы
+  if (boqItemType === 'суб-раб') return 'work';
   return null;
 }
 
@@ -88,6 +93,7 @@ export function applyPricingDistribution(
   baseAmount: number,
   commercialCost: number,
   boqItemType: string,
+  materialTypeField: string | null | undefined,
   distribution: PricingDistribution | null
 ): { materialCost: number; workCost: number } {
   // Если настроек нет, используем старую логику
@@ -102,8 +108,8 @@ export function applyPricingDistribution(
   // Вычисляем базовую стоимость и наценку
   const markup = commercialCost - baseAmount;
 
-  // Определяем тип материала/работы
-  const materialType = getMaterialType(boqItemType);
+  // Определяем тип материала/работы с учетом material_type поля
+  const materialType = getMaterialType(boqItemType, materialTypeField);
   if (!materialType) {
     console.warn(`⚠️ Неизвестный тип элемента: ${boqItemType}`);
     return { materialCost: 0, workCost: commercialCost };
@@ -370,6 +376,7 @@ export function calculateBoqItemCost(
       item.total_amount || 0,
       result.commercialCost,
       item.boq_item_type,
+      item.material_type,
       pricingDistribution
     );
 
