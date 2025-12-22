@@ -17,6 +17,7 @@ export interface ResultRow {
   client_volume: number | null;
   manual_volume: number | null;
   unit_code: string;
+  quantity: number;
   material_unit_price: number;
   work_unit_price_before: number;
   work_unit_price_after: number;
@@ -27,6 +28,12 @@ export interface ResultRow {
   manual_note: string | null;
   isLeaf: boolean;
   is_additional: boolean;
+
+  // Округленные значения
+  rounded_material_unit_price?: number;
+  rounded_work_unit_price_after?: number;
+  rounded_total_materials?: number;
+  rounded_total_works?: number;
 }
 
 export const getResultsTableColumns = (): ColumnsType<ResultRow> => {
@@ -91,11 +98,13 @@ export const getResultsTableColumns = (): ColumnsType<ResultRow> => {
       key: 'material_unit_price',
       width: 150,
       align: 'center',
-      render: (value) =>
-        value.toLocaleString('ru-RU', {
+      render: (_, record) => {
+        const value = record.rounded_material_unit_price ?? record.material_unit_price;
+        return value.toLocaleString('ru-RU', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
-        }),
+        });
+      },
     },
     {
       title: <div style={{ textAlign: 'center' }}>Цена за ед. раб</div>,
@@ -120,11 +129,13 @@ export const getResultsTableColumns = (): ColumnsType<ResultRow> => {
           key: 'work_unit_price_after',
           width: 120,
           align: 'center',
-          render: (value) =>
-            value.toLocaleString('ru-RU', {
+          render: (_, record) => {
+            const value = record.rounded_work_unit_price_after ?? record.work_unit_price_after;
+            return value.toLocaleString('ru-RU', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
-            }),
+            });
+          },
         },
       ],
     },
@@ -134,11 +145,13 @@ export const getResultsTableColumns = (): ColumnsType<ResultRow> => {
       key: 'total_materials',
       width: 150,
       align: 'center',
-      render: (value) =>
-        value.toLocaleString('ru-RU', {
+      render: (_, record) => {
+        const value = record.rounded_total_materials ?? record.total_materials;
+        return value.toLocaleString('ru-RU', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
-        }),
+        });
+      },
     },
     {
       title: <div style={{ textAlign: 'center' }}>Итого работы</div>,
@@ -163,11 +176,13 @@ export const getResultsTableColumns = (): ColumnsType<ResultRow> => {
           key: 'total_works_after',
           width: 130,
           align: 'center',
-          render: (value) =>
-            value.toLocaleString('ru-RU', {
+          render: (_, record) => {
+            const value = record.rounded_total_works ?? record.total_works_after;
+            return value.toLocaleString('ru-RU', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
-            }),
+            });
+          },
         },
       ],
     },

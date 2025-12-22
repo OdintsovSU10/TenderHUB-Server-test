@@ -5,6 +5,8 @@
 import * as XLSX from 'xlsx-js-style';
 import type { ClientPosition } from '../hooks';
 import type { RedistributionResult } from './calculateDistribution';
+import type { ResultRow } from '../components/Results/ResultsTableColumns';
+import { smartRoundResults } from './smartRounding';
 
 interface BoqItemFull {
   id: string;
@@ -63,8 +65,8 @@ export function exportRedistributionToExcel(data: ExportData): void {
     return currentLevel >= nextLevel;
   };
 
-  // Функция для создания строки данных
-  const createRow = (position: ClientPosition, index: number, positions: ClientPosition[]) => {
+  // Функция для создания ResultRow для последующего округления
+  const createResultRow = (position: ClientPosition, index: number, positions: ClientPosition[]): ResultRow => {
     // Получить все BOQ элементы для этой позиции
     const positionBoqItems = Array.from(boqItemsMap.entries()).filter(
       ([_, item]) => item.client_position_id === position.id
@@ -107,46 +109,85 @@ export function exportRedistributionToExcel(data: ExportData): void {
     const workUnitPriceBefore = totalWorksBefore / quantity;
     const workUnitPriceAfter = totalWorksAfter / quantity;
 
+    // Определяем конечность позиции по hierarchy_level
+    const isLeaf = isLeafPosition(index, positions);
+
+    return {
+      key: position.id,
+      position_id: position.id,
+      position_number: position.position_number,
+      section_number: position.section_number,
+      position_name: position.position_name,
+      item_no: position.item_no,
+      work_name: position.work_name,
+      client_volume: position.volume,
+      manual_volume: position.manual_volume,
+      unit_code: position.unit_code,
+      quantity,
+      material_unit_price: materialUnitPrice,
+      work_unit_price_before: workUnitPriceBefore,
+      work_unit_price_after: workUnitPriceAfter,
+      total_materials: totalMaterials,
+      total_works_before: totalWorksBefore,
+      total_works_after: totalWorksAfter,
+      redistribution_amount: totalRedistribution,
+      manual_note: position.manual_note,
+      isLeaf,
+      is_additional: position.is_additional,
+    };
+  };
+
+  // Функция для создания строки данных из ResultRow
+  const createRow = (resultRow: ResultRow) => {
+    // Используем округленные значения если есть, иначе оригинальные
+    const materialUnitPrice = resultRow.rounded_material_unit_price ?? resultRow.material_unit_price;
+    const workUnitPriceAfter = resultRow.rounded_work_unit_price_after ?? resultRow.work_unit_price_after;
+    const totalMaterials = resultRow.rounded_total_materials ?? resultRow.total_materials;
+    const totalWorksAfter = resultRow.rounded_total_works ?? resultRow.total_works_after;
+
     // Формируем наименование
     let fullName = '';
-    if (position.is_additional) {
+    if (resultRow.is_additional) {
       // Для ДОП строк добавляем префикс
-      const itemNoPrefix = position.item_no ? `${position.item_no} ` : '';
-      fullName = `  [ДОП] ${itemNoPrefix}${position.work_name}`;
+      const itemNoPrefix = resultRow.item_no ? `${resultRow.item_no} ` : '';
+      fullName = `  [ДОП] ${itemNoPrefix}${resultRow.work_name}`;
     } else {
-      const sectionPrefix = position.section_number ? `[${position.section_number}] ` : '';
-      const itemNoPrefix = position.item_no ? `${position.item_no} ` : '';
-      fullName = `${sectionPrefix}${itemNoPrefix}${position.work_name}`;
+      const sectionPrefix = resultRow.section_number ? `[${resultRow.section_number}] ` : '';
+      const itemNoPrefix = resultRow.item_no ? `${resultRow.item_no} ` : '';
+      fullName = `${sectionPrefix}${itemNoPrefix}${resultRow.work_name}`;
     }
-
-    // Определяем конечность позиции
-    const isLeaf = isLeafPosition(index, positions);
 
     // Определяем нулевую стоимость
     const totalCost = totalMaterials + totalWorksAfter;
-    const isZeroCost = isLeaf && totalCost === 0;
+    const isZeroCost = resultRow.isLeaf && totalCost === 0;
 
     return {
       data: [
         fullName,
-        position.volume ?? '',
-        position.manual_volume ?? '',
-        position.unit_code,
+        resultRow.client_volume ?? '',
+        resultRow.manual_volume ?? '',
+        resultRow.unit_code,
         materialUnitPrice,
         workUnitPriceAfter,
         totalMaterials,
         totalWorksAfter,
-        position.manual_note || '',
+        resultRow.manual_note || '',
       ],
-      isLeaf,
+      isLeaf: resultRow.isLeaf,
       isZeroCost,
     };
   };
 
-  // Формируем строки данных: сначала обычные позиции, потом все ДОП строки в конце
-  const regularRows = regularPositions.map((pos, idx) => createRow(pos, idx, regularPositions));
-  const additionalRows = additionalPositions.map((pos, idx) => createRow(pos, idx, additionalPositions));
-  const rows = [...regularRows, ...additionalRows];
+  // Создаем ResultRow объекты для округления
+  const regularResultRows = regularPositions.map((pos, idx) => createResultRow(pos, idx, regularPositions));
+  const additionalResultRows = additionalPositions.map((pos, idx) => createResultRow(pos, idx, additionalPositions));
+  const allResultRows = [...regularResultRows, ...additionalResultRows];
+
+  // Применяем умное округление
+  const roundedResultRows = smartRoundResults(allResultRows);
+
+  // Формируем строки данных из округленных результатов
+  const rows = roundedResultRows.map(resultRow => createRow(resultRow));
 
   // Рассчитываем итоги
   const totals = [

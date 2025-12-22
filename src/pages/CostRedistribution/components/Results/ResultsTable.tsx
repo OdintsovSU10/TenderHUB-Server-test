@@ -7,6 +7,7 @@ import { Table, Card, Statistic, Row, Col, Alert } from 'antd';
 import { getResultsTableColumns, type ResultRow } from './ResultsTableColumns';
 import type { ClientPosition } from '../../hooks';
 import type { RedistributionResult } from '../../utils';
+import { smartRoundResults } from '../../utils';
 
 interface BoqItemFull {
   id: string;
@@ -125,6 +126,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
         client_volume: position.volume,
         manual_volume: position.manual_volume,
         unit_code: position.unit_code,
+        quantity,
         material_unit_price: materialUnitPrice,
         work_unit_price_before: workUnitPriceBefore,
         work_unit_price_after: workUnitPriceAfter,
@@ -155,16 +157,21 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
     return result;
   }, [clientPositions, resultsMap, boqItemsMap]);
 
-  // Итоги
+  // Применяем умное округление
+  const roundedData = useMemo(() => {
+    return smartRoundResults(tableData);
+  }, [tableData]);
+
+  // Итоги (используем округленные значения)
   const totals = useMemo(() => {
-    const totalMaterials = tableData.reduce((sum, row) => sum + row.total_materials, 0);
-    const totalWorks = tableData.reduce((sum, row) => sum + row.total_works_after, 0);
+    const totalMaterials = roundedData.reduce((sum, row) => sum + (row.rounded_total_materials ?? row.total_materials), 0);
+    const totalWorks = roundedData.reduce((sum, row) => sum + (row.rounded_total_works ?? row.total_works_after), 0);
     return {
       totalMaterials,
       totalWorks,
       total: totalMaterials + totalWorks,
     };
-  }, [tableData]);
+  }, [roundedData]);
 
   if (redistributionResults.length === 0) {
     return (
@@ -181,7 +188,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
     <div style={{ width: '100%' }}>
       <Table
         columns={getResultsTableColumns()}
-        dataSource={tableData}
+        dataSource={roundedData}
         loading={loading}
         bordered
         size="small"
