@@ -102,18 +102,35 @@ export function useRedistributionData() {
     try {
       console.log('🔄 Загрузка BOQ элементов для тендера:', tenderId);
 
-      const { data, error } = await supabase
-        .from('boq_items')
-        .select('id, client_position_id, detail_cost_category_id, boq_item_type, total_commercial_work_cost, total_commercial_material_cost')
-        .eq('tender_id', tenderId);
+      // CRITICAL: Supabase limit 1000 rows - use batching
+      let allBoqItems: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('boq_items')
+          .select('id, client_position_id, detail_cost_category_id, boq_item_type, total_commercial_work_cost, total_commercial_material_cost')
+          .eq('tender_id', tenderId)
+          .range(from, from + batchSize - 1);
 
-      console.log(`📝 Загружено BOQ элементов: ${data?.length || 0}`);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allBoqItems = [...allBoqItems, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`📝 Загружено BOQ элементов: ${allBoqItems.length}`);
 
       // Загружаем ВСЕ элементы (не только с категорией затрат)
       // Это нужно для корректного отображения итоговых стоимостей работ и материалов
-      setBoqItems((data || []) as any);
+      setBoqItems(allBoqItems as any);
     } catch (error) {
       console.error('Ошибка загрузки BOQ элементов:', error);
       message.error('Не удалось загрузить элементы BOQ');
@@ -124,14 +141,32 @@ export function useRedistributionData() {
 
   const loadClientPositions = async (tenderId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('client_positions')
-        .select('*')
-        .eq('tender_id', tenderId)
-        .order('position_number');
+      // CRITICAL: Supabase limit 1000 rows - use batching
+      let allPositions: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setClientPositions(data || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('client_positions')
+          .select('*')
+          .eq('tender_id', tenderId)
+          .order('position_number', { ascending: true })
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPositions = [...allPositions, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setClientPositions(allPositions);
     } catch (error) {
       console.error('Ошибка загрузки позиций заказчика:', error);
       message.error('Не удалось загрузить позиции заказчика');

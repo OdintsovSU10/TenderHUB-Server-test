@@ -47,7 +47,7 @@ export const RedistributionHeader: React.FC<RedistributionHeaderProps> = ({
         </Title>
 
         <Row gutter={16} align="middle">
-          <Col xs={24} sm={12} lg={8}>
+          <Col xs={24} sm={12} lg={4}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
               Тендер:
             </label>
@@ -68,7 +68,7 @@ export const RedistributionHeader: React.FC<RedistributionHeaderProps> = ({
             </Select>
           </Col>
 
-          <Col xs={24} sm={12} lg={8}>
+          <Col xs={24} sm={12} lg={4}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
               Схема наценок:
             </label>
@@ -91,35 +91,42 @@ export const RedistributionHeader: React.FC<RedistributionHeaderProps> = ({
             </Select>
           </Col>
 
-          {hasResults && totals && (
-            <Col xs={24} lg={8} style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, alignItems: 'center' }}>
-              <Statistic
-                title="Итого материалы"
-                value={totals.totalMaterials}
-                precision={0}
-                formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                valueStyle={{ fontSize: 18 }}
-              />
-              <Statistic
-                title="Итого работы"
-                value={totals.totalWorks}
-                precision={0}
-                formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                valueStyle={{ fontSize: 18 }}
-              />
-              <Statistic
-                title="Итого"
-                value={totals.total}
-                precision={0}
-                formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                valueStyle={{ color: '#10b981', fontWeight: 600, fontSize: 18 }}
-              />
-              {onExport && (
+          {totals && (
+            <Col xs={24} lg={16} style={{ display: 'flex', justifyContent: 'flex-end', gap: 24, alignItems: 'center' }}>
+              <div style={{ padding: '0 12px', textAlign: 'center' }}>
+                <Statistic
+                  title="Итого материалы"
+                  value={totals.totalMaterials}
+                  precision={0}
+                  formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                  valueStyle={{ fontSize: 18 }}
+                />
+              </div>
+              <div style={{ padding: '0 12px', textAlign: 'center' }}>
+                <Statistic
+                  title="Итого работы"
+                  value={totals.totalWorks}
+                  precision={0}
+                  formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                  valueStyle={{ fontSize: 18 }}
+                />
+              </div>
+              <div style={{ padding: '0 12px', textAlign: 'center' }}>
+                <Statistic
+                  title="Итого"
+                  value={totals.total}
+                  precision={0}
+                  formatter={(value) => Math.round(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                  valueStyle={{ color: '#10b981', fontWeight: 600, fontSize: 18 }}
+                />
+              </div>
+              {hasResults && onExport && (
                 <Button
                   type="primary"
                   icon={<DownloadOutlined />}
                   onClick={onExport}
                   size="large"
+                  style={{ marginLeft: 12 }}
                 >
                   Экспорт в Excel
                 </Button>

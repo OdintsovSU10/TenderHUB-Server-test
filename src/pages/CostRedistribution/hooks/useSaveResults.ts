@@ -112,17 +112,34 @@ export function useSaveResults() {
       try {
         console.log('🔄 Загрузка сохраненных результатов...');
 
-        const { data, error } = await supabase
-          .from('cost_redistribution_results')
-          .select('*')
-          .eq('tender_id', tenderId)
-          .eq('markup_tactic_id', tacticId);
+        // CRITICAL: Supabase limit 1000 rows - use batching
+        let allResults: any[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
 
-        if (error) throw error;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('cost_redistribution_results')
+            .select('*')
+            .eq('tender_id', tenderId)
+            .eq('markup_tactic_id', tacticId)
+            .range(from, from + batchSize - 1);
 
-        if (data && data.length > 0) {
-          console.log('✅ Загружено сохраненных результатов:', data.length);
-          return data;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allResults = [...allResults, ...data];
+            from += batchSize;
+            hasMore = data.length === batchSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (allResults.length > 0) {
+          console.log('✅ Загружено сохраненных результатов:', allResults.length);
+          return allResults;
         }
 
         return null;
