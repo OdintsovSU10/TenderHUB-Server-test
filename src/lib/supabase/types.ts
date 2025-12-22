@@ -22,6 +22,7 @@ export interface TenderInsert {
   markup_tactic_id?: string; // Ссылка на тактику наценок для данного тендера
   housing_class?: HousingClassType;
   construction_scope?: ConstructionScopeType;
+  is_archived?: boolean; // Флаг архивации тендера
 }
 
 export interface Tender extends TenderInsert {

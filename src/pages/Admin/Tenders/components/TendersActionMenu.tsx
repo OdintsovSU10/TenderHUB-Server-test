@@ -1,4 +1,4 @@
-import { EditOutlined, CopyOutlined, SwapOutlined, FileZipOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, CopyOutlined, SwapOutlined, FileZipOutlined, DownloadOutlined, DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { TenderRecord } from '../hooks/useTendersData';
 
@@ -9,11 +9,13 @@ interface GetActionMenuParams {
   onCopy: (record: TenderRecord) => void;
   onNewVersion: (record: TenderRecord) => void;
   onArchive: (record: TenderRecord) => void;
+  onUnarchive: (record: TenderRecord) => void;
   onExport: (record: TenderRecord) => void;
+  isArchived: boolean;
 }
 
 export const getTendersActionMenu = (params: GetActionMenuParams): MenuProps['items'] => {
-  const { record, onEdit, onDelete, onCopy, onNewVersion, onArchive, onExport } = params;
+  const { record, onEdit, onDelete, onCopy, onNewVersion, onArchive, onUnarchive, onExport, isArchived } = params;
 
   return [
     {
@@ -37,12 +39,20 @@ export const getTendersActionMenu = (params: GetActionMenuParams): MenuProps['it
     {
       type: 'divider',
     },
-    {
-      key: 'archive',
-      label: 'В архив',
-      icon: <FileZipOutlined />,
-      onClick: () => onArchive(record),
-    },
+    ...(isArchived
+      ? [{
+          key: 'unarchive',
+          label: 'Вернуть в работу',
+          icon: <RollbackOutlined />,
+          onClick: () => onUnarchive(record),
+        }]
+      : [{
+          key: 'archive',
+          label: 'В архив',
+          icon: <FileZipOutlined />,
+          onClick: () => onArchive(record),
+        }]
+    ),
     {
       key: 'export',
       label: 'Экспортировать',

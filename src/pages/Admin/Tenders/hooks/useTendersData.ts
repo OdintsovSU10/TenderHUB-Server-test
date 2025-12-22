@@ -30,6 +30,7 @@ export interface TenderRecord {
   version: string;
   housingClass?: HousingClassType;
   constructionScope?: ConstructionScopeType;
+  is_archived?: boolean;
 }
 
 export const useTendersData = () => {
@@ -99,6 +100,7 @@ export const useTendersData = () => {
 
       // Форматируем данные
       const formattedData: TenderRecord[] = data.map((tender: Tender) => ({
+        ...tender,
         key: tender.id,
         id: tender.id,
         tender: tender.title,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, message } from 'antd';
+import { Table, Tabs, message } from 'antd';
 import TenderModal from './TenderModal';
 import UploadBOQModal from './UploadBOQModal';
 import { VersionMatchModal } from './VersionMatch';
@@ -12,6 +12,7 @@ import { supabase, type Tender } from '../../../lib/supabase';
 import './Tenders.css';
 
 const Tenders: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'active' | 'archive'>('active');
   const [searchText, setSearchText] = useState('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [uploadBOQVisible, setUploadBOQVisible] = useState(false);
@@ -45,7 +46,11 @@ const Tenders: React.FC = () => {
   };
 
   const handleArchive = (record: TenderRecord) => {
-    message.info(`Тендер отправлен в архив: ${record.tender}`);
+    actions.handleArchive(record);
+  };
+
+  const handleUnarchive = (record: TenderRecord) => {
+    actions.handleUnarchive(record);
   };
 
   const handleExport = (record: TenderRecord) => {
@@ -82,7 +87,9 @@ const Tenders: React.FC = () => {
       onCopy: handleCopy,
       onNewVersion: handleNewVersion,
       onArchive: handleArchive,
+      onUnarchive: handleUnarchive,
       onExport: handleExport,
+      isArchived: record.is_archived || false,
     });
   };
 
@@ -105,6 +112,14 @@ const Tenders: React.FC = () => {
     item.description.toLowerCase().includes(searchText.toLowerCase())
   );
 
+  const tabFilteredData = filteredData.filter(item => {
+    if (activeTab === 'active') {
+      return !item.is_archived;
+    } else {
+      return item.is_archived;
+    }
+  });
+
   return (
     <div style={{ padding: '0' }}>
       <TendersToolbar
@@ -114,25 +129,63 @@ const Tenders: React.FC = () => {
         onCreateNew={actions.handleCreateNewTender}
       />
 
-      <Table
-        rowSelection={rowSelection}
-        columns={columns}
-        dataSource={filteredData}
-        loading={loading}
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total} тендеров`,
-        }}
-        scroll={{ x: 'max-content' }}
-        size="small"
-        locale={{
-          emptyText: 'Нет тендеров для отображения. Создайте первый тендер или импортируйте данные.'
-        }}
-        className="tenders-table"
-        style={{
-          borderRadius: 8,
-        }}
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'active' | 'archive')}
+        items={[
+          {
+            key: 'active',
+            label: 'В работе',
+            children: (
+              <Table
+                rowSelection={rowSelection}
+                columns={columns}
+                dataSource={tabFilteredData}
+                loading={loading}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `Всего: ${total} тендеров`,
+                }}
+                scroll={{ x: 'max-content' }}
+                size="small"
+                locale={{
+                  emptyText: 'Нет активных тендеров для отображения.'
+                }}
+                className="tenders-table"
+                style={{
+                  borderRadius: 8,
+                }}
+              />
+            ),
+          },
+          {
+            key: 'archive',
+            label: 'Архив',
+            children: (
+              <Table
+                rowSelection={rowSelection}
+                columns={columns}
+                dataSource={tabFilteredData}
+                loading={loading}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `Всего: ${total} тендеров`,
+                }}
+                scroll={{ x: 'max-content' }}
+                size="small"
+                locale={{
+                  emptyText: 'Нет архивных тендеров для отображения.'
+                }}
+                className="tenders-table"
+                style={{
+                  borderRadius: 8,
+                }}
+              />
+            ),
+          },
+        ]}
       />
 
       <TenderModal

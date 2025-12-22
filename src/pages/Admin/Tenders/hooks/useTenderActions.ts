@@ -81,6 +81,56 @@ export const useTenderActions = (onRefresh: () => void) => {
     });
   };
 
+  const handleArchive = (record: TenderRecord) => {
+    const theme = localStorage.getItem('tenderHub_theme') || 'light';
+
+    Modal.confirm({
+      title: 'Архивация тендера',
+      content: `Вы уверены, что хотите переместить тендер "${record.tender}" в архив?`,
+      okText: 'В архив',
+      cancelText: 'Отмена',
+      rootClassName: theme === 'dark' ? 'dark-modal' : '',
+      onOk: async () => {
+        const { error } = await supabase
+          .from('tenders')
+          .update({ is_archived: true })
+          .eq('id', record.id);
+
+        if (!error) {
+          message.success(`Тендер "${record.tender}" перемещен в архив`);
+          await onRefresh();
+        } else {
+          message.error('Не удалось переместить тендер в архив');
+        }
+      },
+    });
+  };
+
+  const handleUnarchive = (record: TenderRecord) => {
+    const theme = localStorage.getItem('tenderHub_theme') || 'light';
+
+    Modal.confirm({
+      title: 'Возврат из архива',
+      content: `Вы уверены, что хотите вернуть тендер "${record.tender}" в работу?`,
+      okText: 'Вернуть в работу',
+      cancelText: 'Отмена',
+      rootClassName: theme === 'dark' ? 'dark-modal' : '',
+      onOk: async () => {
+        const { error } = await supabase
+          .from('tenders')
+          .update({ is_archived: false })
+          .eq('id', record.id);
+
+        if (!error) {
+          message.success(`Тендер "${record.tender}" возвращен в работу`);
+          await onRefresh();
+        } else {
+          message.error('Не удалось вернуть тендер из архива');
+        }
+      },
+    });
+  };
+
   const handleCreateNewTender = () => {
     setIsEditMode(false);
     setEditingTender(null);
@@ -210,6 +260,8 @@ export const useTenderActions = (onRefresh: () => void) => {
     isEditMode,
     handleEdit,
     handleDelete,
+    handleArchive,
+    handleUnarchive,
     handleCreateNewTender,
     handleModalOk,
     handleModalCancel,

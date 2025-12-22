@@ -55,6 +55,7 @@ const Dashboard: React.FC = () => {
       const { data, error } = await supabase
         .from('tenders')
         .select('*')
+        .eq('is_archived', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
