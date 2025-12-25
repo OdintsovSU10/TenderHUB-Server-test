@@ -43,6 +43,7 @@ const AddItemForm: React.FC<AddItemFormProps> = ({
             })
             .slice(0, 100)
             .map(w => ({
+              key: w.id,
               value: w.work_name,
               label: w.work_name,
             }))
@@ -92,6 +93,7 @@ const AddItemForm: React.FC<AddItemFormProps> = ({
             })
             .slice(0, 100)
             .map(m => ({
+              key: m.id,
               value: m.material_name,
               label: m.material_name,
             }))

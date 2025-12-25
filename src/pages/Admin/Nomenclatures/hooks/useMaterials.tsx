@@ -79,16 +79,45 @@ export const useMaterials = () => {
   const saveMaterial = async (values: any, editingMaterialId?: string) => {
     try {
       if (editingMaterialId) {
-        const { error } = await supabase
+        // Валидация: проверить что unit существует в справочнике
+        const { data: unitExists, error: unitCheckError } = await supabase
+          .from('units')
+          .select('code')
+          .eq('code', values.unit)
+          .maybeSingle();
+
+        if (unitCheckError) {
+          console.error('Ошибка проверки единицы измерения:', unitCheckError);
+          throw new Error('Ошибка проверки единицы измерения');
+        }
+
+        if (!unitExists) {
+          message.error(`Единица измерения "${values.unit}" не существует в справочнике`);
+          return false;
+        }
+
+        // UPDATE без ручного updated_at (триггер установит автоматически)
+        const { data, error } = await supabase
           .from('material_names')
           .update({
             name: values.name,
             unit: values.unit,
-            updated_at: new Date().toISOString(),
           })
-          .eq('id', editingMaterialId);
+          .eq('id', editingMaterialId)
+          .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('[NOMENCLATURE UPDATE ERROR]', {
+            table: 'material_names',
+            id: editingMaterialId,
+            values: values,
+            error: error,
+            code: error.code,
+            message: error.message,
+          });
+          throw error;
+        }
+
         message.success('Материал обновлен');
       } else {
         // Проверка на дубликат перед вставкой
