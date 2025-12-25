@@ -127,6 +127,7 @@ const Tenders: React.FC = () => {
         onSearchChange={setSearchText}
         onExportAll={handleExportAll}
         onCreateNew={actions.handleCreateNewTender}
+        onRefresh={fetchTenders}
       />
 
       <Tabs
@@ -145,6 +146,7 @@ const Tenders: React.FC = () => {
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,
+                  pageSizeOptions: [10, 20, 50, 100],
                   showTotal: (total) => `Всего: ${total} тендеров`,
                 }}
                 scroll={{ x: 'max-content' }}
@@ -171,6 +173,7 @@ const Tenders: React.FC = () => {
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,
+                  pageSizeOptions: [10, 20, 50, 100],
                   showTotal: (total) => `Всего: ${total} тендеров`,
                 }}
                 scroll={{ x: 'max-content' }}

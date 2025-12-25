@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { message } from 'antd';
 import { supabase, type Tender, type HousingClassType, type ConstructionScopeType } from '../../../../lib/supabase';
 import dayjs from 'dayjs';
+import { calculateGrandTotal } from '../../../../utils/calculateGrandTotal';
 
 export interface TenderRecord {
   key: string;
@@ -59,44 +60,15 @@ export const useTendersData = () => {
         return;
       }
 
-      // Получаем все boq_items для всех тендеров с батчингом
+      // Рассчитываем grandTotal для каждого тендера (параллельно)
       const tenderIds = data.map(t => t.id);
-      let commercialCostsByTender: Record<string, number> = {};
+      const grandTotalPromises = tenderIds.map(tenderId => calculateGrandTotal({ tenderId }));
+      const grandTotals = await Promise.all(grandTotalPromises);
 
-      // Батчинг по tenderIds (максимум 100 ID за запрос, чтобы избежать URL too long)
-      const tenderIdBatchSize = 100;
-      for (let i = 0; i < tenderIds.length; i += tenderIdBatchSize) {
-        const tenderIdBatch = tenderIds.slice(i, i + tenderIdBatchSize);
-
-        // Загружаем все boq_items для батча тендеров с батчингом по 1000 строк
-        let from = 0;
-        const boqBatchSize = 1000;
-        let hasMore = true;
-
-        while (hasMore) {
-          const { data: boqItems } = await supabase
-            .from('boq_items')
-            .select('tender_id, total_commercial_material_cost, total_commercial_work_cost')
-            .in('tender_id', tenderIdBatch)
-            .range(from, from + boqBatchSize - 1);
-
-          if (boqItems && boqItems.length > 0) {
-            boqItems.forEach(item => {
-              if (!commercialCostsByTender[item.tender_id]) {
-                commercialCostsByTender[item.tender_id] = 0;
-              }
-              commercialCostsByTender[item.tender_id] +=
-                (item.total_commercial_material_cost || 0) +
-                (item.total_commercial_work_cost || 0);
-            });
-
-            from += boqBatchSize;
-            hasMore = boqItems.length === boqBatchSize;
-          } else {
-            hasMore = false;
-          }
-        }
-      }
+      const commercialCostsByTender: Record<string, number> = {};
+      tenderIds.forEach((tenderId, index) => {
+        commercialCostsByTender[tenderId] = grandTotals[index];
+      });
 
       // Форматируем данные
       const formattedData: TenderRecord[] = data.map((tender: Tender) => ({
@@ -141,6 +113,27 @@ export const useTendersData = () => {
 
   useEffect(() => {
     fetchTenders();
+
+    // Подписка на изменения в boq_items для автообновления итоговых сумм
+    const boqSubscription = supabase
+      .channel('boq_items_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boq_items'
+        },
+        () => {
+          // Перезагружаем данные при любом изменении в boq_items
+          fetchTenders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      boqSubscription.unsubscribe();
+    };
   }, []);
 
   return {

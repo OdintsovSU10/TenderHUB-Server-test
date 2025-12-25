@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Space, Button, DatePicker } from 'antd';
-import { SearchOutlined, ExportOutlined, PlusOutlined } from '@ant-design/icons';
+import { SearchOutlined, ExportOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 
 const { RangePicker } = DatePicker;
 
@@ -9,6 +9,7 @@ interface TendersToolbarProps {
   onSearchChange: (value: string) => void;
   onExportAll: () => void;
   onCreateNew: () => void;
+  onRefresh?: () => void;
 }
 
 export const TendersToolbar: React.FC<TendersToolbarProps> = ({
@@ -16,6 +17,7 @@ export const TendersToolbar: React.FC<TendersToolbarProps> = ({
   onSearchChange,
   onExportAll,
   onCreateNew,
+  onRefresh,
 }) => {
   return (
     <div style={{
@@ -38,6 +40,15 @@ export const TendersToolbar: React.FC<TendersToolbarProps> = ({
           placeholder={['Дата от', 'Дата до']}
           style={{ width: 260 }}
         />
+
+        {onRefresh && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={onRefresh}
+          >
+            Обновить
+          </Button>
+        )}
 
         <Button
           icon={<ExportOutlined />}
