@@ -27,7 +27,7 @@ interface PositionTableProps {
   isBulkPasting: boolean;
   positionCounts: Record<string, { works: number; materials: number; total: number }>;
   currentTheme: string;
-  leafPositionIndices: Set<number>;
+  leafPositionIndices: Set<string>;
   readOnly?: boolean;
   isFilterActive?: boolean;
   filterSelectedCount?: number;
@@ -122,7 +122,7 @@ export const PositionTable: React.FC<PositionTableProps> = ({
       width: 400,
       fixed: 'left',
       render: (_, record, index) => {
-        const isLeaf = leafPositionIndices.has(index);
+        const isLeaf = leafPositionIndices.has(record.id);
         const sectionColor = isLeaf ? '#52c41a' : '#ff7875';
         const isAdditional = record.is_additional;
         const paddingLeft = isAdditional ? 20 : 0;
@@ -197,7 +197,7 @@ export const PositionTable: React.FC<PositionTableProps> = ({
       key: 'gp_data',
       width: 300,
       render: (_, record, index) => {
-        const isLeaf = leafPositionIndices.has(index);
+        const isLeaf = leafPositionIndices.has(record.id);
 
         return (
           <div style={{ fontSize: 12 }}>
@@ -227,7 +227,7 @@ export const PositionTable: React.FC<PositionTableProps> = ({
       width: 110,
       align: 'center',
       render: (_, record, index) => {
-        const isLeaf = leafPositionIndices.has(index);
+        const isLeaf = leafPositionIndices.has(record.id);
         const counts = positionCounts[record.id] || { works: 0, materials: 0, total: 0 };
         const total = counts.total; // Используем реальную сумму из boq_items
         const isExpanded = expandedPositionId === record.id;
@@ -528,7 +528,7 @@ export const PositionTable: React.FC<PositionTableProps> = ({
           return '';
         }}
         onRow={(record, index) => {
-          const isLeaf = leafPositionIndices.has(index!);
+          const isLeaf = leafPositionIndices.has(record.id);
           return {
             onClick: () => onRowClick(record, index!),
             onMouseUp: (e: React.MouseEvent) => {

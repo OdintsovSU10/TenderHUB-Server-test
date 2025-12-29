@@ -9,7 +9,7 @@ export const useClientPositions = () => {
   const [loading, setLoading] = useState(false);
   const [positionCounts, setPositionCounts] = useState<Record<string, { works: number; materials: number; total: number }>>({});
   const [totalSum, setTotalSum] = useState<number>(0);
-  const [leafPositionIndices, setLeafPositionIndices] = useState<Set<number>>(new Set());
+  const [leafPositionIndices, setLeafPositionIndices] = useState<Set<string>>(new Set());
 
   // Загрузка тендеров
   useEffect(() => {
@@ -31,12 +31,12 @@ export const useClientPositions = () => {
   };
 
   // Вычисление листовых позиций (конечных узлов иерархии)
-  const computeLeafPositions = (positions: ClientPosition[]): Set<number> => {
-    const leafIndices = new Set<number>();
+  const computeLeafPositions = (positions: ClientPosition[]): Set<string> => {
+    const leafIds = new Set<string>();
 
     positions.forEach((position, index) => {
       if (index === positions.length - 1) {
-        leafIndices.add(index);
+        leafIds.add(position.id);
         return;
       }
 
@@ -49,17 +49,17 @@ export const useClientPositions = () => {
       }
 
       if (nextIndex >= positions.length) {
-        leafIndices.add(index);
+        leafIds.add(position.id);
         return;
       }
 
       const nextLevel = positions[nextIndex].hierarchy_level || 0;
       if (currentLevel >= nextLevel) {
-        leafIndices.add(index);
+        leafIds.add(position.id);
       }
     });
 
-    return leafIndices;
+    return leafIds;
   };
 
   // Загрузка позиций заказчика

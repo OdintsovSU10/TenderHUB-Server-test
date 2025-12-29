@@ -172,7 +172,7 @@ const ClientPositions: React.FC = () => {
 
   // Обработчик клика по строке
   const handleRowClick = useCallback((record: any, index: number) => {
-    const isLeaf = leafPositionIndices.has(index);
+    const isLeaf = leafPositionIndices.has(record.id);
     if (isLeaf && selectedTender) {
       // Открываем в новой вкладке
       const url = `/positions/${record.id}/items?tenderId=${selectedTender.id}&positionId=${record.id}`;
