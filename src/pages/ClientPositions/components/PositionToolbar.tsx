@@ -142,10 +142,10 @@ export const PositionToolbar: React.FC<PositionToolbarProps> = ({
                   {/* Строка 2: Площади */}
                   <div style={{ marginBottom: 4, fontSize: 14 }}>
                     <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь по СП: </Text>
-                    <Text strong style={{ color: '#10b981' }}>105 000 м²</Text>
+                    <Text strong style={{ color: '#10b981' }}>{selectedTender.area_sp?.toLocaleString('ru-RU') || '0'} м²</Text>
                     <Divider type="vertical" style={{ borderColor: currentTheme === 'dark' ? '#444' : '#d9d9d9' }} />
                     <Text style={{ color: currentTheme === 'dark' ? '#fff' : '#000' }}>Площадь Заказчика: </Text>
-                    <Text strong style={{ color: '#10b981' }}>116 000 м²</Text>
+                    <Text strong style={{ color: '#10b981' }}>{selectedTender.area_client?.toLocaleString('ru-RU') || '0'} м²</Text>
                   </div>
 
                   {/* Строка 3: Курсы валют */}
