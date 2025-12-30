@@ -111,19 +111,19 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.gen_random_uuid()\n RETURNS uuid\n LANGUAGE c\n PARALLEL SAFE\nAS '$libdir/pgcrypto', $function$pg_random_uuid$function$\n"
   },
-  "extensions.gen_salt(text, integer)": {
-    "schema": "extensions",
-    "name": "gen_salt",
-    "arguments": "text, integer",
-    "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
-  },
   "extensions.gen_salt(text)": {
     "schema": "extensions",
     "name": "gen_salt",
     "arguments": "text",
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
+  },
+  "extensions.gen_salt(text, integer)": {
+    "schema": "extensions",
+    "name": "gen_salt",
+    "arguments": "text, integer",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
   },
   "extensions.grant_pg_cron_access()": {
     "schema": "extensions",
@@ -195,6 +195,13 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_key_id(bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_key_id_w$function$\n"
   },
+  "extensions.pgp_pub_decrypt(bytea, bytea)": {
+    "schema": "extensions",
+    "name": "pgp_pub_decrypt",
+    "arguments": "bytea, bytea",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
+  },
   "extensions.pgp_pub_decrypt(bytea, bytea, text)": {
     "schema": "extensions",
     "name": "pgp_pub_decrypt",
@@ -209,20 +216,6 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
-  "extensions.pgp_pub_decrypt(bytea, bytea)": {
-    "schema": "extensions",
-    "name": "pgp_pub_decrypt",
-    "arguments": "bytea, bytea",
-    "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
-  },
-  "extensions.pgp_pub_decrypt_bytea(bytea, bytea)": {
-    "schema": "extensions",
-    "name": "pgp_pub_decrypt_bytea",
-    "arguments": "bytea, bytea",
-    "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
-  },
   "extensions.pgp_pub_decrypt_bytea(bytea, bytea, text)": {
     "schema": "extensions",
     "name": "pgp_pub_decrypt_bytea",
@@ -236,6 +229,13 @@
     "arguments": "bytea, bytea, text, text",
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+  },
+  "extensions.pgp_pub_decrypt_bytea(bytea, bytea)": {
+    "schema": "extensions",
+    "name": "pgp_pub_decrypt_bytea",
+    "arguments": "bytea, bytea",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   "extensions.pgp_pub_encrypt(text, bytea, text)": {
     "schema": "extensions",
@@ -265,19 +265,19 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
-  "extensions.pgp_sym_decrypt(bytea, text, text)": {
-    "schema": "extensions",
-    "name": "pgp_sym_decrypt",
-    "arguments": "bytea, text, text",
-    "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_decrypt(bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_decrypt_text$function$\n"
-  },
   "extensions.pgp_sym_decrypt(bytea, text)": {
     "schema": "extensions",
     "name": "pgp_sym_decrypt",
     "arguments": "bytea, text",
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_decrypt(bytea, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_decrypt_text$function$\n"
+  },
+  "extensions.pgp_sym_decrypt(bytea, text, text)": {
+    "schema": "extensions",
+    "name": "pgp_sym_decrypt",
+    "arguments": "bytea, text, text",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_decrypt(bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_decrypt_text$function$\n"
   },
   "extensions.pgp_sym_decrypt_bytea(bytea, text, text)": {
     "schema": "extensions",
@@ -293,19 +293,19 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_decrypt_bytea(bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_decrypt_bytea$function$\n"
   },
-  "extensions.pgp_sym_encrypt(text, text, text)": {
-    "schema": "extensions",
-    "name": "pgp_sym_encrypt",
-    "arguments": "text, text, text",
-    "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
-  },
   "extensions.pgp_sym_encrypt(text, text)": {
     "schema": "extensions",
     "name": "pgp_sym_encrypt",
     "arguments": "text, text",
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
+  },
+  "extensions.pgp_sym_encrypt(text, text, text)": {
+    "schema": "extensions",
+    "name": "pgp_sym_encrypt",
+    "arguments": "text, text, text",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
   },
   "extensions.pgp_sym_encrypt_bytea(bytea, text, text)": {
     "schema": "extensions",
@@ -468,6 +468,132 @@
     "comment": null,
     "sql": "CREATE OR REPLACE FUNCTION pgbouncer.get_auth(p_usename text)\n RETURNS TABLE(username text, password text)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nbegin\n    raise debug 'PgBouncer auth request: %', p_usename;\n\n    return query\n    select \n        rolname::text, \n        case when rolvaliduntil < now() \n            then null \n            else rolpassword::text \n        end \n    from pg_authid \n    where rolname=$1 and rolcanlogin;\nend;\n$function$\n"
   },
+  "public.add_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text)": {
+    "schema": "public",
+    "name": "add_subcontract_growth_exclusion",
+    "arguments": "p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text",
+    "comment": "Добавляет исключение роста субподряда (или обновляет существующее)",
+    "sql": "CREATE OR REPLACE FUNCTION public.add_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text DEFAULT 'works'::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_id uuid;\r\nBEGIN\r\n  -- Проверяем валидность типа\r\n  IF p_exclusion_type NOT IN ('works', 'materials') THEN\r\n    RAISE EXCEPTION 'Invalid exclusion_type: must be ''works'' or ''materials''';\r\n  END IF;\r\n\r\n  -- Вставляем запись (или возвращаем существующую)\r\n  INSERT INTO public.subcontract_growth_exclusions (\r\n    tender_id,\r\n    detail_cost_category_id,\r\n    exclusion_type\r\n  )\r\n  VALUES (\r\n    p_tender_id,\r\n    p_detail_cost_category_id,\r\n    p_exclusion_type\r\n  )\r\n  ON CONFLICT (tender_id, detail_cost_category_id, exclusion_type)\r\n  DO UPDATE SET updated_at = now()\r\n  RETURNING id INTO v_id;\r\n\r\n  RETURN v_id;\r\nEND;\r\n$function$\n"
+  },
+  "public.check_user_page_access(user_id uuid, page_url text)": {
+    "schema": "public",
+    "name": "check_user_page_access",
+    "arguments": "user_id uuid, page_url text",
+    "comment": "Check if user has access to a specific page URL. Returns TRUE if user can access the page.",
+    "sql": "CREATE OR REPLACE FUNCTION public.check_user_page_access(user_id uuid, page_url text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\n  DECLARE\r\n    user_record RECORD;\r\n    allowed_page TEXT;\r\n    pattern TEXT;\r\n  BEGIN\r\n    SELECT role, access_status, allowed_pages\r\n    INTO user_record\r\n    FROM public.users\r\n    WHERE id = user_id;\r\n\r\n    IF NOT FOUND OR user_record.access_status != 'approved' THEN\r\n      RETURN FALSE;\r\n    END IF;\r\n\r\n    IF user_record.role IN ('Администратор', 'Руководитель', 'Разработчик') THEN     \r\n      RETURN TRUE;\r\n    END IF;\r\n\r\n    IF jsonb_array_length(user_record.allowed_pages) = 0 THEN\r\n      RETURN TRUE;\r\n    END IF;\r\n\r\n    FOR allowed_page IN\r\n      SELECT jsonb_array_elements_text(user_record.allowed_pages)\r\n    LOOP\r\n      pattern := '^' || regexp_replace(allowed_page, ':[^/]+', '[^/]+', 'g') ||      \r\n  '$';\r\n\r\n      IF page_url ~ pattern THEN\r\n        RETURN TRUE;\r\n      END IF;\r\n    END LOOP;\r\n\r\n    RETURN FALSE;\r\n  END;\r\n  $function$\n"
+  },
+  "public.current_user_role()": {
+    "schema": "public",
+    "name": "current_user_role",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.current_user_role()\n RETURNS user_role_type\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT role FROM public.users WHERE id = auth.uid();\r\n$function$\n"
+  },
+  "public.current_user_status()": {
+    "schema": "public",
+    "name": "current_user_status",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.current_user_status()\n RETURNS access_status_type\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT access_status FROM public.users WHERE id = auth.uid();\r\n$function$\n"
+  },
+  "public.get_subcontract_growth_exclusions(p_tender_id uuid)": {
+    "schema": "public",
+    "name": "get_subcontract_growth_exclusions",
+    "arguments": "p_tender_id uuid",
+    "comment": "Получает список исключений роста субподряда для указанного тендера",
+    "sql": "CREATE OR REPLACE FUNCTION public.get_subcontract_growth_exclusions(p_tender_id uuid)\n RETURNS TABLE(detail_cost_category_id uuid, exclusion_type text)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nBEGIN\r\n  RETURN QUERY\r\n  SELECT\r\n    e.detail_cost_category_id,\r\n    e.exclusion_type\r\n  FROM public.subcontract_growth_exclusions e\r\n  WHERE e.tender_id = p_tender_id;\r\nEND;\r\n$function$\n"
+  },
+  "public.handle_updated_at()": {
+    "schema": "public",
+    "name": "handle_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.handle_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = now();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.register_user(p_user_id uuid, p_full_name text, p_email text, p_role_code text, p_allowed_pages jsonb)": {
+    "schema": "public",
+    "name": "register_user",
+    "arguments": "p_user_id uuid, p_full_name text, p_email text, p_role_code text, p_allowed_pages jsonb",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.register_user(p_user_id uuid, p_full_name text, p_email text, p_role_code text, p_allowed_pages jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  DECLARE\r\n    v_is_first_user BOOLEAN;\r\n    v_access_status access_status_type;\r\n  BEGIN\r\n    -- Проверка первого пользователя\r\n    SELECT NOT EXISTS (SELECT 1 FROM public.users LIMIT 1) INTO v_is_first_user;\r\n\r\n    -- Первый admin/director/developer → auto-approved\r\n    IF v_is_first_user AND p_role_code IN ('administrator', 'director', 'developer') THEN\r\n      v_access_status := 'approved';\r\n\r\n      INSERT INTO public.users (\r\n        id, full_name, email, role_code, access_status, allowed_pages,\r\n        approved_by, approved_at\r\n      ) VALUES (\r\n        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages,\r\n        p_user_id, NOW()\r\n      );\r\n    ELSE\r\n      -- Остальные → pending (ждут одобрения)\r\n      v_access_status := 'pending';\r\n\r\n      INSERT INTO public.users (\r\n        id, full_name, email, role_code, access_status, allowed_pages\r\n      ) VALUES (\r\n        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages\r\n      );\r\n    END IF;\r\n  END;\r\n$function$\n"
+  },
+  "public.remove_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text)": {
+    "schema": "public",
+    "name": "remove_subcontract_growth_exclusion",
+    "arguments": "p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text",
+    "comment": "Удаляет исключение роста субподряда",
+    "sql": "CREATE OR REPLACE FUNCTION public.remove_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text DEFAULT 'works'::text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_deleted boolean;\r\nBEGIN\r\n  DELETE FROM public.subcontract_growth_exclusions\r\n  WHERE tender_id = p_tender_id\r\n    AND detail_cost_category_id = p_detail_cost_category_id\r\n    AND exclusion_type = p_exclusion_type;\r\n\r\n  GET DIAGNOSTICS v_deleted = ROW_COUNT;\r\n  RETURN v_deleted > 0;\r\nEND;\r\n$function$\n"
+  },
+  "public.set_updated_at()": {
+    "schema": "public",
+    "name": "set_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = now();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.toggle_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text)": {
+    "schema": "public",
+    "name": "toggle_subcontract_growth_exclusion",
+    "arguments": "p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text",
+    "comment": "Переключает состояние исключения роста субподряда (вкл/выкл)",
+    "sql": "CREATE OR REPLACE FUNCTION public.toggle_subcontract_growth_exclusion(p_tender_id uuid, p_detail_cost_category_id uuid, p_exclusion_type text DEFAULT 'works'::text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_exists boolean;\r\nBEGIN\r\n  -- Проверяем существование\r\n  SELECT EXISTS (\r\n    SELECT 1\r\n    FROM public.subcontract_growth_exclusions\r\n    WHERE tender_id = p_tender_id\r\n      AND detail_cost_category_id = p_detail_cost_category_id\r\n      AND exclusion_type = p_exclusion_type\r\n  ) INTO v_exists;\r\n\r\n  IF v_exists THEN\r\n    -- Удаляем если существует\r\n    PERFORM remove_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);\r\n    RETURN false;\r\n  ELSE\r\n    -- Добавляем если не существует\r\n    PERFORM add_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);\r\n    RETURN true;\r\n  END IF;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_boq_items_updated_at()": {
+    "schema": "public",
+    "name": "update_boq_items_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_boq_items_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    NEW.updated_at = now();\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_client_positions_updated_at()": {
+    "schema": "public",
+    "name": "update_client_positions_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_client_positions_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    NEW.updated_at = NOW();\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_cost_redistribution_results_updated_at()": {
+    "schema": "public",
+    "name": "update_cost_redistribution_results_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_cost_redistribution_results_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    NEW.updated_at = NOW();\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_markup_parameters_updated_at()": {
+    "schema": "public",
+    "name": "update_markup_parameters_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_markup_parameters_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = NOW();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_markup_tactics_updated_at()": {
+    "schema": "public",
+    "name": "update_markup_tactics_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_markup_tactics_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = NOW();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_roles_updated_at()": {
+    "schema": "public",
+    "name": "update_roles_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_roles_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = NOW();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_tender_documents_updated_at()": {
+    "schema": "public",
+    "name": "update_tender_documents_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_tender_documents_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n    NEW.updated_at = NOW();\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
+  "public.update_tender_markup_percentage_updated_at()": {
+    "schema": "public",
+    "name": "update_tender_markup_percentage_updated_at",
+    "arguments": "",
+    "comment": null,
+    "sql": "CREATE OR REPLACE FUNCTION public.update_tender_markup_percentage_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = NOW();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+  },
   "public.update_updated_at_column()": {
     "schema": "public",
     "name": "update_updated_at_column",
@@ -536,7 +662,7 @@
     "name": "send",
     "arguments": "payload jsonb, event text, topic text, private boolean",
     "comment": null,
-    "sql": "CREATE OR REPLACE FUNCTION realtime.send(payload jsonb, event text, topic text, private boolean DEFAULT true)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  BEGIN\n    -- Set the topic configuration\n    EXECUTE format('SET LOCAL realtime.topic TO %L', topic);\n\n    -- Attempt to insert the message\n    INSERT INTO realtime.messages (payload, event, topic, private, extension)\n    VALUES (payload, event, topic, private, 'broadcast');\n  EXCEPTION\n    WHEN OTHERS THEN\n      -- Capture and notify the error\n      RAISE WARNING 'ErrorSendingBroadcastMessage: %', SQLERRM;\n  END;\nEND;\n$function$\n"
+    "sql": "CREATE OR REPLACE FUNCTION realtime.send(payload jsonb, event text, topic text, private boolean DEFAULT true)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n  generated_id uuid;\n  final_payload jsonb;\nBEGIN\n  BEGIN\n    -- Generate a new UUID for the id\n    generated_id := gen_random_uuid();\n\n    -- Check if payload has an 'id' key, if not, add the generated UUID\n    IF payload ? 'id' THEN\n      final_payload := payload;\n    ELSE\n      final_payload := jsonb_set(payload, '{id}', to_jsonb(generated_id));\n    END IF;\n\n    -- Set the topic configuration\n    EXECUTE format('SET LOCAL realtime.topic TO %L', topic);\n\n    -- Attempt to insert the message\n    INSERT INTO realtime.messages (id, payload, event, topic, private, extension)\n    VALUES (generated_id, final_payload, event, topic, private, 'broadcast');\n  EXCEPTION\n    WHEN OTHERS THEN\n      -- Capture and notify the error\n      RAISE WARNING 'ErrorSendingBroadcastMessage: %', SQLERRM;\n  END;\nEND;\n$function$\n"
   },
   "realtime.subscription_check_filters()": {
     "schema": "realtime",

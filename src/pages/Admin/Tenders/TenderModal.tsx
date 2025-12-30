@@ -5,6 +5,7 @@ import {
   Input,
   InputNumber,
   DatePicker,
+  Select,
   Row,
   Col,
   Divider,
@@ -20,6 +21,7 @@ import {
 } from '@ant-design/icons';
 import type { FormInstance } from 'antd';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { parseNumberInput, formatNumberInput } from '../../../utils/numberFormat';
 
 const { TextArea } = Input;
 
@@ -112,6 +114,40 @@ const TenderModal: React.FC<TenderModalProps> = ({
         </Row>
 
         <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="housing_class"
+              label="Класс жилья"
+            >
+              <Select
+                placeholder="Выберите класс жилья"
+                allowClear
+              >
+                <Select.Option value="комфорт">Комфорт</Select.Option>
+                <Select.Option value="бизнес">Бизнес</Select.Option>
+                <Select.Option value="премиум">Премиум</Select.Option>
+                <Select.Option value="делюкс">Делюкс</Select.Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="construction_scope"
+              label="Объем строительства"
+            >
+              <Select
+                placeholder="Выберите объем строительства"
+                allowClear
+              >
+                <Select.Option value="генподряд">Генподряд</Select.Option>
+                <Select.Option value="коробка">Коробка</Select.Option>
+                <Select.Option value="монолит">Монолит</Select.Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
           <Col span={24}>
             <Form.Item
               name="description"
@@ -144,9 +180,10 @@ const TenderModal: React.FC<TenderModalProps> = ({
               rules={[{ required: true, message: 'Пожалуйста, выберите дату' }]}
             >
               <DatePicker
+                showTime={{ format: 'HH:mm' }}
                 style={{ width: '100%' }}
-                format="DD.MM.YYYY"
-                placeholder="Выберите дату"
+                format="DD.MM.YYYY HH:mm"
+                placeholder="Выберите дату и время"
               />
             </Form.Item>
           </Col>
@@ -160,6 +197,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 min={1}
                 style={{ width: '100%' }}
                 placeholder="1"
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -178,6 +217,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 style={{ width: '100%' }}
                 placeholder="0.00"
                 precision={2}
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -191,6 +232,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 style={{ width: '100%' }}
                 placeholder="0.00"
                 precision={2}
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -215,6 +258,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 placeholder="100.00"
                 precision={2}
                 step={0.1}
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -234,6 +279,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 placeholder="108.00"
                 precision={2}
                 step={0.1}
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -253,6 +300,8 @@ const TenderModal: React.FC<TenderModalProps> = ({
                 placeholder="13.50"
                 precision={2}
                 step={0.01}
+                parser={parseNumberInput}
+                formatter={formatNumberInput}
               />
             </Form.Item>
           </Col>
@@ -304,6 +353,20 @@ const TenderModal: React.FC<TenderModalProps> = ({
             >
               <Input
                 prefix={<FileTextOutlined />}
+                placeholder="https://..."
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="project_folder_link"
+              label="Ссылка на папку с проектом"
+            >
+              <Input
+                prefix={<LinkOutlined />}
                 placeholder="https://..."
               />
             </Form.Item>

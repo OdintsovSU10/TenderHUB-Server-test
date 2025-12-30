@@ -34,3 +34,122 @@
   transition: transform 0.15s cubic-bezier(0.215, 0.61, 0.355, 1),
     opacity 0.15s cubic-bezier(0.215, 0.61, 0.355, 1);
 }
+
+/* Подсветка строки при возврате */
+@keyframes highlight-fade {
+  0% {
+    background-color: rgba(16, 185, 129, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.highlight-row {
+  animation: highlight-fade 2s ease-in-out;
+}
+
+/* Применяем подсветку ко всем ячейкам строки, включая фиксированные */
+.highlight-row > td {
+  animation: highlight-fade 2s ease-in-out !important;
+}
+
+/* Для фиксированных колонок Ant Design */
+.ant-table-cell-fix-left.highlight-row,
+.ant-table-cell-fix-right.highlight-row {
+  animation: highlight-fade 2s ease-in-out !important;
+}
+
+/* Подсветка скопированной строки */
+.copied-row {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+}
+
+.copied-row > td {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+}
+
+/* Для фиксированных колонок в скопированной строке */
+.ant-table-cell-fix-left.copied-row,
+.ant-table-cell-fix-right.copied-row {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+}
+
+/* Темная модалка для подтверждения */
+.dark-modal .ant-modal-content {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+}
+
+.dark-modal .ant-modal-header {
+  background-color: #1f1f1f !important;
+  border-bottom: 1px solid #303030 !important;
+}
+
+.dark-modal .ant-modal-title {
+  color: #ffffff !important;
+}
+
+.dark-modal .ant-modal-body {
+  color: #ffffff !important;
+}
+
+/* Все вложенные элементы в body тоже должны быть белыми */
+.dark-modal .ant-modal-body * {
+  color: #ffffff !important;
+}
+
+/* Иконка предупреждения должна быть желтой */
+.dark-modal .anticon-exclamation-circle {
+  color: #faad14 !important;
+}
+
+/* Фон круга вокруг восклицательного знака тоже желтый */
+.dark-modal .anticon-exclamation-circle svg {
+  color: #faad14 !important;
+  fill: #faad14 !important;
+}
+
+.dark-modal .ant-modal-footer {
+  background-color: #1f1f1f !important;
+  border-top: 1px solid #303030 !important;
+}
+
+.dark-modal .ant-btn-default {
+  background-color: #262626 !important;
+  border-color: #434343 !important;
+  color: #ffffff !important;
+}
+
+.dark-modal .ant-btn-default:hover {
+  background-color: #303030 !important;
+  border-color: #595959 !important;
+  color: #ffffff !important;
+}
+
+/* Кнопка "Да, удалить" - более приглушенный красный */
+.dark-modal .ant-btn-dangerous {
+  background-color: #8b4545 !important;
+  border-color: #a05555 !important;
+  color: #ffffff !important;
+}
+
+.dark-modal .ant-btn-dangerous:hover {
+  background-color: #a05555 !important;
+  border-color: #b56565 !important;
+  color: #ffffff !important;
+}
+
+/* Зелёная обводка для Select выбора тендера */
+.tender-select .ant-select-selector {
+  border-color: #10b981 !important;
+}
+
+.tender-select .ant-select-selector:hover {
+  border-color: #059669 !important;
+}
+
+.tender-select.ant-select-focused .ant-select-selector {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}

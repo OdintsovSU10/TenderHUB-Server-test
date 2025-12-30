@@ -1,178 +1,416 @@
-import React from 'react';
-import { Card, Col, Row, Typography, theme } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Table, Typography, theme, Input, Tag, Button, Space, message, Card, Progress, Tooltip } from 'antd';
 import {
-  DashboardFilled,
-  TableOutlined,
-  CalculatorFilled,
-  BookFilled,
-  DollarCircleFilled,
-  SettingFilled,
-  UserOutlined,
-  ToolFilled,
+  SearchOutlined,
+  SyncOutlined,
+  DashboardOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
-import { HeaderIcon } from '../../components/Icons';
+import { supabase, Tender } from '../../lib/supabase';
+import { formatNumberWithSpaces } from '../../utils/numberFormat';
+import { getVersionColorByTitle } from '../../utils/versionColor';
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import 'dayjs/locale/ru';
 import './Dashboard.css';
+
+dayjs.extend(duration);
+dayjs.extend(relativeTime);
+dayjs.locale('ru');
 
 const { Title, Text } = Typography;
 
-interface DashboardCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  iconClass: string;
-  onClick?: () => void;
+interface TenderTableData {
+  key: string;
+  id: string;
+  number: string;
+  name: string;
+  version: number;
+  status_deadline: boolean;
+  construction_area: number;
+  boq_cost: number;
+  cost_per_sqm: number;
+  deadline: string;
+  client: string;
+  created_at: string;
 }
-
-const DashboardCard: React.FC<DashboardCardProps> = ({
-  icon,
-  title,
-  description,
-  iconClass,
-  onClick,
-}) => {
-  const { theme: currentTheme } = useTheme();
-  const {
-    token: { colorBgContainer, colorText, colorTextSecondary },
-  } = theme.useToken();
-
-  return (
-    <Card
-      hoverable
-      className="dashboard-card"
-      onClick={onClick}
-      style={{
-        background: currentTheme === 'dark' ? '#141414' : colorBgContainer,
-        border: `1px solid ${currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-        borderRadius: '16px',
-        height: '180px',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
-      bodyStyle={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        padding: '24px',
-      }}
-    >
-      <div className={`icon-container ${iconClass}`}>
-        {icon}
-      </div>
-      <Title level={4} style={{ color: colorText, margin: '0 0 8px 0', textAlign: 'center' }}>
-        {title}
-      </Title>
-      <Text style={{ color: colorTextSecondary, textAlign: 'center', fontSize: '12px' }}>
-        {description}
-      </Text>
-    </Card>
-  );
-};
 
 const Dashboard: React.FC = () => {
   const { theme: currentTheme } = useTheme();
+  const { token } = theme.useToken();
+  const navigate = useNavigate();
 
-  const cards = [
+  const [loading, setLoading] = useState(false);
+  const [tenders, setTenders] = useState<TenderTableData[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [filteredTenders, setFilteredTenders] = useState<TenderTableData[]>([]);
+
+  // Загрузка тендеров из базы данных
+  const fetchTenders = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tenders')
+        .select('*')
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Для каждого тендера загружаем стоимость BOQ
+      const formattedData: TenderTableData[] = await Promise.all((data || []).map(async (tender: Tender) => {
+        // Рассчитываем итоговую стоимость BOQ напрямую из boq_items по tender_id с батчингом
+        let boqCost = 0;
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data: boqData } = await supabase
+            .from('boq_items')
+            .select('total_amount')
+            .eq('tender_id', tender.id)
+            .range(from, from + batchSize - 1);
+
+          if (boqData && boqData.length > 0) {
+            boqCost += boqData.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+            from += batchSize;
+            hasMore = boqData.length === batchSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // Рассчитываем стоимость за м²
+        const constructionArea = tender.area_sp || 0;
+        const costPerSqm = constructionArea > 0 ? boqCost / constructionArea : 0;
+
+        return {
+          key: tender.id,
+          id: tender.id,
+          number: tender.tender_number || '',
+          name: tender.title || '',
+          version: tender.version || 1,
+          status_deadline: tender.submission_deadline ?
+            new Date(tender.submission_deadline) < new Date() : false,
+          construction_area: constructionArea,
+          boq_cost: boqCost,
+          cost_per_sqm: costPerSqm,
+          deadline: tender.submission_deadline || '',
+          client: tender.client_name || '',
+          created_at: tender.created_at || '',
+        };
+      }));
+
+      setTenders(formattedData);
+      setFilteredTenders(formattedData);
+    } catch (error) {
+      console.error('Ошибка загрузки тендеров:', error);
+      message.error('Не удалось загрузить тендеры');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenders();
+  }, []);
+
+  // Фильтрация тендеров по поисковому запросу
+  useEffect(() => {
+    if (searchText) {
+      const filtered = tenders.filter(tender =>
+        tender.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        tender.number.toLowerCase().includes(searchText.toLowerCase()) ||
+        tender.client.toLowerCase().includes(searchText.toLowerCase())
+      );
+      setFilteredTenders(filtered);
+    } else {
+      setFilteredTenders(tenders);
+    }
+  }, [searchText, tenders]);
+
+  // Обновление расчета для тендера
+  const handleUpdateCalculation = async () => {
+    try {
+      // Перезагружаем данные тендеров для обновления расчетов
+      await fetchTenders();
+      message.success('Расчет обновлен');
+    } catch (error) {
+      message.error('Ошибка обновления расчета');
+    }
+  };
+
+  const columns = [
     {
-      icon: <DashboardFilled />,
-      title: 'Дашборд',
-      description: 'Обзор тендеров и основные показатели',
-      iconClass: 'icon-container-dashboard',
+      title: 'Номер тендера',
+      dataIndex: 'number',
+      key: 'number',
+      width: '10%',
+      align: 'center' as const,
+      render: (text: string) => (
+        <Text strong style={{ fontSize: 13 }}>{text || '-'}</Text>
+      ),
     },
     {
-      icon: <TableOutlined />,
-      title: 'Позиции заказчика',
-      description: 'Управление позициями и BOQ',
-      iconClass: 'icon-container-positions',
+      title: 'Название',
+      dataIndex: 'name',
+      key: 'name',
+      width: '20%',
+      align: 'center' as const,
+      ellipsis: true,
+      render: (text: string, record: TenderTableData) => (
+        <div>
+          <Space size={4}>
+            <Text strong style={{ fontSize: 13 }}>{text}</Text>
+            <Tag color={getVersionColorByTitle(record.version, record.name, tenders.map(t => ({ title: t.name, version: t.version })))} style={{ fontSize: 11 }}>v{record.version || 1}</Tag>
+          </Space>
+          {record.client && (
+            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+              {record.client}
+            </Text>
+          )}
+        </div>
+      ),
     },
     {
-      icon: <CalculatorFilled />,
-      title: 'Коммерция',
-      description: 'Коммерческие расчеты и финансовые показатели',
-      iconClass: 'icon-container-commerce',
+      title: 'Статус дедлайна',
+      dataIndex: 'deadline',
+      key: 'status_deadline',
+      width: '30%',
+      align: 'center' as const,
+      render: (deadline: string, record: TenderTableData) => {
+        if (!deadline) {
+          return <Tag color="default">Дедлайн не указан</Tag>;
+        }
+
+        const now = dayjs();
+        const deadlineDate = dayjs(deadline);
+        const createdDate = dayjs(record.created_at);
+
+        // Если дедлайн прошел
+        if (deadlineDate.isBefore(now)) {
+          return (
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Progress
+                percent={100}
+                status="success"
+                strokeColor="#10b981"
+                format={() => 'Завершен'}
+                size="small"
+              />
+            </Space>
+          );
+        }
+
+        // Рассчитываем общее время от создания до дедлайна
+        const totalDuration = deadlineDate.diff(createdDate, 'millisecond');
+        // Рассчитываем прошедшее время от создания до сейчас
+        const elapsedDuration = now.diff(createdDate, 'millisecond');
+        // Процент прогресса
+        const progressPercent = Math.min(Math.round((elapsedDuration / totalDuration) * 100), 99);
+
+        // Оставшееся время
+        const remainingDuration = deadlineDate.diff(now);
+        const remainingDays = Math.floor(remainingDuration / (1000 * 60 * 60 * 24));
+        const remainingHours = Math.floor((remainingDuration % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+        // Форматирование оставшегося времени
+        let remainingText = '';
+        if (remainingDays > 0) {
+          remainingText = `${remainingDays} дн. ${remainingHours} ч.`;
+        } else if (remainingHours > 0) {
+          remainingText = `${remainingHours} ч.`;
+        } else {
+          const remainingMinutes = Math.floor(remainingDuration / (1000 * 60));
+          remainingText = `${remainingMinutes} мин.`;
+        }
+
+        // Определяем цвет в зависимости от оставшегося времени
+        let progressColor = '#10b981'; // Зеленый по умолчанию
+        if (progressPercent > 90) {
+          progressColor = '#ef4444'; // Красный
+        } else if (progressPercent > 75) {
+          progressColor = '#f97316'; // Оранжевый
+        } else if (progressPercent > 50) {
+          progressColor = '#eab308'; // Желтый
+        }
+
+        return (
+          <div style={{ width: '100%' }}>
+            <Text style={{ fontSize: 11, color: progressColor, fontWeight: 500, display: 'block', marginBottom: 2 }}>
+              <ClockCircleOutlined /> Осталось: {remainingText}
+            </Text>
+            <Progress
+              percent={progressPercent}
+              strokeColor={progressColor}
+              showInfo={false}
+              size="small"
+            />
+          </div>
+        );
+      },
     },
     {
-      icon: <BookFilled />,
-      title: 'Библиотеки',
-      description: 'Справочники материалов, работ и шаблонов',
-      iconClass: 'icon-container-libraries',
+      title: <div style={{ textAlign: 'center' }}>Площадь СП</div>,
+      dataIndex: 'construction_area',
+      key: 'construction_area',
+      width: '8%',
+      align: 'center' as const,
+      render: (value: number) => (
+        <Text style={{ fontSize: 12 }}>{formatNumberWithSpaces(value)} м²</Text>
+      ),
     },
     {
-      icon: <DollarCircleFilled />,
-      title: 'Затраты на строительство',
-      description: 'Управление затратами и калькуляция стоимости',
-      iconClass: 'icon-container-costs',
+      title: <div style={{ textAlign: 'center' }}>Итого стоимость ПЗ</div>,
+      dataIndex: 'boq_cost',
+      key: 'boq_cost',
+      width: '10%',
+      align: 'center' as const,
+      render: (value: number) => (
+        <Text strong style={{ fontSize: 12 }}>{formatNumberWithSpaces(Math.round(value))}</Text>
+      ),
     },
     {
-      icon: <SettingFilled />,
-      title: 'Администрирование',
-      description: 'Системные настройки и справочники',
-      iconClass: 'icon-container-admin',
+      title: <div style={{ textAlign: 'center' }}>Стоимость за м²</div>,
+      dataIndex: 'cost_per_sqm',
+      key: 'cost_per_sqm',
+      width: '10%',
+      align: 'center' as const,
+      render: (value: number) => (
+        <Text style={{ fontSize: 12 }}>{formatNumberWithSpaces(Math.round(value))} ₽/м²</Text>
+      ),
     },
     {
-      icon: <UserOutlined />,
-      title: 'Пользователи',
-      description: 'Управление пользователями системы',
-      iconClass: 'icon-container-users',
+      title: <div style={{ textAlign: 'center' }}>Крайний срок</div>,
+      dataIndex: 'deadline',
+      key: 'deadline',
+      width: '8%',
+      align: 'center' as const,
+      render: (date: string) => (
+        <Text style={{ fontSize: 12 }}>{date ? dayjs(date).format('DD.MM.YYYY') : '-'}</Text>
+      ),
     },
     {
-      icon: <ToolFilled />,
-      title: 'Настройки',
-      description: 'Настройки системы и профиля',
-      iconClass: 'icon-container-settings',
+      title: '',
+      key: 'action',
+      width: '4%',
+      align: 'center' as const,
+      render: () => (
+        <Tooltip title="Обновить расчет">
+          <Button
+            type="text"
+            size="small"
+            icon={<SyncOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUpdateCalculation();
+            }}
+            style={{ color: token.colorPrimary }}
+          />
+        </Tooltip>
+      ),
     },
   ];
 
   return (
-    <div className={`dashboard-container ${currentTheme === 'light' ? 'dashboard-light' : 'dashboard-dark'}`}>
-      <div className="dashboard-header-section">
-        <div className="dashboard-header-content">
-          <div className="header-icon">
-            <HeaderIcon size={64} color="#ffffff" />
-          </div>
-          <Title level={2} style={{
-            color: '#fff',
-            margin: '16px 0 8px 0',
-            letterSpacing: '-0.5px',
-            fontWeight: 700
-          }}>
-            Добро пожаловать в TenderHUB
-          </Title>
-          <Text style={{
-            color: 'rgba(255, 255, 255, 0.85)',
-            fontSize: '16px',
-            display: 'block'
-          }}>
-            Система управления тендерами и строительными расчетами
-          </Text>
-          <Text style={{
-            color: '#ffffff',
-            fontSize: '13px',
-            marginTop: '8px',
-            display: 'inline-block',
-            padding: '4px 12px',
-            background: 'rgba(255, 255, 255, 0.15)',
-            borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            fontWeight: 500,
-            letterSpacing: '0.5px',
-            textTransform: 'uppercase'
-          }}>
-            by SU_10
-          </Text>
+    <div className={`dashboard-container ${currentTheme}`} style={{ padding: '24px' }}>
+      {/* Компактная шапка страницы */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 16,
+        flexWrap: 'wrap'
+      }}>
+        {/* Левая часть: заголовок с описанием */}
+        <div style={{ flex: '1 1 auto', minWidth: 300 }}>
+          <Space align="center" size={12}>
+            <DashboardOutlined style={{ fontSize: 22, color: token.colorPrimary }} />
+            <div>
+              <Title level={3} style={{ margin: 0, lineHeight: 1.2 }}>
+                Дашборд тендеров
+              </Title>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Обзор активных тендеров и основные показатели
+              </Text>
+            </div>
+          </Space>
+        </div>
+
+        {/* Правая часть: поиск */}
+        <div style={{ flex: '0 0 auto' }}>
+          <Input
+            placeholder="Поиск по названию, номеру, заказчику..."
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{
+              width: 400,
+              backgroundColor: currentTheme === 'dark' ? '#141414' : '#fff',
+            }}
+          />
         </div>
       </div>
 
-      <div className="dashboard-content">
-        <Row gutter={[24, 24]}>
-          {cards.map((card, index) => (
-            <Col xs={24} sm={12} lg={6} key={index}>
-              <DashboardCard {...card} />
-            </Col>
-          ))}
-        </Row>
-      </div>
+      {/* Таблица тендеров */}
+      <Card
+        variant="borderless"
+        className="dashboard-table-card"
+        style={{
+          borderRadius: 8,
+          boxShadow: currentTheme === 'dark' ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
+        }}
+        styles={{ body: { padding: 0 } }}
+      >
+        <Table
+          className="dashboard-table"
+          columns={columns}
+          dataSource={filteredTenders}
+          loading={loading}
+          pagination={false}
+          size="small"
+          onRow={(record) => ({
+            onClick: () => {
+              navigate(`/positions?tenderId=${record.id}`);
+            },
+            style: { cursor: 'pointer' },
+          })}
+          rowClassName={(record) => {
+            if (!record.deadline) return '';
+
+            const now = dayjs();
+            const deadlineDate = dayjs(record.deadline);
+            const createdDate = dayjs(record.created_at);
+
+            // Если дедлайн прошел
+            if (deadlineDate.isBefore(now)) {
+              return 'deadline-completed';
+            }
+
+            // Рассчитываем процент прогресса
+            const totalDuration = deadlineDate.diff(createdDate, 'millisecond');
+            const elapsedDuration = now.diff(createdDate, 'millisecond');
+            const progressPercent = Math.min(Math.round((elapsedDuration / totalDuration) * 100), 99);
+
+            // Определяем класс в зависимости от прогресса
+            if (progressPercent > 90) {
+              return 'deadline-critical'; // Красный
+            } else if (progressPercent > 75) {
+              return 'deadline-warning'; // Оранжевый
+            } else if (progressPercent > 50) {
+              return 'deadline-caution'; // Желтый
+            }
+
+            return '';
+          }}
+          scroll={{ x: 1200 }}
+        />
+      </Card>
     </div>
   );
 };

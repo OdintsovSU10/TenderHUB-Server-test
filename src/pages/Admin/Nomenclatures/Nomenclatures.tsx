@@ -1,182 +1,104 @@
-import React, { useState } from 'react';
-import { Card, Tabs, Table, Button, Space, Input, Tag, Tooltip } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
-import type { TabsProps, ColumnsType } from 'antd/es';
+import React, { useState, useEffect, useRef } from 'react';
+import { Tabs, Button, Space, Input, Typography } from 'antd';
+import { PlusOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
+import type { TabsProps } from 'antd';
+import { useMaterials } from './hooks/useMaterials.tsx';
+import { useWorks } from './hooks/useWorks.tsx';
+import { useUnits } from './hooks/useUnits.tsx';
+import { MaterialsTab, type MaterialsTabRef } from './components/MaterialsTab';
+import { WorksTab, type WorksTabRef } from './components/WorksTab';
+import { UnitsTab, type UnitsTabRef } from './components/UnitsTab';
+import { NomenclatureImport } from './components/NomenclatureImport';
+import './Nomenclatures.css';
 
-interface MaterialRecord {
-  key: string;
-  id: string;
-  name: string;
-  unit: string;
-  createdAt: string;
-}
+const { Title } = Typography;
 
-interface WorkRecord {
-  key: string;
-  id: string;
-  name: string;
-  unit: string;
-  createdAt: string;
-}
-
-interface LocationRecord {
-  key: string;
-  id: string;
-  location: string;
-  createdAt: string;
-}
-
-interface CostCategoryRecord {
-  key: string;
-  id: string;
-  name: string;
-  unit: string;
-  createdAt: string;
-}
+const unitColors: Record<string, string> = {
+  'шт': 'blue',
+  'м': 'green',
+  'м2': 'cyan',
+  'м3': 'purple',
+  'кг': 'orange',
+  'т': 'red',
+  'л': 'magenta',
+  'компл': 'volcano',
+  'м.п.': 'geekblue',
+};
 
 const Nomenclatures: React.FC = () => {
   const [searchText, setSearchText] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState('materials');
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'materials' | 'works'>('materials');
 
-  // Временные данные для демонстрации
-  const materialsData: MaterialRecord[] = [
-    { key: '1', id: '1', name: 'Бетон B25', unit: 'м3', createdAt: '2024-01-15' },
-    { key: '2', id: '2', name: 'Арматура А500С', unit: 'т', createdAt: '2024-01-16' },
-    { key: '3', id: '3', name: 'Кирпич керамический', unit: 'шт', createdAt: '2024-01-17' },
-  ];
+  const materialsTabRef = useRef<MaterialsTabRef>(null);
+  const worksTabRef = useRef<WorksTabRef>(null);
+  const unitsTabRef = useRef<UnitsTabRef>(null);
 
-  const worksData: WorkRecord[] = [
-    { key: '1', id: '1', name: 'Монтаж опалубки', unit: 'м2', createdAt: '2024-01-15' },
-    { key: '2', id: '2', name: 'Бетонирование', unit: 'м3', createdAt: '2024-01-16' },
-    { key: '3', id: '3', name: 'Армирование', unit: 'т', createdAt: '2024-01-17' },
-  ];
+  const materials = useMaterials();
+  const works = useWorks();
+  const units = useUnits();
 
-  const locationsData: LocationRecord[] = [
-    { key: '1', id: '1', location: 'Москва', createdAt: '2024-01-15' },
-    { key: '2', id: '2', location: 'Санкт-Петербург', createdAt: '2024-01-16' },
-    { key: '3', id: '3', location: 'Екатеринбург', createdAt: '2024-01-17' },
-  ];
+  useEffect(() => {
+    materials.loadMaterials();
+    works.loadWorks();
+    units.loadUnits();
+    units.loadUnitsList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const costCategoriesData: CostCategoryRecord[] = [
-    { key: '1', id: '1', name: 'Земляные работы', unit: 'м3', createdAt: '2024-01-15' },
-    { key: '2', id: '2', name: 'Фундаментные работы', unit: 'м3', createdAt: '2024-01-16' },
-    { key: '3', id: '3', name: 'Кровельные работы', unit: 'м2', createdAt: '2024-01-17' },
-  ];
+  const filteredMaterialsData = materials.materialsData.filter(item =>
+    searchText === '' || item.name.toLowerCase().includes(searchText.toLowerCase())
+  );
 
-  const unitColors: Record<string, string> = {
-    'шт': 'blue',
-    'м': 'green',
-    'м2': 'cyan',
-    'м3': 'purple',
-    'кг': 'orange',
-    'т': 'red',
-    'л': 'magenta',
-    'компл': 'volcano',
-    'м.п.': 'geekblue',
+  const filteredWorksData = works.worksData.filter(item =>
+    searchText === '' || item.name.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const filteredUnitsData = units.unitsData.filter(item =>
+    searchText === '' ||
+    item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    item.code.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const handlePageChange = (page: number, newPageSize: number) => {
+    setCurrentPage(page);
+    if (newPageSize !== pageSize) {
+      setPageSize(newPageSize);
+      setCurrentPage(1);
+    }
   };
 
-  const materialColumns: ColumnsType<MaterialRecord> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 100,
-    },
-    {
-      title: 'Наименование',
-      dataIndex: 'name',
-      key: 'name',
-      filteredValue: searchText ? [searchText] : null,
-      onFilter: (value, record) =>
-        record.name.toLowerCase().includes(value.toString().toLowerCase()),
-    },
-    {
-      title: 'Единица измерения',
-      dataIndex: 'unit',
-      key: 'unit',
-      width: 150,
-      render: (unit: string) => (
-        <Tag color={unitColors[unit] || 'default'}>{unit}</Tag>
-      ),
-    },
-    {
-      title: 'Дата создания',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-    },
-    {
-      title: 'Действия',
-      key: 'action',
-      width: 120,
-      render: (_: any, record: MaterialRecord) => (
-        <Space size="small">
-          <Tooltip title="Редактировать">
-            <Button type="text" icon={<EditOutlined />} />
-          </Tooltip>
-          <Tooltip title="Удалить">
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
-
-  const workColumns: ColumnsType<WorkRecord> = [
-    ...materialColumns as ColumnsType<WorkRecord>,
-  ];
-
-  const locationColumns: ColumnsType<LocationRecord> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 100,
-    },
-    {
-      title: 'Локация',
-      dataIndex: 'location',
-      key: 'location',
-      filteredValue: searchText ? [searchText] : null,
-      onFilter: (value, record) =>
-        record.location.toLowerCase().includes(value.toString().toLowerCase()),
-    },
-    {
-      title: 'Дата создания',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-    },
-    {
-      title: 'Действия',
-      key: 'action',
-      width: 120,
-      render: (_: any, record: LocationRecord) => (
-        <Space size="small">
-          <Tooltip title="Редактировать">
-            <Button type="text" icon={<EditOutlined />} />
-          </Tooltip>
-          <Tooltip title="Удалить">
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
-
-  const costCategoryColumns: ColumnsType<CostCategoryRecord> = [
-    ...materialColumns as ColumnsType<CostCategoryRecord>,
-  ];
+  const handleAddClick = () => {
+    if (activeTab === 'materials') {
+      materialsTabRef.current?.openAddModal();
+    } else if (activeTab === 'works') {
+      worksTabRef.current?.openAddModal();
+    } else if (activeTab === 'units') {
+      unitsTabRef.current?.openAddModal();
+    }
+  };
 
   const tabItems: TabsProps['items'] = [
     {
       key: 'materials',
       label: 'Материалы',
       children: (
-        <Table
-          columns={materialColumns}
-          dataSource={materialsData}
-          pagination={{ pageSize: 10 }}
-          size="middle"
+        <MaterialsTab
+          ref={materialsTabRef}
+          data={filteredMaterialsData}
+          loading={materials.loading}
+          unitsList={units.unitsList}
+          unitColors={unitColors}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          showDuplicatesOnly={materials.showDuplicatesOnly}
+          onDelete={materials.deleteMaterial}
+          onSave={materials.saveMaterial}
+          onPageChange={handlePageChange}
+          onToggleDuplicates={materials.toggleDuplicatesFilter}
         />
       ),
     },
@@ -184,64 +106,103 @@ const Nomenclatures: React.FC = () => {
       key: 'works',
       label: 'Работы',
       children: (
-        <Table
-          columns={workColumns}
-          dataSource={worksData}
-          pagination={{ pageSize: 10 }}
-          size="middle"
+        <WorksTab
+          ref={worksTabRef}
+          data={filteredWorksData}
+          loading={works.loading}
+          unitsList={units.unitsList}
+          unitColors={unitColors}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          showDuplicatesOnly={works.showDuplicatesOnly}
+          onDelete={works.deleteWork}
+          onSave={works.saveWork}
+          onPageChange={handlePageChange}
+          onToggleDuplicates={works.toggleDuplicatesFilter}
         />
       ),
     },
     {
-      key: 'locations',
-      label: 'Локации',
+      key: 'units',
+      label: 'Единицы измерения',
       children: (
-        <Table
-          columns={locationColumns}
-          dataSource={locationsData}
-          pagination={{ pageSize: 10 }}
-          size="middle"
-        />
-      ),
-    },
-    {
-      key: 'cost_categories',
-      label: 'Категории затрат',
-      children: (
-        <Table
-          columns={costCategoryColumns}
-          dataSource={costCategoriesData}
-          pagination={{ pageSize: 10 }}
-          size="middle"
+        <UnitsTab
+          ref={unitsTabRef}
+          data={filteredUnitsData}
+          loading={units.loading}
+          unitColors={unitColors}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onDelete={units.deleteUnit}
+          onSave={units.saveUnit}
+          onPageChange={handlePageChange}
         />
       ),
     },
   ];
 
   return (
-    <div>
-      <Card
-        title="Номенклатуры"
-        extra={
+    <div
+      className="nomenclatures-page"
+      style={{
+        margin: '-16px',
+        padding: '24px',
+        height: 'calc(100vh - 64px)',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
+      <Title level={4} style={{ margin: '0 0 16px 0' }}>
+        Номенклатуры
+      </Title>
+      <Tabs
+        defaultActiveKey="materials"
+        items={tabItems}
+        size="large"
+        onChange={(key) => setActiveTab(key)}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+        tabBarExtraContent={
           <Space>
             <Input
               placeholder="Поиск..."
               prefix={<SearchOutlined />}
-              style={{ width: 200 }}
+              style={{ width: 400 }}
               onChange={(e) => setSearchText(e.target.value)}
             />
-            <Button type="primary" icon={<PlusOutlined />}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
               Добавить
+            </Button>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => {
+                setImportMode(activeTab === 'materials' ? 'materials' : 'works');
+                setImportModalOpen(true);
+              }}
+            >
+              Импорт из Excel
             </Button>
           </Space>
         }
-      >
-        <Tabs
-          defaultActiveKey="materials"
-          items={tabItems}
-          size="large"
-        />
-      </Card>
+      />
+
+      <NomenclatureImport
+        open={importModalOpen}
+        mode={importMode}
+        onClose={(success) => {
+          setImportModalOpen(false);
+          if (success) {
+            if (importMode === 'materials') {
+              materials.loadMaterials();
+            } else {
+              works.loadWorks();
+            }
+          }
+        }}
+      />
     </div>
   );
 };
