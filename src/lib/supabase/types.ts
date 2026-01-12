@@ -697,7 +697,7 @@ export interface CostRedistributionResult extends CostRedistributionResultInsert
 // =============================================
 
 export type UserRole = 'Руководитель' | 'Администратор' | 'Разработчик' | 'Старший группы' | 'Инженер';
-export type AccessStatus = 'pending' | 'approved' | 'blocked';
+export type AccessStatus = 'pending' | 'approved' | 'rejected';
 
 export interface UserInsert {
   id: string; // UUID from auth.users
