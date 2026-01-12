@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Button, Card, message, Typography, Spin } from 'antd';
-import { UserOutlined, LockOutlined, LoginOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Spin, Result } from 'antd';
+import { UserOutlined, LockOutlined, LoginOutlined, LoadingOutlined, ClockCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,7 +31,7 @@ const Login: React.FC = () => {
 
   // Автоматический редирект если пользователь уже авторизован
   useEffect(() => {
-    if (user && user.access_status === 'approved') {
+    if (user) {
       // Отменяем таймаут загрузки
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
@@ -39,9 +39,16 @@ const Login: React.FC = () => {
       }
       setLoading(false);
 
-      // Перенаправляем на dashboard или первую доступную страницу
-      const targetPath = user.allowed_pages.length === 0 ? '/dashboard' : user.allowed_pages[0];
-      navigate(targetPath, { replace: true });
+      // Если статус pending - останавливаем загрузку и показываем сообщение
+      if (user.access_status === 'pending') {
+        return;
+      }
+
+      // Если статус approved и доступ включен - редиректим
+      if (user.access_status === 'approved' && user.access_enabled) {
+        const targetPath = user.allowed_pages.length === 0 ? '/dashboard' : user.allowed_pages[0];
+        navigate(targetPath, { replace: true });
+      }
     }
   }, [user, navigate]);
 
@@ -96,6 +103,181 @@ const Login: React.FC = () => {
       >
         <Spin indicator={<LoadingOutlined style={{ fontSize: 48, color: '#fff' }} spin />} />
         <Text style={{ marginTop: 24, fontSize: 18, color: '#fff' }}>Загрузка...</Text>
+      </div>
+    );
+  }
+
+  // Показываем сообщение если пользователь зарегистрирован но заявка на рассмотрении
+  if (user && user.access_status === 'pending') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: 24,
+        }}
+      >
+        <Card
+          style={{
+            width: '100%',
+            maxWidth: 500,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            borderRadius: 8,
+          }}
+        >
+          <Result
+            icon={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+            title="Ваша заявка находится на рассмотрении Администратором"
+            subTitle={
+              <div style={{ textAlign: 'center' }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  Пользователь: <strong>{user.full_name}</strong>
+                </Text>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                  Email: <strong>{user.email}</strong>
+                </Text>
+                <Text type="secondary">
+                  После одобрения заявки администратором вы получите доступ к системе.
+                  Вы можете закрыть эту страницу и вернуться позже.
+                </Text>
+              </div>
+            }
+            extra={[
+              <Button
+                key="logout"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.reload();
+                }}
+              >
+                Выйти
+              </Button>,
+              <Button
+                key="refresh"
+                type="primary"
+                onClick={() => window.location.reload()}
+              >
+                Обновить страницу
+              </Button>,
+            ]}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  // Показываем сообщение если доступ закрыт администратором
+  if (user && user.access_status === 'approved' && !user.access_enabled) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: 24,
+        }}
+      >
+        <Card
+          style={{
+            width: '100%',
+            maxWidth: 500,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            borderRadius: 8,
+          }}
+        >
+          <Result
+            status="warning"
+            title="Доступ к системе закрыт"
+            subTitle={
+              <div style={{ textAlign: 'center' }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  Пользователь: <strong>{user.full_name}</strong>
+                </Text>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                  Email: <strong>{user.email}</strong>
+                </Text>
+                <Text type="secondary">
+                  Администратор временно закрыл ваш доступ к системе.
+                  Для получения дополнительной информации обратитесь к администратору.
+                </Text>
+              </div>
+            }
+            extra={[
+              <Button
+                key="logout"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.reload();
+                }}
+              >
+                Выйти
+              </Button>,
+              <Button
+                key="refresh"
+                type="primary"
+                onClick={() => window.location.reload()}
+              >
+                Обновить страницу
+              </Button>,
+            ]}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  // Показываем сообщение если заявка отклонена
+  if (user && user.access_status === 'rejected') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: 24,
+        }}
+      >
+        <Card
+          style={{
+            width: '100%',
+            maxWidth: 500,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            borderRadius: 8,
+          }}
+        >
+          <Result
+            status="error"
+            icon={<CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
+            title="Заявка на регистрацию отклонена"
+            subTitle={
+              <div style={{ textAlign: 'center' }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                  К сожалению, администратор отклонил вашу заявку на регистрацию.
+                  Для получения дополнительной информации обратитесь к администратору системы.
+                </Text>
+              </div>
+            }
+            extra={[
+              <Button
+                key="logout"
+                type="primary"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.reload();
+                }}
+              >
+                Вернуться к входу
+              </Button>,
+            ]}
+          />
+        </Card>
       </div>
     );
   }

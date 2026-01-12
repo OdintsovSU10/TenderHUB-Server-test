@@ -112,13 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Обрабатываем только если initAuth завершился И user ещё не установлен
         if (initCompletedRef.current && !userRef.current) {
           const userData = await loadUserData(session.user.id);
-          if (mounted) {
-            if (userData?.access_enabled && userData?.access_status === 'approved') {
-              setUser(userData);
-            } else if (userData && (!userData.access_enabled || userData.access_status !== 'approved')) {
-              // Пользователь не одобрен или заблокирован - выходим
-              await supabase.auth.signOut();
-            }
+          if (mounted && userData) {
+            // Устанавливаем user для всех статусов - Login покажет соответствующий экран
+            setUser(userData);
             setLoading(false);
           }
         }
@@ -148,13 +144,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (session?.user && mounted) {
           const userData = await loadUserData(session.user.id);
 
-          if (mounted) {
-            if (userData?.access_enabled && userData?.access_status === 'approved') {
-              setUser(userData);
-            } else {
-              // Пользователь не одобрен - выходим молча
-              await supabase.auth.signOut();
-            }
+          if (mounted && userData) {
+            // Устанавливаем user для всех статусов - Login покажет соответствующий экран
+            setUser(userData);
           }
         }
       } catch (error) {
