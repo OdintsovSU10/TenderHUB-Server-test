@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Select, DatePicker, message, Space, Tag, Tooltip } from 'antd';
-import { CalendarOutlined } from '@ant-design/icons';
+import { CalendarOutlined, DeleteOutlined } from '@ant-design/icons';
 import { supabase } from '../../../lib/supabase';
 import dayjs from 'dayjs';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -42,6 +42,8 @@ const TenderAccessTab: React.FC<TenderAccessTabProps> = ({ searchText = '' }) =>
   const [selectedTender, setSelectedTender] = useState<TenderRecord | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [extendedDeadline, setExtendedDeadline] = useState<dayjs.Dayjs | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedDeleteUserIds, setSelectedDeleteUserIds] = useState<string[]>([]);
 
   // Загрузка тендеров
   const loadTenders = async () => {
@@ -205,6 +207,64 @@ const TenderAccessTab: React.FC<TenderAccessTabProps> = ({ searchText = '' }) =>
       });
   };
 
+  // Открыть модальное окно удаления пользователей
+  const handleOpenDeleteModal = (tender: TenderRecord) => {
+    const usersWithAccess = getUsersForTender(tender.id);
+
+    if (usersWithAccess.length === 0) {
+      message.info('Нет пользователей для удаления');
+      return;
+    }
+
+    setSelectedTender(tender);
+    setSelectedDeleteUserIds([]);
+    setDeleteModalVisible(true);
+  };
+
+  // Удалить выбранных пользователей из списка доступа к тендеру
+  const handleDeleteSelectedUsers = async () => {
+    if (selectedDeleteUserIds.length === 0 || !selectedTender) {
+      message.error('Выберите пользователей для удаления');
+      return;
+    }
+
+    try {
+      // Для каждого выбранного пользователя удаляем запись для этого тендера
+      for (const userId of selectedDeleteUserIds) {
+        const { data: userData, error: fetchError } = await supabase
+          .from('users')
+          .select('tender_deadline_extensions')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const currentExtensions: TenderDeadlineExtension[] =
+          userData?.tender_deadline_extensions || [];
+
+        // Удаляем продление для данного тендера
+        const filteredExtensions = currentExtensions.filter(
+          ext => ext.tender_id !== selectedTender.id
+        );
+
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ tender_deadline_extensions: filteredExtensions })
+          .eq('id', userId);
+
+        if (updateError) throw updateError;
+      }
+
+      message.success(`Удален доступ для ${selectedDeleteUserIds.length} чел.`);
+      setDeleteModalVisible(false);
+      setSelectedDeleteUserIds([]);
+      loadAllUsersWithExtensions(); // Перезагрузить данные
+    } catch (error: any) {
+      console.error('Ошибка удаления:', error);
+      message.error('Ошибка: ' + error.message);
+    }
+  };
+
   // Фильтрация тендеров по поиску
   const filteredTenders = React.useMemo(() => {
     if (!searchText) return tenders;
@@ -320,18 +380,36 @@ const TenderAccessTab: React.FC<TenderAccessTabProps> = ({ searchText = '' }) =>
     {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       key: 'actions',
-      width: 50,
+      width: 100,
       align: 'center' as const,
-      render: (_: any, record: TenderRecord) => (
-        <Tooltip title="Продлить доступ пользователю">
-          <Button
-            type="text"
-            size="small"
-            icon={<CalendarOutlined />}
-            onClick={() => handleExtendAccess(record)}
-          />
-        </Tooltip>
-      )
+      render: (_: any, record: TenderRecord) => {
+        const usersWithAccess = getUsersForTender(record.id);
+        const hasUsers = usersWithAccess.length > 0;
+
+        return (
+          <Space size="small">
+            <Tooltip title="Продлить доступ пользователю">
+              <Button
+                type="text"
+                size="small"
+                icon={<CalendarOutlined />}
+                onClick={() => handleExtendAccess(record)}
+              />
+            </Tooltip>
+            {hasUsers && (
+              <Tooltip title="Удалить пользователей из списка доступа">
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleOpenDeleteModal(record)}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      }
     }
   ];
 
@@ -393,6 +471,53 @@ const TenderAccessTab: React.FC<TenderAccessTabProps> = ({ searchText = '' }) =>
               color: theme === 'dark' ? '#fff' : '#000'
             }}>
               <div>Оригинальный дедлайн: {dayjs(selectedTender.submission_deadline).format('DD.MM.YYYY HH:mm')}</div>
+            </div>
+          )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title={`Удалить пользователей из тендера №${selectedTender?.tender_number} v${selectedTender?.version}`}
+        open={deleteModalVisible}
+        onOk={handleDeleteSelectedUsers}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          setSelectedDeleteUserIds([]);
+        }}
+        okText="Удалить"
+        cancelText="Отмена"
+        okType="danger"
+        width={600}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <label>Выберите пользователей для удаления доступа:</label>
+            <Select
+              mode="multiple"
+              style={{ width: '100%' }}
+              placeholder="Выберите пользователей"
+              value={selectedDeleteUserIds}
+              onChange={setSelectedDeleteUserIds}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={selectedTender ? getUsersForTender(selectedTender.id).map(u => ({
+                value: u.user_id,
+                label: u.user_name
+              })) : []}
+            />
+          </div>
+
+          {selectedTender && selectedDeleteUserIds.length > 0 && (
+            <div style={{
+              padding: '12px',
+              background: theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : '#fff1f0',
+              borderRadius: 4,
+              borderLeft: '3px solid #ff4d4f',
+              color: theme === 'dark' ? '#fff' : '#000'
+            }}>
+              <div>Будет удален доступ для {selectedDeleteUserIds.length} чел.</div>
             </div>
           )}
         </Space>
