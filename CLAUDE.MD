@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TenderHUB by SU_10 is a construction tender management portal for Bill of Quantities (BOQ) and bidding workflows. Currently in initial development with UI foundation complete but backend integration pending.
+TenderHUB by SU_10 is a production-ready construction tender management portal for Bill of Quantities (BOQ) and bidding workflows built with Clean Architecture principles.
 
 **Language Convention**: Russian UI, English code, Russian commit messages
-**Current State**: React + Ant Design UI shell with Supabase schema partially defined
+**Current State**: Production MVP with full Supabase backend integration
+**Architecture**: Clean Architecture / Domain-Driven Design (DDD)
 **Organization**: SU-10 (Construction Company)
-**Branding**: Complete design system documented in BRANDING.md
-**Logo Preview**: http://localhost:3000/logo-preview.html
+**Branding**: Complete design system documented in [BRANDING.md](BRANDING.md)
 
 ## Development Commands
 
@@ -21,10 +21,6 @@ npm run dev          # Start dev server (http://localhost:3000, auto-opens)
 npm run build        # TypeScript check + Vite production build
 npm run preview      # Preview production build
 npm run lint         # ESLint with zero-warning enforcement
-
-# Database (when Supabase client is added)
-supabase db push     # Apply migrations
-supabase db reset    # Reset local database
 ```
 
 ## 🚨 CRITICAL DATABASE RULES 🚨
@@ -35,114 +31,301 @@ supabase/schemas/prod.sql
 
 - ALWAYS verify schema in prod.sql before ANY database work
 - NEVER trust TypeScript types over prod.sql definitions
-- prod.sql contains ALL Supabase system tables and extensions
-- Business tables defined in migrations (001, 002, 003)
+- prod.sql contains ALL Supabase system tables and business tables
+- 69 total tables (43 Supabase system + 26 business tables)
 ```
 
-**Current Tables**:
-- `tenders` - Main tender records with currency rates
-- `material_names` - Material name library with units
-- `work_names` - Work name library with units
-- `locations` - Construction site locations
-- `cost_categories` - Cost category definitions
-- `detail_cost_categories` - Detailed cost items per location
-- ENUM: `unit_type` ('шт', 'м', 'м2', 'м3', 'кг', 'т', 'л', 'компл', 'м.п.')
+**Key Business Tables**:
+- `tenders` - Main tender records with currency rates, housing class, construction scope
+- `client_positions` - Bill of Quantities positions (hierarchical with parent_position_id)
+- `boq_items` - BOQ line items (materials/works) with commercial calculations
+- `boq_items_audit` - Audit trail for BOQ changes
+- `materials_library`, `material_names` - Material catalog and name library
+- `works_library`, `work_names` - Works catalog and name library
+- `units` - Unit of measurement reference table
+- `cost_categories`, `detail_cost_categories`, `construction_cost_volumes` - Cost management
+- `markup_tactics`, `markup_parameters`, `tender_markup_percentage` - Markup system
+- `tender_pricing_distribution` - Rules for distributing costs between materials/work
+- `templates`, `template_items` - Reusable work/material templates
+- `cost_redistribution_results`, `subcontract_growth_exclusions` - Cost redistribution
+- `users`, `roles` - User management with role-based access
+- `user_tasks`, `user_position_filters` - User-specific data
+- `notifications`, `tender_documents` - System notifications and documentation
 
-## Architecture & Patterns
+**ENUMs Defined** (11 types):
+- `access_status_type`: 'pending', 'approved', 'blocked'
+- `boq_item_type`: 'мат', 'суб-мат', 'мат-комп.', 'раб', 'суб-раб', 'раб-комп.'
+- `construction_scope_type`: 'генподряд', 'коробка', 'монолит'
+- `currency_type`: 'RUB', 'USD', 'EUR', 'CNY'
+- `delivery_price_type`: 'в цене', 'не в цене', 'суммой'
+- `housing_class_type`: 'комфорт', 'бизнес', 'премиум', 'делюкс'
+- `material_type`: 'основн.', 'вспомогат.'
+- `task_status`: 'running', 'paused', 'completed'
+- `user_role_type`: 'Руководитель', 'Администратор', 'Разработчик', 'Старший группы', 'Инженер'
+- `work_mode`: 'office', 'remote'
+- `work_status`: 'working', 'not_working'
 
-### Component Hierarchy
+## Clean Architecture Overview
+
+### Directory Structure
 ```
-App.tsx
-└── ThemeProvider (context)
-    └── ConfigProvider (Ant Design)
-        └── Routes
-            └── MainLayout
-                ├── Sider (collapsible navigation)
-                ├── Header (search, theme, notifications)
-                └── Content (page routing via Outlet)
+src/
+├── core/                          # Domain layer (business logic)
+│   ├── domain/
+│   │   ├── entities/             # Business entities (Tender, BoqItem, etc.)
+│   │   └── value-objects/        # Value objects (Currency, UnitType, etc.)
+│   ├── ports/
+│   │   └── repositories/         # Repository interfaces (7 interfaces)
+│   └── services/                 # Domain services
+├── client/                        # Adapter layer (infrastructure)
+│   ├── adapters/
+│   │   ├── repositories/         # Repository implementations (Supabase adapters)
+│   │   └── services/             # Service adapters
+│   ├── contexts/                 # React contexts
+│   ├── hooks/                    # Custom hooks
+│   └── providers/                # Provider components
+├── components/                    # UI components
+│   ├── Auth/                     # Authentication components
+│   ├── Icons/                    # Custom SVG icons (LogoIcon, HeaderIcon)
+│   └── Layout/                   # Layout components (MainLayout)
+├── pages/                         # Page components (20+ pages)
+├── lib/                           # External libraries
+│   └── supabase/                 # Supabase client (client.ts, types.ts)
+├── types/                         # TypeScript type definitions
+└── utils/                         # Utility functions
 ```
 
-### Implemented Routes
-- `/` and `/dashboard` - Feature card grid with 8 modules (✅ complete)
-- `/admin/nomenclatures` - Materials, Works, Locations, Cost Categories (✅ UI complete, mock data)
-- `/admin/tenders` - Tender management table (✅ UI complete, empty data)
-- `/admin/construction_cost` - Cost calculation interface (✅ UI complete, mock data)
-- `/positions`, `/commerce`, `/library`, `/costs`, `/users`, `/settings` - Placeholder pages
+### Repository Pattern
+- **Interfaces**: [src/core/ports/repositories/](src/core/ports/repositories/) (7 interfaces)
+  - IBoqItemRepository, IClientPositionRepository, IMarkupTacticRepository
+  - IMaterialRepository, IProjectRepository, ITenderRepository, IWorkRepository
+- **Implementations**: [src/client/adapters/repositories/](src/client/adapters/repositories/) (Supabase adapters)
+  - SupabaseBoqItemRepository, SupabaseClientPositionRepository, SupabaseTenderRepository
+- **Dependency Injection**: CoreServicesProvider wraps the entire application
 
-### Theme System
-- **Context**: `src/contexts/ThemeContext.tsx`
-- **Storage**: localStorage key `tenderHub_theme`
-- **Colors**: Primary `#10b981` (emerald)
-- **Dark**: Black background (`#000`), sidebar `#0a0a0a`
-- **Light**: Ant Design defaults
+## Tech Stack
 
-### Custom SVG Icons
-Two parameterized components in `src/components/Icons/`:
-- `LogoIcon` - Building + crane design (sidebar)
-- `HeaderIcon` - Modern house design (dashboard header)
-
-Both accept: `size`, `color`, `className` props
-
-## Tech Stack Reality Check
-
-### Currently Installed (package.json)
+### Dependencies (Actually Installed)
 ```json
 {
-  "dependencies": {
-    "@ant-design/icons": "^6.1.0",
-    "antd": "^5.28.0",
-    "dayjs": "^1.11.19",    // Date manipulation library
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.9.5"
-  }
+  "@supabase/supabase-js": "^2.80.0",
+  "@tanstack/react-query": "^5.90.16",
+  "@tanstack/react-query-devtools": "^5.91.2",
+  "@ant-design/charts": "^2.6.7",
+  "@ant-design/icons": "^6.1.0",
+  "antd": "^5.28.0",
+  "dayjs": "^1.11.19",
+  "react": "^18.3.1",
+  "react-dom": "^18.3.1",
+  "react-router-dom": "^7.9.5",
+  "xlsx": "^0.18.5",
+  "xlsx-js-style": "^1.2.0"
 }
 ```
 
-### NOT Yet Installed (but planned)
-- @supabase/supabase-js
-- @tanstack/react-query
-- react-hook-form + yup
-- xlsx-js-style
-- @dnd-kit/sortable
-- react-window
+### Architecture Patterns
+- **State Management**: TanStack Query for server state, React Context for client state
+- **Authentication**: Supabase Auth with protected routes
+- **Data Fetching**: Custom hooks wrapping repositories
+- **Forms**: Ant Design forms with inline editing patterns
+- **Routing**: React Router v7 with nested routes
 
-**Important**: Verify package.json before using any library
+## Implemented Pages (20+)
+
+### Authentication
+- [/login](src/pages/Auth/Login.tsx) - Email/password authentication
+- [/register](src/pages/Auth/Register.tsx) - User registration
+- [/forgot-password](src/pages/Auth/ForgotPassword.tsx) - Password reset request
+- [/reset-password](src/pages/Auth/ResetPassword.tsx) - Password reset confirmation
+
+### Core Features
+- [/dashboard](src/pages/Dashboard/Dashboard.tsx) - Main hub with 8-card feature grid
+- [/positions](src/pages/ClientPositions/ClientPositions.tsx) - Hierarchical BOQ management
+- [/positions/:id/items](src/pages/PositionItems/PositionItems.tsx) - BOQ items (materials/works)
+- [/commerce/proposal](src/pages/Commerce.tsx) - Commercial proposal calculations
+- [/commerce/redistribution](src/pages/CostRedistribution.tsx) - Cost redistribution
+- [/library](src/pages/Library.tsx) - Materials and works library
+- [/library/templates](src/pages/Library/Templates.tsx) - Reusable template sets
+- [/bsm](src/pages/Bsm/Bsm.tsx) - Business Specification Management
+- [/financial-indicators](src/pages/FinancialIndicators/FinancialIndicators.tsx) - Financial analytics with charts
+- [/projects](src/pages/Projects.tsx) - Project management
+- [/projects/:id](src/pages/Projects/ProjectDetail.tsx) - Project detail with Gantt charts
+- [/users](src/pages/Users/Users.tsx) - User management with access control
+- [/tasks](src/pages/Tasks.tsx) - Task management system
+
+### Admin Pages
+- [/admin/nomenclatures](src/pages/Admin/Nomenclatures/Nomenclatures.tsx) - Material/work name libraries + units
+- [/admin/tenders](src/pages/Admin/Tenders/Tenders.tsx) - Tender CRUD + BOQ Excel upload wizard
+- [/admin/construction_cost](src/pages/Admin/ConstructionCost/ConstructionCost.tsx) - Cost category hierarchy
+- [/admin/markup_constructor](src/pages/Admin/MarkupConstructor/MarkupConstructor.tsx) - Markup tactic configuration
+- [/admin/markup](src/pages/Admin/MarkupPercentages/MarkupPercentages.tsx) - Markup percentage management
+- [/costs](src/pages/Admin/ConstructionCostNew.tsx) - Alternative construction cost view
+
+### Analytics
+- [/analytics/comparison](src/pages/Analytics/ObjectComparison.tsx) - Object comparison analysis
+
+### Placeholder
+- /settings - Basic UI placeholder (minimal implementation)
+
+## Authentication System
+
+**Provider**: Supabase Auth
+**Context**: [src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx)
+**Protection**: [src/components/Auth/ProtectedRoute.tsx](src/components/Auth/ProtectedRoute.tsx)
+
+**User Roles** (5 types from user_role_type ENUM):
+- Руководитель (Director)
+- Администратор (Administrator)
+- Разработчик (Developer)
+- Старший группы (Senior Group Leader)
+- Инженер (Engineer)
+
+**User Metadata**:
+- Stored in `users` table (linked to auth.users)
+- Access control via `tender_access` table with access_status_type ENUM
 
 ## Code Constraints
 
 ### File Size Rule
 **STRICT**: All files MUST be ≤ 600 lines
-- Current largest: Tenders.tsx (425 lines), ConstructionCost.tsx (400 lines)
 - Split large files into modules with barrel exports
+- Extract components, hooks, utilities to separate files
 
 ### TypeScript Configuration
 - Target: ES2020, strict mode
 - No unused locals/parameters
-- No implicit any (1 violation at MainLayout.tsx:88)
+- No implicit any
 - React JSX transform (no React import needed)
 
 ### ESLint Rules
 - Zero warnings enforced (`max-warnings: 0`)
-- Current issues:
-  - MainLayout.tsx:88 - `any` type needs fixing
-  - ThemeContext.tsx:45 - Export warning
+- Fix all violations before committing
 
 ### Git Conventions
 - **Commits**: Russian, imperative mood
 - **Examples**: "Добавить валидацию форм", "Исправить ошибку в расчетах"
 - **Branches**: feature/, fix/, refactor/ prefixes
 
+## Component Hierarchy
+
+```
+App.tsx
+└── QueryProvider (@tanstack/react-query)
+    └── ThemeProvider
+        └── AuthProvider
+            └── NomenclaturesProvider
+                └── CoreServicesProvider (Dependency Injection)
+                    └── ConfigProvider (Ant Design)
+                        └── Routes
+                            └── ProtectedRoute
+                                └── MainLayout
+                                    ├── Sider (collapsible navigation)
+                                    ├── Header (search, theme toggle, notifications, user menu)
+                                    └── Content (Outlet for pages)
+```
+
+## Key Design Patterns
+
+### Theme System
+- **Context**: [src/contexts/ThemeContext.tsx](src/contexts/ThemeContext.tsx)
+- **Storage**: localStorage key `tenderHub_theme`
+- **Colors**: Primary #10b981 (emerald)
+- **Dark Mode**: Black background (#000), sidebar #0a0a0a
+- **Light Mode**: Ant Design default algorithm
+
+**Implementation**:
+```typescript
+algorithm: currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
+```
+
+### Inline Editing Pattern
+1. Click to edit (or Edit button)
+2. Row/cell enters edit mode
+3. Save (Enter key or Save button) - triggers database update
+4. Cancel (Escape key or Cancel button)
+5. Auto-update on successful save
+
+### Hierarchical Data Pattern
+- Self-referencing with `parent_id` field
+- Used in: client_positions, cost_categories, templates
+- Recursive rendering components
+
+### Unit Color Coding
+Standardized Tag colors across the application:
+```typescript
+'шт': 'blue',       // Pieces
+'м': 'green',       // Meters
+'м2': 'cyan',       // Square meters
+'м3': 'purple',     // Cubic meters
+'кг': 'orange',     // Kilograms
+'т': 'red',         // Tons
+'л': 'magenta',     // Liters
+'компл': 'volcano', // Set
+'м.п.': 'geekblue'  // Running meters
+```
+
+### Price Field Convention
+- `initial_price`: Base price from library
+- `calculated_price`: Price after markup application
+- `total_price`: Price × quantity
+
+### BOQ Item Types (boq_item_type ENUM)
+- **мат** - Material
+- **суб-мат** - Subcontracted Material
+- **мат-комп.** - Component Material
+- **раб** - Work
+- **суб-раб** - Subcontracted Work
+- **раб-комп.** - Component Work
+
+## Supabase Integration
+
+### Client Initialization
+- **Location**: [src/lib/supabase/client.ts](src/lib/supabase/client.ts)
+- **Environment Variables**:
+  - `VITE_SUPABASE_URL` - Project URL
+  - `VITE_SUPABASE_PUBLISHABLE_KEY` - Anonymous/public key
+- **Features**: Auto-refresh tokens, session persistence, RLS enabled
+
+### Type Generation
+- **Types**: [src/lib/supabase/types.ts](src/lib/supabase/types.ts) (auto-generated, 1000+ lines)
+- **Regenerate**: After schema changes in prod.sql
+- **Note**: Domain entities are separate from database types (Clean Architecture)
+
+### Query Patterns
+- Use TanStack Query for caching and synchronization
+- Repository pattern for data access abstraction
+- Optimistic updates for better UX
+
+## Excel Import/Export
+
+### Import
+- **Library**: xlsx
+- **Used in**: Tenders (BOQ upload), Nomenclatures
+- **Pattern**: 3-step wizard (Upload → Mapping → Preview)
+
+### Export
+- **Library**: xlsx-js-style (for styling)
+- **Used in**: Financial Indicators, Construction Costs, Commerce
+- **Pattern**: Multi-sheet exports with formatting and formulas
+
+## Custom SVG Icons
+
+**Location**: [src/components/Icons/](src/components/Icons/)
+- **LogoIcon**: Building + crane design (used in sidebar)
+- **HeaderIcon**: Modern house design (used in dashboard header)
+
+**Props**: `size` (number), `color` (string), `className` (string)
+
 ## Dashboard Design System
 
-### Card Grid (8 features)
-Each card has:
+### Card Grid (8 Features)
+Each card includes:
 - Gradient header (135deg angle)
 - 64px circular icon container
-- Hover: translateY(-6px) with shadow
+- Hover effect: translateY(-6px) with enhanced shadow
 - Responsive: xs={24} sm={12} lg={6}
 
-### Color Assignments
+### Gradient Color Assignments
 1. Дашборд - #1a5f7a → #159957
 2. Позиции заказчика - #10b981 → #059669
 3. Коммерция - #06b6d4 → #0891b2
@@ -152,77 +335,17 @@ Each card has:
 7. Пользователи - #0891b2 → #0e7490
 8. Настройки - #22c55e → #16a34a
 
-## Database Migration Status
+## Development Workflow
 
-### Implemented (in migrations/)
-1. `001_create_tenders_table.sql` - Core tender entity with currency rates
-2. `002_create_material_work_tables.sql` - Name libraries with units
-3. `003_create_location_and_cost_categories_tables.sql` - Locations and cost categories
+1. Pull latest from main: `git pull origin main`
+2. Create feature branch: `git checkout -b feature/название`
+3. Make changes (respect 600-line limit per file)
+4. Run linter: `npm run lint` (fix ALL warnings)
+5. Test locally: `npm run dev`
+6. Commit: `git commit -m "Добавить функцию X"`
+7. Push and create PR
 
-### Planned but Not Created
-- users (5 roles: administrator, moderator, engineer, manager, director)
-- organizations, material_categories, materials, works
-- boq_sections, boq_positions (hierarchical BOQ)
-- tender_participants, audit_log, comments
-
-### Key Database Patterns
-- UUID primary keys with uuid_generate_v4()
-- created_at/updated_at with automatic triggers
-- RLS policies defined but currently disabled
-- Foreign keys to auth.users for ownership
-
-## Implementation Gaps
-
-### Backend Integration Missing
-1. No Supabase client initialization
-2. No API service layer
-3. No authentication UI
-4. No data fetching/mutation
-
-### UI Implementation Status
-**Fully Implemented:**
-- /dashboard - 8-card feature grid with gradients and hover effects
-- /admin/nomenclatures - Tabbed interface for Materials, Works, Locations, Cost Categories
-- /admin/tenders - Complex tender management table with filters and actions
-- /admin/construction_cost - Cost calculations with statistics and deviation analysis
-
-**Placeholder Pages:**
-- /positions - BOQ management
-- /commerce - Commercial calculations
-- /library - Materials/works catalog
-- /costs - Construction costs
-- /users - User management
-- /settings - System configuration
-
-## Next Development Steps
-
-### Immediate Fixes
-1. Fix TypeScript `any` at MainLayout.tsx:88
-   ```typescript
-   import type { MenuClickEventHandler } from 'antd/es/menu/interface';
-   const handleMenuClick: MenuClickEventHandler = (e) => navigate(e.key);
-   ```
-
-2. Fix ESLint warning in ThemeContext.tsx (extract hook to separate file)
-
-### Supabase Integration
-1. Install: `npm install @supabase/supabase-js`
-2. Create `.env.local`:
-   ```
-   VITE_SUPABASE_URL=your_project_url
-   VITE_SUPABASE_ANON_KEY=your_anon_key
-   ```
-3. Create `src/lib/supabase.ts` client
-4. Implement auth pages and user context
-
-### Feature Development Priority
-1. Complete remaining table migrations
-2. Build /positions page (BOQ CRUD)
-3. Build /library page (materials/works)
-4. Add react-hook-form for data entry
-5. Implement TanStack Query for server state
-
-## Vite Configuration Notes
+## Vite Configuration
 
 ```typescript
 // vite.config.ts key settings
@@ -233,66 +356,43 @@ server: {
 build: {
   sourcemap: true  // Enables debugging
 }
-```
-
-## Important Technical Details
-
-### Theme Toggle Implementation
-Uses Ant Design's theme algorithms:
-```typescript
-algorithm: currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
-```
-
-### Responsive Breakpoints
-- 768px - Tablet layout adjustments
-- 576px - Mobile layout adjustments
-
-### Custom Scrollbar (Dark Theme)
-```css
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+resolve: {
+  alias: {
+    '@': '/src'  // Path alias for imports
+  }
 }
 ```
 
-### Ant Design Reset
-Required in main.tsx: `import 'antd/dist/reset.css'`
+## Critical Gotchas
 
-## Admin Page Components
+### Database
+- **prod.sql is single source of truth** - no migration files used
+- Schema managed via direct prod.sql exports and imports
+- RLS policies exist but may be disabled - verify before querying
+- Always check column types and constraints in prod.sql
 
-### Nomenclatures Page (`/admin/nomenclatures`)
-- 4-tab interface: Materials | Works | Locations | Cost Categories
-- Each tab has search, add/edit/delete actions
-- Unit color coding for visual identification
-- Mock data demonstrates expected functionality
+### Authentication
+- Protected routes require ProtectedRoute wrapper component
+- User metadata in `users` table, NOT auth.users
+- Tender access controlled via `tender_access` table with access_status_type
 
-### Tenders Page (`/admin/tenders`)
-Complex table with:
-- 12+ columns (number, name, client, dates, areas, currency rates, links)
-- Search filters by name, number, client, version
-- Date range picker for submission deadlines
-- Row selection for bulk operations
-- Dropdown actions: Edit, Duplicate, Archive, Export, Delete
-- Empty state ready for backend data
+### Type Safety
+- Supabase types are auto-generated - regenerate after schema changes
+- Domain entities (core/domain) are separate from database types
+- Use repository interfaces for type safety across layers
 
-### Construction Cost Page (`/admin/construction_cost`)
-- Statistics cards: Planned Cost, Actual Cost, Deviation, Deviation %
-- Location and category filtering
-- Data table with deviation color coding (red/green)
-- Summary row with totals
-- Mock data with realistic calculations
+### Performance
+- TanStack Query provides caching - use query keys wisely
+- Batch database operations when possible
+- Use React.memo for expensive components
 
-## Unit Color System
-Standardized colors for measurement units across the application:
-```typescript
-'шт' (pieces): 'blue'
-'м' (meters): 'green'
-'м2' (sq meters): 'cyan'
-'м3' (cubic meters): 'purple'
-'кг' (kilograms): 'orange'
-'т' (tons): 'red'
-'л' (liters): 'magenta'
-'компл' (set): 'volcano'
-'м.п.' (running meters): 'geekblue'
-```
+## Additional Resources
+
+- **Brand Identity**: See [BRANDING.md](BRANDING.md) for design system and logo usage
+- **Deployment**: See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for production configuration
+
+---
+
+**Version**: MVP 1.0
+**Last Updated**: 2026-01-14
+**Maintained By**: Claude Code Agent
