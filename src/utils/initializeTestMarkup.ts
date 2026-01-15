@@ -4,9 +4,10 @@
 
 import { supabase } from '../lib/supabase';
 import type { MarkupTacticInsert } from '../lib/supabase';
+import { logger } from './debug';
 
 export async function initializeTestMarkup(tenderId?: string) {
-  console.log('=== Инициализация тестовых данных для наценок ===');
+  logger.info('=== Инициализация тестовых данных для наценок ===');
 
   try {
     // 1. Получаем первый тендер, если не указан
@@ -17,16 +18,16 @@ export async function initializeTestMarkup(tenderId?: string) {
         .limit(1);
 
       if (!tenders || tenders.length === 0) {
-        console.error('Нет тендеров в БД!');
+        logger.error('Нет тендеров в БД!');
         return;
       }
 
       tenderId = tenders[0].id;
-      console.log(`Используем тендер: ${tenders[0].tender_number}`);
+      logger.info(`Используем тендер: ${tenders[0].tender_number}`);
     }
 
     // 2. Создаем тестовую тактику наценок
-    console.log('\n1. Создаем тестовую тактику наценок...');
+    logger.info('\n1. Создаем тестовую тактику наценок...');
 
     const testTactic: MarkupTacticInsert = {
       name: 'Тестовая тактика 20%',
@@ -104,14 +105,14 @@ export async function initializeTestMarkup(tenderId?: string) {
       .single();
 
     if (tacticError) {
-      console.error('Ошибка создания тактики:', tacticError);
+      logger.error('Ошибка создания тактики:', tacticError);
       return;
     }
 
-    console.log(`✓ Создана тактика: ${tactic.id}`);
+    logger.info(`✓ Создана тактика: ${tactic.id}`);
 
     // 3. Привязываем тактику к тендеру
-    console.log('\n2. Привязываем тактику к тендеру...');
+    logger.info('\n2. Привязываем тактику к тендеру...');
 
     const { error: updateError } = await supabase
       .from('tenders')
@@ -119,14 +120,14 @@ export async function initializeTestMarkup(tenderId?: string) {
       .eq('id', tenderId);
 
     if (updateError) {
-      console.error('Ошибка привязки тактики:', updateError);
+      logger.error('Ошибка привязки тактики:', updateError);
       return;
     }
 
-    console.log('✓ Тактика привязана к тендеру');
+    logger.info('✓ Тактика привязана к тендеру');
 
     // 4. Создаем тестовые параметры наценок (если используются)
-    console.log('\n3. Создаем параметры наценок...');
+    logger.info('\n3. Создаем параметры наценок...');
 
     // Сначала проверим, есть ли параметры в БД
     const { data: params } = await supabase
@@ -150,9 +151,9 @@ export async function initializeTestMarkup(tenderId?: string) {
         .select();
 
       if (paramsError) {
-        console.error('Ошибка создания параметров:', paramsError);
+        logger.error('Ошибка создания параметров:', paramsError);
       } else {
-        console.log(`✓ Создано параметров: ${newParams.length}`);
+        logger.info(`✓ Создано параметров: ${newParams.length}`);
 
         // Привязываем значения к тендеру
         const tenderParams = newParams.map(p => ({
@@ -166,17 +167,17 @@ export async function initializeTestMarkup(tenderId?: string) {
           .insert(tenderParams);
 
         if (valuesError) {
-          console.error('Ошибка привязки параметров к тендеру:', valuesError);
+          logger.error('Ошибка привязки параметров к тендеру:', valuesError);
         } else {
-          console.log('✓ Параметры привязаны к тендеру');
+          logger.info('✓ Параметры привязаны к тендеру');
         }
       }
     } else {
-      console.log('Параметры уже существуют в БД');
+      logger.info('Параметры уже существуют в БД');
     }
 
     // 5. Проверяем и создаем тестовые базовые стоимости
-    console.log('\n4. Проверяем базовые стоимости в BOQ...');
+    logger.info('\n4. Проверяем базовые стоимости в BOQ...');
 
     const { data: boqItems } = await supabase
       .from('boq_items')
@@ -185,8 +186,8 @@ export async function initializeTestMarkup(tenderId?: string) {
       .limit(10);
 
     if (!boqItems || boqItems.length === 0) {
-      console.log('⚠️ Нет элементов BOQ для тендера!');
-      console.log('Создайте позиции заказчика и элементы BOQ через интерфейс.');
+      logger.info('⚠️ Нет элементов BOQ для тендера!');
+      logger.info('Создайте позиции заказчика и элементы BOQ через интерфейс.');
     } else {
       let emptyCount = 0;
       boqItems.forEach(item => {
@@ -196,10 +197,10 @@ export async function initializeTestMarkup(tenderId?: string) {
       });
 
       if (emptyCount > 0) {
-        console.log(`⚠️ ${emptyCount} из ${boqItems.length} элементов не имеют базовой стоимости`);
+        logger.info(`⚠️ ${emptyCount} из ${boqItems.length} элементов не имеют базовой стоимости`);
 
         // Заполняем тестовыми значениями
-        console.log('Заполняем тестовыми базовыми стоимостями...');
+        logger.info('Заполняем тестовыми базовыми стоимостями...');
 
         for (const item of boqItems) {
           if (!item.total_amount || item.total_amount === 0) {
@@ -212,25 +213,25 @@ export async function initializeTestMarkup(tenderId?: string) {
           }
         }
 
-        console.log('✓ Тестовые базовые стоимости установлены');
+        logger.info('✓ Тестовые базовые стоимости установлены');
       } else {
-        console.log('✓ Все элементы имеют базовые стоимости');
+        logger.info('✓ Все элементы имеют базовые стоимости');
       }
     }
 
-    console.log('\n=== Инициализация завершена ===');
-    console.log('Теперь можно нажать кнопку "Пересчитать" на странице Коммерция');
+    logger.info('\n=== Инициализация завершена ===');
+    logger.info('Теперь можно нажать кнопку "Пересчитать" на странице Коммерция');
 
     return tactic?.id;
 
   } catch (error) {
-    console.error('Ошибка инициализации:', error);
+    logger.error('Ошибка инициализации:', error);
   }
 }
 
-// Экспортируем для использования в консоли браузера
-if (typeof window !== 'undefined') {
+// Экспортируем для использования в консоли браузера (только в DEV)
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as any).initializeTestMarkup = initializeTestMarkup;
-  console.log('Для инициализации тестовых данных выполните в консоли:');
-  console.log('window.initializeTestMarkup()');
+  logger.info('Для инициализации тестовых данных выполните в консоли:');
+  logger.info('window.initializeTestMarkup()');
 }
