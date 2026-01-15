@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { message } from 'antd';
 import { supabase, type Tender } from '../../../../lib/supabase';
+import { logger } from '../../../../utils/debug';
 
 export interface CostRow {
   key: string;
@@ -136,7 +137,7 @@ export const useCostData = () => {
         }
       });
 
-      console.log('Loaded group volumes from DB:', Array.from(groupVolumesMap.entries()));
+      logger.debug('Loaded group volumes from DB:', Array.from(groupVolumesMap.entries()));
 
       // Сохраняем объемы групп в state
       setGroupVolumes(groupVolumesMap);
@@ -572,7 +573,7 @@ export const useCostData = () => {
         return items.map(item => {
           if ((item.is_category || item.is_location) && volumesMap.has(item.key)) {
             const restoredVolume = volumesMap.get(item.key)!;
-            console.log('Restoring volume for group:', item.key, 'volume:', restoredVolume);
+            logger.debug('Restoring volume for group:', item.key, 'volume:', restoredVolume);
             return {
               ...item,
               volume: restoredVolume,
@@ -587,7 +588,7 @@ export const useCostData = () => {
       };
 
       rows = restoreGroupVolumes(rows, groupVolumesMap);
-      console.log('Rows after restoring group volumes:', rows.length);
+      logger.debug('Rows after restoring group volumes:', rows.length);
 
       // Логирование итоговых сумм
       const totalSums = rows.reduce((sum, row) => ({
@@ -600,19 +601,19 @@ export const useCostData = () => {
         total: sum.total + row.total_cost
       }), { materials: 0, works: 0, subMaterials: 0, subWorks: 0, materialsComp: 0, worksComp: 0, total: 0 });
 
-      console.log('\n=== ИТОГОВЫЕ СУММЫ COSTS PAGE (costType=' + costType + ') ===');
-      console.log('Материалы:', totalSums.materials.toLocaleString('ru-RU'));
-      console.log('Работы:', totalSums.works.toLocaleString('ru-RU'));
-      console.log('Суб-материалы:', totalSums.subMaterials.toLocaleString('ru-RU'));
-      console.log('Суб-работы:', totalSums.subWorks.toLocaleString('ru-RU'));
-      console.log('Комп. материалы:', totalSums.materialsComp.toLocaleString('ru-RU'));
-      console.log('Комп. работы:', totalSums.worksComp.toLocaleString('ru-RU'));
-      console.log('ИТОГО:', totalSums.total.toLocaleString('ru-RU'));
-      console.log('Ожидается: 5,613,631,822');
+      logger.debug('\n=== ИТОГОВЫЕ СУММЫ COSTS PAGE (costType=' + costType + ') ===');
+      logger.debug('Материалы:', totalSums.materials.toLocaleString('ru-RU'));
+      logger.debug('Работы:', totalSums.works.toLocaleString('ru-RU'));
+      logger.debug('Суб-материалы:', totalSums.subMaterials.toLocaleString('ru-RU'));
+      logger.debug('Суб-работы:', totalSums.subWorks.toLocaleString('ru-RU'));
+      logger.debug('Комп. материалы:', totalSums.materialsComp.toLocaleString('ru-RU'));
+      logger.debug('Комп. работы:', totalSums.worksComp.toLocaleString('ru-RU'));
+      logger.debug('ИТОГО:', totalSums.total.toLocaleString('ru-RU'));
+      logger.debug('Ожидается: 5,613,631,822');
 
       setData(rows);
     } catch (error: any) {
-      console.error('Ошибка загрузки затрат:', error);
+      logger.error('Ошибка загрузки затрат:', error);
       message.error(`Не удалось загрузить данные затрат: ${error.message || 'Неизвестная ошибка'}`);
     } finally {
       setLoading(false);
@@ -674,7 +675,7 @@ export const useCostData = () => {
       }
       // Для категорий и локализаций - сохраняем в базу с group_key
       else if (record.is_category || record.is_location) {
-        console.log('Saving group volume:', { key: record.key, value, tenderId: selectedTenderId });
+        logger.debug('Saving group volume:', { key: record.key, value, tenderId: selectedTenderId });
 
         // Проверяем существование записи
         const { data: existing, error: checkError } = await supabase
@@ -684,12 +685,12 @@ export const useCostData = () => {
           .eq('group_key', record.key)
           .maybeSingle();
 
-        console.log('Existing record:', existing);
+        logger.debug('Existing record:', existing);
 
         let error;
         if (existing) {
           // Обновляем существующую запись
-          console.log('Updating existing record');
+          logger.debug('Updating existing record');
           ({ error } = await supabase
             .from('construction_cost_volumes')
             .update({ volume: value })
@@ -697,7 +698,7 @@ export const useCostData = () => {
             .eq('group_key', record.key));
         } else {
           // Создаем новую запись
-          console.log('Creating new record');
+          logger.debug('Creating new record');
           ({ error } = await supabase
             .from('construction_cost_volumes')
             .insert({
@@ -708,11 +709,11 @@ export const useCostData = () => {
         }
 
         if (error) {
-          console.error('Save error:', error);
+          logger.error('Save error:', error);
           throw error;
         }
 
-        console.log('Group volume saved successfully');
+        logger.debug('Group volume saved successfully');
 
         // Сохраняем в Map
         setGroupVolumes(prev => {
