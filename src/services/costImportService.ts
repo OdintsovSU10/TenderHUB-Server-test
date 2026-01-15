@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { logger } from '../utils/debug';
 
 interface ImportData {
   orderNum: number;
@@ -53,7 +54,7 @@ export const costImportService = {
 
       return { success: true, recordsAdded };
     } catch (error) {
-      console.error('Ошибка импорта:', error);
+      logger.error('Ошибка импорта:', error);
       return {
         success: false,
         recordsAdded: 0,
@@ -144,13 +145,13 @@ function parseImportData(rows: any[][]) {
 async function importLocations(locations: Set<string>): Promise<Map<string, string>> {
   const locationMap = new Map<string, string>();
 
-  console.log('Импорт локаций. Всего уникальных локаций:', locations.size);
-  console.log('Локации для импорта:', Array.from(locations));
+  logger.debug('Импорт локаций. Всего уникальных локаций:', locations.size);
+  logger.debug('Локации для импорта:', Array.from(locations));
 
   for (const location of locations) {
     // Пропускаем пустые локации
     if (!location || location.trim() === '') {
-      console.log('Пропускаем пустую локацию');
+      logger.debug('Пропускаем пустую локацию');
       continue;
     }
 
@@ -164,7 +165,7 @@ async function importLocations(locations: Set<string>): Promise<Map<string, stri
 
       if (existingLocation) {
         locationMap.set(location, existingLocation.id);
-        console.log(`Локация "${location}" уже существует с ID: ${existingLocation.id}`);
+        logger.debug(`Локация "${location}" уже существует с ID: ${existingLocation.id}`);
       } else {
         // Создаем новую локацию
         const { data: newLocation, error } = await supabase
@@ -176,15 +177,15 @@ async function importLocations(locations: Set<string>): Promise<Map<string, stri
         if (error) throw error;
         if (newLocation) {
           locationMap.set(location, newLocation.id);
-          console.log(`Создана новая локация "${location}" с ID: ${newLocation.id}`);
+          logger.debug(`Создана новая локация "${location}" с ID: ${newLocation.id}`);
         }
       }
     } catch (error) {
-      console.error(`Ошибка при обработке локации "${location}":`, error);
+      logger.error(`Ошибка при обработке локации "${location}":`, error);
     }
   }
 
-  console.log('Импорт локаций завершен. Всего в маппинге:', locationMap.size);
+  logger.debug('Импорт локаций завершен. Всего в маппинге:', locationMap.size);
   return locationMap;
 }
 
@@ -196,8 +197,8 @@ async function importCategories(
 ): Promise<Map<string, string>> {
   const categoryMap = new Map<string, string>();
 
-  console.log('Импорт категорий. Всего уникальных категорий:', categories.size);
-  console.log('Категории для импорта:', Array.from(categories.entries()));
+  logger.debug('Импорт категорий. Всего уникальных категорий:', categories.size);
+  logger.debug('Категории для импорта:', Array.from(categories.entries()));
 
   for (const [key, category] of categories) {
     try {
@@ -211,7 +212,7 @@ async function importCategories(
 
       if (existingCategory) {
         categoryMap.set(key, existingCategory.id);
-        console.log(`Категория "${category.name}" (${category.unit}) уже существует с ID: ${existingCategory.id}`);
+        logger.debug(`Категория "${category.name}" (${category.unit}) уже существует с ID: ${existingCategory.id}`);
       } else {
         // Создаем новую категорию
         const { data: newCategory, error } = await supabase
@@ -226,15 +227,15 @@ async function importCategories(
         if (error) throw error;
         if (newCategory) {
           categoryMap.set(key, newCategory.id);
-          console.log(`Создана новая категория "${category.name}" (${category.unit}) с ID: ${newCategory.id}`);
+          logger.debug(`Создана новая категория "${category.name}" (${category.unit}) с ID: ${newCategory.id}`);
         }
       }
     } catch (error) {
-      console.error(`Ошибка при обработке категории "${category.name}":`, error);
+      logger.error(`Ошибка при обработке категории "${category.name}":`, error);
     }
   }
 
-  console.log('Импорт категорий завершен. Всего в маппинге:', categoryMap.size);
+  logger.debug('Импорт категорий завершен. Всего в маппинге:', categoryMap.size);
   return categoryMap;
 }
 
@@ -249,16 +250,16 @@ async function importDetailCategories(
   const detailsToInsert = [];
   let skippedCount = 0;
 
-  console.log('Начинаем импорт детальных категорий. Всего элементов:', detailItems.length);
-  console.log('Доступные категории:', Array.from(categoryMap.entries()));
-  console.log('Доступные локации:', Array.from(locationMap.entries()));
+  logger.debug('Начинаем импорт детальных категорий. Всего элементов:', detailItems.length);
+  logger.debug('Доступные категории:', Array.from(categoryMap.entries()));
+  logger.debug('Доступные локации:', Array.from(locationMap.entries()));
 
   for (const item of detailItems) {
     const categoryKey = `${item.categoryName}_${item.categoryUnit}`;
     const categoryId = categoryMap.get(categoryKey);
     const locationId = item.location ? locationMap.get(item.location) : null;
 
-    console.log(`Обработка элемента: ${item.costName}`, {
+    logger.debug(`Обработка элемента: ${item.costName}`, {
       categoryKey,
       categoryId,
       location: item.location,
@@ -286,20 +287,20 @@ async function importDetailCategories(
             order_num: item.orderNum,
           };
           detailsToInsert.push(newDetail);
-          console.log('Добавляем новую запись:', newDetail);
+          logger.debug('Добавляем новую запись:', newDetail);
         } else {
-          console.log('Запись уже существует, пропускаем:', item.costName);
+          logger.debug('Запись уже существует, пропускаем:', item.costName);
         }
       } catch (error) {
-        console.error('Ошибка при проверке существующей записи:', error);
+        logger.error('Ошибка при проверке существующей записи:', error);
       }
     } else {
       skippedCount++;
-      console.warn(`Пропущена запись "${item.costName}" - категория не найдена (${categoryKey})`);
+      logger.warn(`Пропущена запись "${item.costName}" - категория не найдена (${categoryKey})`);
     }
   }
 
-  console.log(`Готово к вставке: ${detailsToInsert.length} записей, пропущено: ${skippedCount}`);
+  logger.debug(`Готово к вставке: ${detailsToInsert.length} записей, пропущено: ${skippedCount}`);
 
   // Вставляем все новые записи одним запросом
   if (detailsToInsert.length > 0) {
@@ -309,11 +310,11 @@ async function importDetailCategories(
       .select();
 
     if (error) {
-      console.error('Ошибка при вставке детальных категорий:', error);
+      logger.error('Ошибка при вставке детальных категорий:', error);
       throw error;
     }
 
-    console.log('Успешно вставлено записей:', data?.length || 0);
+    logger.debug('Успешно вставлено записей:', data?.length || 0);
   }
 
   return detailsToInsert.length;
