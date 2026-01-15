@@ -7,6 +7,7 @@ import { message } from 'antd';
 import type { SourceRule, TargetCost, BoqItemWithCosts, RedistributionResult } from '../utils';
 import { calculateRedistribution } from '../utils';
 import { validateRedistributionRules, getErrorMessages } from '../utils';
+import { logger } from '../../../utils/debug';
 
 export interface CalculationState {
   results: RedistributionResult[];
@@ -48,17 +49,17 @@ export function useDistributionCalculator(
     }
 
     try {
-      console.log('🔄 Начало расчета перераспределения...');
-      console.log('📊 BOQ элементов:', boqItems.length);
-      console.log('📋 Правил вычитания:', sourceRules.length);
-      console.log('🎯 Целевых затрат:', targetCosts.length);
+      logger.debug('🔄 Начало расчета перераспределения...');
+      logger.debug('📊 BOQ элементов:', boqItems.length);
+      logger.debug('📋 Правил вычитания:', sourceRules.length);
+      logger.debug('🎯 Целевых затрат:', targetCosts.length);
 
       const result = calculateRedistribution(boqItems, sourceRules, targetCosts, detailCategoriesMap);
 
-      console.log('✅ Расчет завершен');
-      console.log('💰 Вычтено:', result.totalDeducted);
-      console.log('💰 Добавлено:', result.totalAdded);
-      console.log('⚖️ Баланс:', result.isBalanced ? 'OK' : 'Не сошелся');
+      logger.debug('✅ Расчет завершен');
+      logger.debug('💰 Вычтено:', result.totalDeducted);
+      logger.debug('💰 Добавлено:', result.totalAdded);
+      logger.debug('⚖️ Баланс:', result.isBalanced ? 'OK' : 'Не сошелся');
 
       setCalculationState({
         results: result.results,
@@ -76,7 +77,7 @@ export function useDistributionCalculator(
 
       return true;
     } catch (error) {
-      console.error('Ошибка расчета:', error);
+      logger.error('Ошибка расчета:', error);
       message.error('Ошибка при выполнении расчета');
       return false;
     }
