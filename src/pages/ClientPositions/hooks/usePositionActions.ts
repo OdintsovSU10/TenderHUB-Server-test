@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { message, Modal } from 'antd';
 import { supabase, type ClientPosition } from '../../../lib/supabase';
-import { copyBoqItems } from '../../../utils/copyBoqItems';
+import { copyBoqItems } from '../../../utils/boqItems';
 import { exportPositionsToExcel } from '../../../utils/excel';
 import { pluralize } from '../../../utils/pluralize';
 
@@ -79,10 +79,21 @@ export const usePositionActions = (
 
     setLoading(true);
     try {
-      const result = await copyBoqItems(copiedPositionId, targetPositionId);
-      message.success(
-        `Вставлено: ${result.worksCount} работ, ${result.materialsCount} материалов`
-      );
+      const result = await copyBoqItems({
+        sourcePositionId: copiedPositionId,
+        targetPositionId,
+      });
+
+      if (result.errors.length > 0) {
+        message.warning(
+          `Вставлено с ошибками: ${result.copied} элементов. Ошибки: ${result.errors.join(', ')}`
+        );
+      } else {
+        message.success(
+          `Вставлено: ${result.worksCount} работ, ${result.materialsCount} материалов`
+        );
+      }
+
       setCopiedPositionId(null); // Сброс после вставки
       if (selectedTenderId) {
         await fetchClientPositions(selectedTenderId); // Обновить таблицу
@@ -125,8 +136,17 @@ export const usePositionActions = (
     try {
       for (const targetId of selectedTargetIds) {
         try {
-          await copyBoqItems(copiedPositionId, targetId);
-          results.success++;
+          const result = await copyBoqItems({
+            sourcePositionId: copiedPositionId,
+            targetPositionId: targetId,
+          });
+
+          if (result.errors.length > 0) {
+            console.warn(`Errors pasting to ${targetId}:`, result.errors);
+            results.failed++;
+          } else {
+            results.success++;
+          }
         } catch (error) {
           console.error(`Failed to paste to ${targetId}:`, error);
           results.failed++;

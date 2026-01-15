@@ -9,7 +9,7 @@
 
 import { supabase } from '../../lib/supabase';
 import type { ClientPosition } from '../../lib/supabase';
-import { copyBoqItems } from './copyBoqItems';
+import { copyBoqItems } from '../boqItems';
 
 /**
  * Результат переноса одной дополнительной работы
@@ -248,7 +248,16 @@ export async function transferAdditionalPositions(
       }
 
       // Скопировать boq_items
-      await copyBoqItems(additionalWork.id, newAdditionalWork.id, newTenderId);
+      const copyResult = await copyBoqItems({
+        sourcePositionId: additionalWork.id,
+        targetPositionId: newAdditionalWork.id,
+        targetTenderId: newTenderId,
+      });
+
+      // Проверить наличие ошибок при копировании
+      if (copyResult.errors.length > 0) {
+        console.warn(`Ошибки при копировании boq_items для ДОП работы:`, copyResult.errors);
+      }
 
       results.push({
         additionalPosition: additionalWork,
