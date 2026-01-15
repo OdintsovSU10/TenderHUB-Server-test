@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { logger } from '../../../utils/debug';
 
 export interface IndicatorRow {
   key: string;
@@ -33,7 +34,7 @@ const addNotification = async (
       is_read: false,
     });
   } catch (error) {
-    console.error('Ошибка создания уведомления:', error);
+    logger.error('Ошибка создания уведомления:', error);
   }
 };
 
@@ -335,24 +336,24 @@ export const useFinancialCalculations = () => {
         ? (percentagesMap.get(vatParam.id) ?? vatParam.default_value)
         : 0;
 
-      console.log('=== DEBUG 0,6к Parameter ===');
-      console.log('All markup parameters:', markupParams.map(p => ({
+      logger.debug('=== DEBUG 0,6к Parameter ===');
+      logger.debug('All markup parameters:', markupParams.map(p => ({
         key: p.key,
         label: p.label,
         default_value: p.default_value
       })));
-      console.log('Found 0,6к parameter:', coefficient06Param ? {
+      logger.debug('Found 0,6к parameter:', coefficient06Param ? {
         key: coefficient06Param.key,
         label: coefficient06Param.label,
         default_value: coefficient06Param.default_value,
         manual_value: percentagesMap.get(coefficient06Param.id)
       } : 'NOT FOUND');
-      console.log('Final coefficient06 value:', coefficient06);
-      console.log('Works (раб):', works);
-      console.log('WorksComp (раб-комп.):', worksComp);
-      console.log('WorksSu10Only base:', works + worksComp);
-      console.log('Calculated 0,6к cost:', (works + worksComp) * (coefficient06 / 100));
-      console.log('=========================');
+      logger.debug('Final coefficient06 value:', coefficient06);
+      logger.debug('Works (раб):', works);
+      logger.debug('WorksComp (раб-комп.):', worksComp);
+      logger.debug('WorksSu10Only base:', works + worksComp);
+      logger.debug('Calculated 0,6к cost:', (works + worksComp) * (coefficient06 / 100));
+      logger.debug('=========================');
 
       const worksSu10Only = works;
       const mechanizationCost = worksSu10Only * (mechanizationCoeff / 100);
@@ -407,23 +408,23 @@ export const useFinancialCalculations = () => {
       const vatCost = grandTotalBeforeVAT * (vatCoeff / 100);
       const grandTotal = grandTotalBeforeVAT + vatCost;
 
-      console.log('=== Financial Indicators Calculation ===');
-      console.log('Direct costs (base):', directCostsTotal);
-      console.log('  - Subcontract:', subcontractTotal);
-      console.log('  - SU-10:', su10Total);
-      console.log('Mechanization:', mechanizationCost);
-      console.log('MVP+GSM:', mvpGsmCost);
-      console.log('Warranty:', warrantyCost);
-      console.log('0.6k coefficient:', coefficient06Cost);
-      console.log('Cost growth (inflation):', totalCostGrowth);
-      console.log('Unforeseeable:', unforeseeableCost);
-      console.log('Overhead own forces:', overheadOwnForcesCost);
-      console.log('Overhead subcontract:', overheadSubcontractCost);
-      console.log('General costs (OFZ):', generalCostsCost);
-      console.log('Profit own forces:', profitOwnForcesCost);
-      console.log('Profit subcontract:', profitSubcontractCost);
-      console.log('GRAND TOTAL (sum of all rows):', grandTotal);
-      console.log('=======================================');
+      logger.debug('=== Financial Indicators Calculation ===');
+      logger.debug('Direct costs (base):', directCostsTotal);
+      logger.debug('  - Subcontract:', subcontractTotal);
+      logger.debug('  - SU-10:', su10Total);
+      logger.debug('Mechanization:', mechanizationCost);
+      logger.debug('MVP+GSM:', mvpGsmCost);
+      logger.debug('Warranty:', warrantyCost);
+      logger.debug('0.6k coefficient:', coefficient06Cost);
+      logger.debug('Cost growth (inflation):', totalCostGrowth);
+      logger.debug('Unforeseeable:', unforeseeableCost);
+      logger.debug('Overhead own forces:', overheadOwnForcesCost);
+      logger.debug('Overhead subcontract:', overheadSubcontractCost);
+      logger.debug('General costs (OFZ):', generalCostsCost);
+      logger.debug('Profit own forces:', profitOwnForcesCost);
+      logger.debug('Profit subcontract:', profitSubcontractCost);
+      logger.debug('GRAND TOTAL (sum of all rows):', grandTotal);
+      logger.debug('=======================================');
 
       const tableData: IndicatorRow[] = [
         {
@@ -658,7 +659,7 @@ export const useFinancialCalculations = () => {
       setSpTotal(areaSp);
       setCustomerTotal(areaClient);
     } catch (error) {
-      console.error('Ошибка загрузки показателей:', error);
+      logger.error('Ошибка загрузки показателей:', error);
       await addNotification(
         'Ошибка загрузки финансовых показателей',
         `Не удалось загрузить финансовые показатели: ${error instanceof Error ? error.message : String(error)}`,
