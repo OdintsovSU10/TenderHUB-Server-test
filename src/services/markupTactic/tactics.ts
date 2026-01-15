@@ -5,6 +5,7 @@
 import { supabase } from '../../lib/supabase';
 import { validateMarkupSequence } from '../../utils/markupCalculator';
 import { loadMarkupParameters } from './parameters';
+import { logger } from '../../utils/debug';
 import {
   loadPricingDistribution,
   calculateBoqItemCost,
@@ -269,7 +270,7 @@ export async function applyTacticToTender(
   tacticId?: string
 ): Promise<TacticApplicationResult> {
   try {
-    console.log('🚀 Начало пересчёта тендера:', tenderId);
+    logger.debug('🚀 Начало пересчёта тендера:', tenderId);
 
     // Если тактика не указана, получаем ее из тендера
     if (!tacticId) {
@@ -304,18 +305,18 @@ export async function applyTacticToTender(
     }
 
     const markupParameters = await loadMarkupParameters(tenderId);
-    console.log('✅ Загружена тактика и параметры');
+    logger.debug('✅ Загружена тактика и параметры');
 
     // Загружаем настройки ценообразования
     const pricingDistribution = await loadPricingDistribution(tenderId);
-    console.log('💰 Настройки ценообразования:', pricingDistribution ? 'загружены' : 'используются defaults');
+    logger.debug('💰 Настройки ценообразования:', pricingDistribution ? 'загружены' : 'используются defaults');
 
     // Загружаем исключения роста субподряда
     const exclusions = await loadSubcontractGrowthExclusions(tenderId);
     const totalExclusions = exclusions.works.size + exclusions.materials.size;
 
     if (totalExclusions > 0) {
-      console.log(`🚫 Найдено ${totalExclusions} исключений роста субподряда (работ: ${exclusions.works.size}, материалов: ${exclusions.materials.size})`);
+      logger.debug(`🚫 Найдено ${totalExclusions} исключений роста субподряда (работ: ${exclusions.works.size}, материалов: ${exclusions.materials.size})`);
     }
 
     // Загружаем ВСЕ элементы BOQ тендера с батчингом (Supabase лимит 1000 строк)
@@ -356,7 +357,7 @@ export async function applyTacticToTender(
       };
     }
 
-    console.log(`📦 Загружено ${allBoqItems.length} элементов BOQ`);
+    logger.debug(`📦 Загружено ${allBoqItems.length} элементов BOQ`);
 
     // Обрабатываем все элементы и готовим batch updates
     const updates: Array<{ id: string; data: any }> = [];
@@ -381,7 +382,7 @@ export async function applyTacticToTender(
       updates.push({ id: item.id, data: updateData });
     }
 
-    console.log(`⚡ Подготовлено ${updates.length} обновлений`);
+    logger.debug(`⚡ Подготовлено ${updates.length} обновлений`);
 
     // Выполняем batch updates параллельно (порциями по 50)
     const BATCH_SIZE = 50;
@@ -406,10 +407,10 @@ export async function applyTacticToTender(
         }
       });
 
-      console.log(`✅ Обработан батч ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(updates.length / BATCH_SIZE)}`);
+      logger.debug(`✅ Обработан батч ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(updates.length / BATCH_SIZE)}`);
     }
 
-    console.log(`🎉 Обновлено ${successCount} элементов`);
+    logger.debug(`🎉 Обновлено ${successCount} элементов`);
 
     return {
       success: successCount > 0,
@@ -419,7 +420,7 @@ export async function applyTacticToTender(
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
-    console.error('❌ Ошибка пересчёта:', errorMessage);
+    logger.error('❌ Ошибка пересчёта:', errorMessage);
     return {
       success: false,
       errors: [`Ошибка применения тактики к тендеру: ${errorMessage}`]
@@ -447,7 +448,7 @@ async function updatePositionTotals(positionId: string): Promise<void> {
         .range(from, from + batchSize - 1);
 
       if (error) {
-        console.error('Ошибка загрузки элементов для расчета итогов:', error);
+        logger.error('Ошибка загрузки элементов для расчета итогов:', error);
         return;
       }
 
@@ -484,11 +485,11 @@ async function updatePositionTotals(positionId: string): Promise<void> {
       .eq('id', positionId);
 
     if (updateError) {
-      console.error('Ошибка обновления итогов позиции:', updateError);
+      logger.error('Ошибка обновления итогов позиции:', updateError);
     }
 
   } catch (error) {
-    console.error('Ошибка в updatePositionTotals:', error);
+    logger.error('Ошибка в updatePositionTotals:', error);
   }
 }
 
