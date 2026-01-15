@@ -5,32 +5,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getVersionColorByTitle } from '../../utils/versionColor';
 import { supabase } from '../../lib/supabase';
 import dayjs from 'dayjs';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title as ChartTitle,
-  Tooltip as ChartTooltip,
-  Legend,
-  ArcElement,
-} from 'chart.js';
-import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { useFinancialData } from './hooks/useFinancialData';
 import { IndicatorsCharts } from './components/IndicatorsCharts';
 import { IndicatorsTable } from './components/IndicatorsTable';
 import { IndicatorsFilters } from './components/IndicatorsFilters';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ChartTitle,
-  ChartTooltip,
-  Legend,
-  ArcElement,
-  ChartDataLabels
-);
 
 const { Title, Text } = Typography;
 

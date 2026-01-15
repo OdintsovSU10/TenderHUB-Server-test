@@ -1,36 +1,12 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { Typography, Empty, Tooltip, Progress, Button, Modal } from 'antd';
-import { LineChartOutlined } from '@ant-design/icons';
+import { Typography, Empty, Tooltip, Progress, Modal } from 'antd';
+import { Area } from '@ant-design/charts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title as ChartTitle,
-  Tooltip as ChartTooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
 import { useTheme } from '../../../contexts/ThemeContext';
 import type { ProjectFull, ProjectCompletion } from '../../../lib/supabase/types';
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ChartTitle,
-  ChartTooltip,
-  Legend,
-  Filler
-);
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -178,9 +154,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
     );
   };
 
-  // Generate mini chart data for a project (only actual data points, no labels)
-  const getProjectChartData = (project: ProjectFull, colorIndex: number) => {
-    const color = COLORS[colorIndex % COLORS.length];
+  // Generate mini chart data for a project (Area format - objects)
+  const getProjectMiniChartData = (project: ProjectFull): { idx: number; value: number }[] | null => {
     const projectCompletion = completionData.filter((c) => c.project_id === project.id && c.actual_amount > 0);
 
     if (projectCompletion.length === 0) {
@@ -193,33 +168,28 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
       return a.month - b.month;
     });
 
-    return {
-      labels: sorted.map(() => ''), // Empty labels
-      datasets: [
-        {
-          data: sorted.map((c) => c.actual_amount / 1_000_000),
-          borderColor: color,
-          backgroundColor: `${color}15`,
-          tension: 0.4,
-          fill: true,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          datalabels: { display: false },
-        },
-      ],
-    };
+    return sorted.map((c, idx) => ({ idx, value: c.actual_amount / 1_000_000 }));
   };
 
-  // Generate full chart data for modal (full construction period on X axis)
-  const getFullProjectChartData = (project: ProjectFull, colorIndex: number) => {
-    const color = COLORS[colorIndex % COLORS.length];
-
+  // Generate full chart data for modal (Area chart format)
+  const getFullProjectChartData = (project: ProjectFull) => {
     const startDate = project.contract_date ? dayjs(project.contract_date) : null;
     const endDate = project.construction_end_date ? dayjs(project.construction_end_date) : null;
 
     if (!startDate || !endDate) {
       // Fallback to just actual data if no dates set
-      return getProjectChartData(project, colorIndex);
+      const projectCompletion = completionData.filter((c) => c.project_id === project.id && c.actual_amount > 0);
+      if (projectCompletion.length === 0) return [];
+
+      const sorted = [...projectCompletion].sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      });
+
+      return sorted.map((c) => ({
+        month: `${MONTH_NAMES_SHORT[c.month - 1]} ${String(c.year).slice(-2)}`,
+        value: c.actual_amount / 1_000_000,
+      }));
     }
 
     // Get project's completion data
@@ -237,115 +207,29 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
       lastDataMonth = dayjs(`${sortedCompletion[0].year}-${sortedCompletion[0].month}-01`);
     }
 
-    // Generate ALL months from start to end (full construction period)
-    const allMonths: { year: number; month: number; label: string }[] = [];
+    // Generate ALL months from start to last data month (or end if no data)
+    const data: { month: string; value: number | null }[] = [];
     let current = startDate.startOf('month');
+    const stopDate = lastDataMonth || endDate;
 
-    while (current.isSameOrBefore(endDate, 'month')) {
-      allMonths.push({
-        year: current.year(),
-        month: current.month() + 1,
-        label: `${MONTH_NAMES_SHORT[current.month()]} ${current.year().toString().slice(-2)}`,
+    while (current.isSameOrBefore(stopDate, 'month')) {
+      const year = current.year();
+      const month = current.month() + 1;
+
+      const completion = projectCompletion.find(
+        (c) => c.year === year && c.month === month
+      );
+
+      data.push({
+        month: `${MONTH_NAMES_SHORT[current.month()]} ${String(year).slice(-2)}`,
+        value: completion ? completion.actual_amount / 1_000_000 : null,
       });
+
       current = current.add(1, 'month');
     }
 
-    // Get actual data - null for months without data, but don't include data after last actual month
-    const data = allMonths.map((m) => {
-      const monthDate = dayjs(`${m.year}-${m.month}-01`);
-
-      // If this month is after the last month with data, return null (line ends)
-      if (lastDataMonth && monthDate.isAfter(lastDataMonth, 'month')) {
-        return null;
-      }
-
-      const completion = projectCompletion.find(
-        (c) => c.year === m.year && c.month === m.month
-      );
-      return completion ? completion.actual_amount / 1_000_000 : null;
-    });
-
-    return {
-      labels: allMonths.map((m) => m.label),
-      datasets: [
-        {
-          data,
-          borderColor: color,
-          backgroundColor: `${color}20`,
-          tension: 0.3,
-          fill: true,
-          pointRadius: 3,
-          pointHoverRadius: 6,
-          spanGaps: true,
-          datalabels: { display: false },
-        },
-      ],
-    };
+    return data;
   };
-
-  // Mini chart options - completely minimal, no text at all
-  const miniChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false as const,
-    plugins: {
-      legend: { display: false },
-      tooltip: { enabled: false },
-      title: { display: false },
-    },
-    scales: {
-      x: { display: false },
-      y: { display: false },
-    },
-    elements: {
-      point: { radius: 0 },
-      line: { borderWidth: 1.5 },
-    },
-  }), []);
-
-  // Full chart options for modal - only tooltips, no data labels
-  const fullChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: true,
-        callbacks: {
-          label: (context: { parsed: { y: number } }) => {
-            const value = context.parsed.y;
-            if (value >= 1000) {
-              return `${(value / 1000).toFixed(2)} млрд ₽`;
-            }
-            return `${value.toFixed(2)} млн ₽`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: { color: theme === 'dark' ? '#303030' : '#f0f0f0' },
-        ticks: { color: theme === 'dark' ? '#ffffff85' : '#00000073' },
-      },
-      y: {
-        grid: { color: theme === 'dark' ? '#303030' : '#f0f0f0' },
-        ticks: {
-          color: theme === 'dark' ? '#ffffff85' : '#00000073',
-          callback: (value: number | string) => {
-            const num = typeof value === 'number' ? value : parseFloat(value);
-            if (num >= 1000) {
-              return `${(num / 1000).toFixed(1)} млрд`;
-            }
-            return `${num} млн`;
-          },
-        },
-      },
-    },
-    interaction: {
-      intersect: false,
-      mode: 'index' as const,
-    },
-  }), [theme]);
 
   // Summary chart data - monthly totals across all projects
   const summaryChartData = useMemo(() => {
@@ -362,107 +246,47 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
       }
     });
 
-    // End date is current + 6 months
-    const endDate = now.add(6, 'month').endOf('month');
-
-    // Generate all months in range
-    const allMonths: { key: string; label: string }[] = [];
-    let current = earliestDate;
-    while (current.isSameOrBefore(endDate, 'month')) {
-      const key = `${current.year()}-${String(current.month() + 1).padStart(2, '0')}`;
-      allMonths.push({
-        key,
-        label: `${MONTH_NAMES_SHORT[current.month()]} ${current.year().toString().slice(-2)}`,
-      });
-      current = current.add(1, 'month');
-    }
-
     // Group completion data by month
-    const monthlyTotals: Record<string, number> = {};
+    const monthlyData: Record<string, number> = {};
     completionData.forEach((c) => {
       if (c.actual_amount > 0) {
         const key = `${c.year}-${String(c.month).padStart(2, '0')}`;
-        monthlyTotals[key] = (monthlyTotals[key] || 0) + c.actual_amount;
+        monthlyData[key] = (monthlyData[key] || 0) + c.actual_amount;
       }
     });
 
-    // Find last month with data to stop the line there
-    const monthsWithData = allMonths.filter((m) => monthlyTotals[m.key] > 0);
-    const lastMonthWithData = monthsWithData.length > 0
-      ? monthsWithData[monthsWithData.length - 1].key
-      : null;
+    // Find last month with data
+    const sortedKeys = Object.keys(monthlyData).sort();
+    if (sortedKeys.length === 0) return [];
 
-    // Build data array - null for months after last data
-    const data = allMonths.map((m) => {
-      if (lastMonthWithData && m.key > lastMonthWithData) {
-        return null;
+    const lastKey = sortedKeys[sortedKeys.length - 1];
+    const lastDate = dayjs(lastKey + '-01');
+
+    // Generate data from earliest to last month with data
+    const data: { month: string; value: number }[] = [];
+    let current = earliestDate;
+
+    while (current.isSameOrBefore(lastDate, 'month')) {
+      const key = `${current.year()}-${String(current.month() + 1).padStart(2, '0')}`;
+      const value = monthlyData[key] || 0;
+
+      if (value > 0 || data.length > 0) { // Start from first non-zero value
+        data.push({
+          month: `${MONTH_NAMES_SHORT[current.month()]} ${String(current.year()).slice(-2)}`,
+          value: value / 1_000_000,
+        });
       }
-      return monthlyTotals[m.key] ? monthlyTotals[m.key] / 1_000_000 : null;
-    });
 
-    if (allMonths.length === 0) return null;
+      current = current.add(1, 'month');
+    }
 
-    return {
-      labels: allMonths.map((m) => m.label),
-      datasets: [
-        {
-          data,
-          borderColor: '#52c41a',
-          backgroundColor: 'rgba(82, 196, 26, 0.15)',
-          tension: 0.3,
-          fill: true,
-          pointRadius: 3,
-          pointHoverRadius: 6,
-          spanGaps: true,
-          datalabels: { display: false },
-        },
-      ],
-    };
+    return data;
   }, [completionData, projects]);
 
-  // Summary chart options
-  const summaryChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: true,
-        callbacks: {
-          label: (context: { parsed: { y: number } }) => {
-            const value = context.parsed.y;
-            if (value >= 1000) {
-              return `${(value / 1000).toFixed(2)} млрд ₽`;
-            }
-            return `${value.toFixed(2)} млн ₽`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: { color: theme === 'dark' ? '#303030' : '#f0f0f0' },
-        ticks: { color: theme === 'dark' ? '#ffffff85' : '#00000073' },
-      },
-      y: {
-        grid: { color: theme === 'dark' ? '#303030' : '#f0f0f0' },
-        ticks: {
-          color: theme === 'dark' ? '#ffffff85' : '#00000073',
-          callback: (value: number | string) => {
-            const num = typeof value === 'number' ? value : parseFloat(value);
-            if (num >= 1000) {
-              return `${(num / 1000).toFixed(1)} млрд`;
-            }
-            return `${num} млн`;
-          },
-        },
-      },
-    },
-    interaction: {
-      intersect: false,
-      mode: 'index' as const,
-    },
-  }), [theme]);
+  // Summary mini chart data (Area format - objects)
+  const summaryMiniChartData = useMemo(() => {
+    return summaryChartData.map((d, idx) => ({ idx, value: d.value }));
+  }, [summaryChartData]);
 
   if (projects.length === 0) {
     return <Empty description="Нет объектов для отображения" />;
@@ -473,6 +297,65 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
   const projectNameWidth = 200;
   const chartWidth = 150;
   const gridWidth = months.length * monthWidth;
+
+  // Mini chart config for Area
+  const getMiniChartConfig = (color: string) => ({
+    xField: 'idx',
+    yField: 'value',
+    height: rowHeight - 20,
+    autoFit: true,
+    smooth: true,
+    line: { style: { stroke: color, lineWidth: 1.5 } },
+    style: { fill: `${color}30` },
+    animate: false,
+    axis: false,
+    legend: false,
+    tooltip: false,
+  });
+
+  // Full chart config for Area
+  const getFullChartConfig = (color: string) => ({
+    xField: 'month',
+    yField: 'value',
+    smooth: true,
+    line: { shapeField: 'smooth', style: { stroke: color, lineWidth: 2 } },
+    style: { fill: `${color}20` },
+    axis: {
+      x: {
+        labelAutoRotate: false,
+        style: {
+          labelFill: theme === 'dark' ? '#ffffff85' : '#00000073',
+          lineStroke: theme === 'dark' ? '#303030' : '#f0f0f0',
+          gridStroke: theme === 'dark' ? '#303030' : '#f0f0f0',
+        },
+      },
+      y: {
+        labelFormatter: (v: number) => {
+          if (v >= 1000) return `${(v / 1000).toFixed(1)} млрд`;
+          return `${v} млн`;
+        },
+        style: {
+          labelFill: theme === 'dark' ? '#ffffff85' : '#00000073',
+          lineStroke: theme === 'dark' ? '#303030' : '#f0f0f0',
+          gridStroke: theme === 'dark' ? '#303030' : '#f0f0f0',
+        },
+      },
+    },
+    tooltip: {
+      title: 'month',
+      items: [
+        {
+          channel: 'y',
+          name: 'Сумма',
+          valueFormatter: (v: number) => {
+            if (v >= 1000) return `${(v / 1000).toFixed(2)} млрд ₽`;
+            return `${v.toFixed(2)} млн ₽`;
+          },
+        },
+      ],
+    },
+    interaction: { tooltip: { crosshairs: true } },
+  });
 
   return (
     <div>
@@ -594,7 +477,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
 
         {/* Mini chart rows */}
         {projects.map((project, index) => {
-          const chartData = getProjectChartData(project, index);
+          const chartData = getProjectMiniChartData(project);
+          const color = COLORS[index % COLORS.length];
           return (
             <div
               key={project.id}
@@ -620,7 +504,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
             >
               {chartData ? (
                 <div style={{ width: '100%', height: rowHeight - 20, pointerEvents: 'none' }}>
-                  <Line data={chartData} options={miniChartOptions} />
+                  <Area data={chartData} {...getMiniChartConfig(color)} />
                 </div>
               ) : (
                 <Text type="secondary" style={{ fontSize: 10 }}>—</Text>
@@ -639,13 +523,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
             padding: '8px',
             background: theme === 'dark' ? '#1f1f1f' : '#fafafa',
             borderTop: `2px solid ${theme === 'dark' ? '#434343' : '#d9d9d9'}`,
-            cursor: summaryChartData ? 'pointer' : 'default',
+            cursor: summaryMiniChartData.length > 0 ? 'pointer' : 'default',
           }}
-          onClick={() => summaryChartData && setSummaryChartOpen(true)}
+          onClick={() => summaryMiniChartData.length > 0 && setSummaryChartOpen(true)}
         >
-          {summaryChartData ? (
+          {summaryMiniChartData.length > 0 ? (
             <div style={{ width: '100%', height: rowHeight - 20, pointerEvents: 'none' }}>
-              <Line data={summaryChartData} options={miniChartOptions} />
+              <Area data={summaryMiniChartData} {...getMiniChartConfig('#52c41a')} />
             </div>
           ) : (
             <Text type="secondary" style={{ fontSize: 10 }}>—</Text>
@@ -897,9 +781,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
         {chartModalProject && (
           <div style={{ height: 700 }}>
             {(() => {
-              const fullData = getFullProjectChartData(chartModalProject.project, chartModalProject.colorIndex);
-              return fullData ? (
-                <Line data={fullData} options={fullChartOptions} />
+              const fullData = getFullProjectChartData(chartModalProject.project);
+              const color = COLORS[chartModalProject.colorIndex % COLORS.length];
+              return fullData.length > 0 ? (
+                <Area data={fullData} {...getFullChartConfig(color)} />
               ) : (
                 <Empty description="Нет данных для отображения" />
               );
@@ -918,9 +803,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projects, completionData
         style={{ maxWidth: 1800 }}
         destroyOnClose
       >
-        {summaryChartData && (
+        {summaryChartData.length > 0 && (
           <div style={{ height: 700 }}>
-            <Line data={summaryChartData} options={summaryChartOptions} />
+            <Area data={summaryChartData} {...getFullChartConfig('#52c41a')} />
           </div>
         )}
       </Modal>

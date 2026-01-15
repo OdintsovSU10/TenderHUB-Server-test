@@ -236,11 +236,6 @@ const MainLayout: React.FC<MainLayoutProps> = () => {
   }, [calcOpen, calcValue]);
 
   const menuItems: MenuProps['items'] = [
-    // {
-    //   key: '/',
-    //   icon: <HomeOutlined />,
-    //   label: 'Главная',
-    // },
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,

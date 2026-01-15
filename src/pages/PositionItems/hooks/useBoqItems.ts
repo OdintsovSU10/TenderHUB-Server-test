@@ -8,6 +8,7 @@ import {
   type MaterialLibraryFull,
   type CurrencyType,
 } from '../../../lib/supabase';
+import { useNomenclatures } from '../../../contexts/NomenclaturesContext';
 
 interface Template {
   id: string;
@@ -17,6 +18,9 @@ interface Template {
 }
 
 export const useBoqItems = (positionId: string | undefined) => {
+  // Используем кэшированные справочники из контекста
+  const { materialNames, workNames, units } = useNomenclatures();
+
   const [position, setPosition] = useState<ClientPosition | null>(null);
   const [items, setItems] = useState<BoqItemFull[]>([]);
   const [works, setWorks] = useState<WorkLibraryFull[]>([]);
@@ -25,9 +29,6 @@ export const useBoqItems = (positionId: string | undefined) => {
   const [loading, setLoading] = useState(false);
   const [currencyRates, setCurrencyRates] = useState<{ usd: number; eur: number; cny: number }>({ usd: 0, eur: 0, cny: 0 });
   const [costCategories, setCostCategories] = useState<any[]>([]);
-  const [workNames, setWorkNames] = useState<any[]>([]);
-  const [materialNames, setMaterialNames] = useState<any[]>([]);
-  const [units, setUnits] = useState<Array<{ code: string; name: string }>>([]);
 
   // Состояния для данных ГП
   const [gpVolume, setGpVolume] = useState<number>(0);
@@ -331,82 +332,6 @@ export const useBoqItems = (positionId: string | undefined) => {
     }
   };
 
-  const fetchWorkNames = async () => {
-    try {
-      let allWorks: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('work_names')
-          .select('*')
-          .order('name', { ascending: true })
-          .range(from, from + batchSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allWorks = [...allWorks, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      setWorkNames(allWorks);
-    } catch (error: any) {
-      message.error('Ошибка загрузки наименований работ: ' + error.message);
-    }
-  };
-
-  const fetchMaterialNames = async () => {
-    try {
-      let allMaterials: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('material_names')
-          .select('*')
-          .order('name', { ascending: true })
-          .range(from, from + batchSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allMaterials = [...allMaterials, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      setMaterialNames(allMaterials);
-    } catch (error: any) {
-      message.error('Ошибка загрузки наименований материалов: ' + error.message);
-    }
-  };
-
-  const fetchUnits = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('units')
-        .select('code, name')
-        .order('code', { ascending: true });
-
-      if (error) throw error;
-      setUnits(data || []);
-    } catch (error: any) {
-      console.error('Ошибка загрузки единиц измерения:', error);
-    }
-  };
-
   useEffect(() => {
     if (positionId) {
       fetchPositionData();
@@ -415,9 +340,7 @@ export const useBoqItems = (positionId: string | undefined) => {
       fetchMaterials();
       fetchTemplates();
       fetchCostCategories();
-      fetchWorkNames();
-      fetchMaterialNames();
-      fetchUnits();
+      // workNames, materialNames, units загружаются из NomenclaturesContext
     }
   }, [positionId]);
 

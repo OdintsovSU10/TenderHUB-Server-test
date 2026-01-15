@@ -18,7 +18,16 @@
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Path aliases for Core/Client architecture */
+    "baseUrl": ".",
+    "paths": {
+      "@/core": ["src/core"],
+      "@/core/*": ["src/core/*"],
+      "@/client": ["src/client"],
+      "@/client/*": ["src/client/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

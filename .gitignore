@@ -1,4 +1,4 @@
-cla# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -158,3 +158,12 @@ vite.config.ts.timestamp-*
 mcp-supabase.js
 .git-credentials
 src/pages/Admin/MarkupConstructor/backup/
+
+# Temp files
+tmpclaude-*-cwd
+temp_*.txt
+*_backup/
+backup/
+
+# Screenshots (except project assets)
+Снимок экрана*.png

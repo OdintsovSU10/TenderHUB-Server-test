@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, theme, App as AntApp } from 'antd';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { NomenclaturesProvider } from './contexts/NomenclaturesContext';
+import { CoreServicesProvider, QueryProvider } from '@/client';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import Login from './pages/Auth/Login';
@@ -101,12 +103,18 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NomenclaturesProvider>
+            <CoreServicesProvider>
+              <AppContent />
+            </CoreServicesProvider>
+          </NomenclaturesProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryProvider>
   );
 }
 
-export default App
+export default App;
