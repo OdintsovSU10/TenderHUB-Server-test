@@ -7,6 +7,7 @@ import { message } from 'antd';
 import { supabase } from '../../../lib/supabase';
 import type { Tender } from '../../../lib/supabase';
 import type { PositionWithCommercialCost, MarkupTactic } from '../types';
+import { logger } from '../../../utils/debug';
 
 export function useCommerceData() {
   const [loading, setLoading] = useState(false);
@@ -54,7 +55,7 @@ export function useCommerceData() {
       if (error) throw error;
       setTenders(data || []);
     } catch (error) {
-      console.error('Ошибка загрузки тендеров:', error);
+      logger.error('Ошибка загрузки тендеров:', error);
       message.error('Не удалось загрузить список тендеров');
     }
   };
@@ -70,7 +71,7 @@ export function useCommerceData() {
       if (error) throw error;
       setMarkupTactics(data || []);
     } catch (error) {
-      console.error('Ошибка загрузки тактик наценок:', error);
+      logger.error('Ошибка загрузки тактик наценок:', error);
       message.error('Не удалось загрузить список тактик');
     }
   };
@@ -79,7 +80,7 @@ export function useCommerceData() {
     setLoading(true);
 
     try {
-      console.log('🔄 Загрузка позиций для тендера:', tenderId);
+      logger.debug('🔄 Загрузка позиций для тендера:', tenderId);
       const startTime = Date.now();
 
       // Загружаем позиции заказчика с батчингом (Supabase лимит 1000 строк)
@@ -107,7 +108,7 @@ export function useCommerceData() {
         }
       }
 
-      console.log(`📋 Загружено позиций: ${clientPositions.length}`);
+      logger.debug(`📋 Загружено позиций: ${clientPositions.length}`);
 
       // Загружаем ВСЕ BOQ элементы для тендера с батчингом (Supabase лимит 1000 строк)
       let allBoqItems: any[] = [];
@@ -123,7 +124,7 @@ export function useCommerceData() {
           .range(from, from + batchSize - 1);
 
         if (error) {
-          console.error('Ошибка загрузки элементов:', error);
+          logger.error('Ошибка загрузки элементов:', error);
           throw error;
         }
 
@@ -136,7 +137,7 @@ export function useCommerceData() {
         }
       }
 
-      console.log(`📝 Загружено BOQ элементов: ${allBoqItems.length}`);
+      logger.debug(`📝 Загружено BOQ элементов: ${allBoqItems.length}`);
 
       // Вычисляем эталонную сумму напрямую из boq_items (как на странице позиций)
       const refTotal = allBoqItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
@@ -198,21 +199,21 @@ export function useCommerceData() {
         return (mat + work) === 0 && base > 0;
       });
 
-      console.log('\n=== ПРОВЕРКА NULL ЗНАЧЕНИЙ ===');
-      console.log('Элементов с NULL mat:', nullMatCount, 'база:', nullMatSum.toLocaleString('ru-RU'));
-      console.log('Элементов с NULL work:', nullWorkCount);
-      console.log('Всего элементов:', allBoqItems.length);
+      logger.debug('\n=== ПРОВЕРКА NULL ЗНАЧЕНИЙ ===');
+      logger.debug('Элементов с NULL mat:', nullMatCount, 'база:', nullMatSum.toLocaleString('ru-RU'));
+      logger.debug('Элементов с NULL work:', nullWorkCount);
+      logger.debug('Всего элементов:', allBoqItems.length);
       if (nullItems.length > 0) {
-        console.log('Элементы с NULL:');
-        console.table(nullItems);
+        logger.debug('Элементы с NULL:');
+        logger.debug('nullItems table:', nullItems);
       }
 
-      console.log('\n=== ЭЛЕМЕНТЫ С НУЛЕВОЙ КОММЕРЧЕСКОЙ ===');
-      console.log('Элементов с commercial=0 при base>0:', zeroCommercialItems.length);
+      logger.debug('\n=== ЭЛЕМЕНТЫ С НУЛЕВОЙ КОММЕРЧЕСКОЙ ===');
+      logger.debug('Элементов с commercial=0 при base>0:', zeroCommercialItems.length);
       if (zeroCommercialItems.length > 0) {
         const zeroSum = zeroCommercialItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
-        console.log('Сумма базовой стоимости:', zeroSum.toLocaleString('ru-RU'));
-        console.table(zeroCommercialItems.slice(0, 10).map(item => ({
+        logger.debug('Сумма базовой стоимости:', zeroSum.toLocaleString('ru-RU'));
+        logger.debug('zeroCommercialItems sample:', zeroCommercialItems.slice(0, 10).map(item => ({
           id: item.id?.substring(0, 8) + '...',
           type: item.boq_item_type,
           material_type: item.material_type,
@@ -222,15 +223,15 @@ export function useCommerceData() {
         })));
       }
 
-      console.log('\n=== ПРЯМАЯ СУММА ИЗ ДАННЫХ ===');
-      console.log('Сумма mat:', totalMatFromData.toLocaleString('ru-RU'));
-      console.log('Сумма work:', totalWorkFromData.toLocaleString('ru-RU'));
-      console.log('mat + work:', totalCommercialFromData.toLocaleString('ru-RU'));
-      console.log('Ожидается:', '5,613,631,822');
-      console.log('Разница:', (5613631822 - totalCommercialFromData).toLocaleString('ru-RU'));
+      logger.debug('\n=== ПРЯМАЯ СУММА ИЗ ДАННЫХ ===');
+      logger.debug('Сумма mat:', totalMatFromData.toLocaleString('ru-RU'));
+      logger.debug('Сумма work:', totalWorkFromData.toLocaleString('ru-RU'));
+      logger.debug('mat + work:', totalCommercialFromData.toLocaleString('ru-RU'));
+      logger.debug('Ожидается:', '5,613,631,822');
+      logger.debug('Разница:', (5613631822 - totalCommercialFromData).toLocaleString('ru-RU'));
 
-      console.log('\n=== СТАТИСТИКА ПО ТИПАМ ЭЛЕМЕНТОВ ===');
-      console.log(globalCounters);
+      logger.debug('\n=== СТАТИСТИКА ПО ТИПАМ ЭЛЕМЕНТОВ ===');
+      logger.debug('globalCounters:', globalCounters);
 
       // Обрабатываем позиции с уже загруженными данными
       const positionsWithCosts = (clientPositions || []).map((position) => {
@@ -284,17 +285,17 @@ export function useCommerceData() {
       const totalCommercial = positionsWithCosts.reduce((sum, p) => sum + (p.commercial_total || 0), 0);
       const totalBase = positionsWithCosts.reduce((sum, p) => sum + (p.base_total || 0), 0);
 
-      console.log('\n=== ИТОГОВАЯ СТАТИСТИКА КП ===');
-      console.log('Базовая стоимость:', totalBase.toLocaleString('ru-RU'));
-      console.log('Материалы КП:', totalMaterials.toLocaleString('ru-RU'));
-      console.log('Работы КП:', totalWorks.toLocaleString('ru-RU'));
-      console.log('Коммерческая ИТОГО:', totalCommercial.toLocaleString('ru-RU'));
-      console.log('Проверка (мат+раб):', (totalMaterials + totalWorks).toLocaleString('ru-RU'));
-      console.log(`✅ Данные загружены за ${loadTime}ms`);
+      logger.debug('\n=== ИТОГОВАЯ СТАТИСТИКА КП ===');
+      logger.debug('Базовая стоимость:', totalBase.toLocaleString('ru-RU'));
+      logger.debug('Материалы КП:', totalMaterials.toLocaleString('ru-RU'));
+      logger.debug('Работы КП:', totalWorks.toLocaleString('ru-RU'));
+      logger.debug('Коммерческая ИТОГО:', totalCommercial.toLocaleString('ru-RU'));
+      logger.debug('Проверка (мат+раб):', (totalMaterials + totalWorks).toLocaleString('ru-RU'));
+      logger.debug(`✅ Данные загружены за ${loadTime}ms`);
 
       setPositions(positionsWithCosts);
     } catch (error) {
-      console.error('Ошибка загрузки позиций:', error);
+      logger.error('Ошибка загрузки позиций:', error);
       message.error('Не удалось загрузить позиции заказчика');
     } finally {
       setLoading(false);
