@@ -291,9 +291,9 @@ const MainLayout: React.FC<MainLayoutProps> = () => {
       label: 'Базовая стоимость',
     },
     {
-      key: '/costs',
+      key: '/cost_analysis',
       icon: <DollarOutlined />,
-      label: 'Затраты на строительство',
+      label: 'Анализ затрат',
     },
     {
       key: '/financial-indicators',
@@ -333,7 +333,7 @@ const MainLayout: React.FC<MainLayoutProps> = () => {
           label: 'Тендеры',
         },
         {
-          key: '/admin/construction_cost',
+          key: '/admin/cost_catalog',
           icon: <BankOutlined />,
           label: 'Справочник затрат',
         },

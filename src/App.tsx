@@ -14,8 +14,8 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Tasks from './pages/Tasks';
 import Nomenclatures from './pages/Admin/Nomenclatures/Nomenclatures';
 import Tenders from './pages/Admin/Tenders/Tenders';
-import ConstructionCost from './pages/Admin/ConstructionCost/ConstructionCost';
-import ConstructionCostNew from './pages/Admin/ConstructionCostNew';
+import CostCatalog from './pages/Admin/CostCatalog/ConstructionCost';
+import CostAnalysis from './pages/Admin/CostAnalysis';
 import MarkupConstructor from './pages/Admin/MarkupConstructor/MarkupConstructor';
 import MarkupPercentages from './pages/Admin/MarkupPercentages/MarkupPercentages';
 import Library from './pages/Library';
@@ -81,11 +81,11 @@ function AppContent() {
               <Route index element={<Navigate to="/admin/nomenclatures" replace />} />
               <Route path="nomenclatures" element={<Nomenclatures />} />
               <Route path="tenders" element={<Tenders />} />
-              <Route path="construction_cost" element={<ConstructionCost />} />
+              <Route path="cost_catalog" element={<CostCatalog />} />
               <Route path="markup_constructor" element={<MarkupConstructor />} />
               <Route path="markup" element={<MarkupPercentages />} />
             </Route>
-            <Route path="costs" element={<ConstructionCostNew />} />
+            <Route path="cost_analysis" element={<CostAnalysis />} />
             <Route path="financial-indicators" element={<FinancialIndicators />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />
