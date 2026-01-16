@@ -36,7 +36,7 @@ export function buildFormula(
       case 'markup': {
         if (!operandKey) return { name: '?', value: '' };
         const markup = markupParameters.find((m) => m.key === operandKey);
-        const markupValue = form.getFieldValue(String(operandKey)) || 0;
+        const markupValue = markup?.default_value || 0;
         return {
           name: markup?.label || String(operandKey),
           value: ` (${markupValue}%)`,
