@@ -90,14 +90,16 @@ const INITIAL_DISTRIBUTION: DistributionRow[] = [
 ];
 
 export const PricingDistributionForm: React.FC = () => {
-  const [tenders, setTenders] = useState<Tender[]>([]);
-  const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<number>(1);
+  const [allTenders, setAllTenders] = useState<Tender[]>([]);
+  const [uniqueTitles, setUniqueTitles] = useState<string[]>([]);
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
+  const [availableVersions, setAvailableVersions] = useState<number[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [distribution, setDistribution] = useState<DistributionRow[]>(INITIAL_DISTRIBUTION);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Загрузить список тендеров
+  // Загрузить список всех тендеров
   useEffect(() => {
     const fetchTenders = async () => {
       setLoading(true);
@@ -108,7 +110,11 @@ export const PricingDistributionForm: React.FC = () => {
           .order('title');
 
         if (error) throw error;
-        setTenders(data || []);
+        setAllTenders(data || []);
+
+        // Получить уникальные названия тендеров
+        const titles = Array.from(new Set((data || []).map((t) => t.title)));
+        setUniqueTitles(titles);
       } catch (error) {
         console.error('Error fetching tenders:', error);
         message.error('Ошибка загрузки списка тендеров');
@@ -120,17 +126,48 @@ export const PricingDistributionForm: React.FC = () => {
     fetchTenders();
   }, []);
 
-  // Загрузить настройки распределения для выбранного тендера
+  // Загрузить доступные версии при выборе тендера
   useEffect(() => {
-    if (!selectedTenderId) return;
+    if (!selectedTitle) {
+      setAvailableVersions([]);
+      setSelectedVersion(null);
+      return;
+    }
+
+    const versions = allTenders
+      .filter((t) => t.title === selectedTitle)
+      .map((t) => t.version)
+      .sort((a, b) => b - a); // Сортировка по убыванию (новые версии сверху)
+
+    setAvailableVersions(versions);
+
+    // Автоматически выбрать последнюю версию
+    if (versions.length > 0) {
+      setSelectedVersion(versions[0]);
+    }
+  }, [selectedTitle, allTenders]);
+
+  // Загрузить настройки распределения для выбранного тендера и версии
+  useEffect(() => {
+    if (!selectedTitle || selectedVersion === null) return;
 
     const fetchDistribution = async () => {
       setLoading(true);
       try {
+        // Найти tender_id по названию и версии
+        const tender = allTenders.find(
+          (t) => t.title === selectedTitle && t.version === selectedVersion
+        );
+
+        if (!tender) {
+          message.error('Тендер не найден');
+          return;
+        }
+
         const { data, error } = await supabase
           .from('tender_pricing_distribution')
           .select('*')
-          .eq('tender_id', selectedTenderId)
+          .eq('tender_id', tender.id)
           .maybeSingle();
 
         if (error) throw error;
@@ -151,17 +188,27 @@ export const PricingDistributionForm: React.FC = () => {
     };
 
     fetchDistribution();
-  }, [selectedTenderId]);
+  }, [selectedTitle, selectedVersion, allTenders]);
 
   // Сохранить настройки
   const handleSave = async () => {
-    if (!selectedTenderId) {
-      message.warning('Выберите тендер');
+    if (!selectedTitle || selectedVersion === null) {
+      message.warning('Выберите тендер и версию');
       return;
     }
 
     setSaving(true);
     try {
+      // Найти tender_id по названию и версии
+      const tender = allTenders.find(
+        (t) => t.title === selectedTitle && t.version === selectedVersion
+      );
+
+      if (!tender) {
+        message.error('Тендер не найден');
+        return;
+      }
+
       // TODO: Преобразовать distribution в формат БД и сохранить
       message.success('Настройки распределения сохранены');
     } catch (error) {
@@ -294,14 +341,14 @@ export const PricingDistributionForm: React.FC = () => {
               Выберите тендер:
             </Text>
             <Select
-              value={selectedTenderId}
-              onChange={setSelectedTenderId}
+              value={selectedTitle}
+              onChange={setSelectedTitle}
               style={{ width: 300 }}
               placeholder="Выберите тендер"
               loading={loading}
-              options={tenders.map((t) => ({
-                label: t.title,
-                value: t.id,
+              options={uniqueTitles.map((title) => ({
+                label: title,
+                value: title,
               }))}
             />
           </div>
@@ -313,13 +360,18 @@ export const PricingDistributionForm: React.FC = () => {
               value={selectedVersion}
               onChange={setSelectedVersion}
               style={{ width: 100 }}
-              options={[{ label: 'v1', value: 1 }]}
+              placeholder="Версия"
+              disabled={!selectedTitle || availableVersions.length === 0}
+              options={availableVersions.map((version) => ({
+                label: `v${version}`,
+                value: version,
+              }))}
             />
           </div>
         </Space>
 
         {/* Таблица настроек */}
-        {selectedTenderId && (
+        {selectedTitle && selectedVersion !== null && (
           <>
             <Table
               dataSource={distribution}
