@@ -7,7 +7,7 @@ const { Title, Text } = Typography;
 
 interface Tender {
   id: string;
-  name: string;
+  title: string;
   version: number;
 }
 
@@ -104,8 +104,8 @@ export const PricingDistributionForm: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('tenders')
-          .select('id, name, version')
-          .order('name');
+          .select('id, title, version')
+          .order('title');
 
         if (error) throw error;
         setTenders(data || []);
@@ -300,7 +300,7 @@ export const PricingDistributionForm: React.FC = () => {
               placeholder="Выберите тендер"
               loading={loading}
               options={tenders.map((t) => ({
-                label: t.name,
+                label: t.title,
                 value: t.id,
               }))}
             />
