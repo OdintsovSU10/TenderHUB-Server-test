@@ -13,6 +13,7 @@ import {
   TacticsList,
   SequenceTab,
   BasePercentagesTab,
+  BasePercentagesForm,
   PricingTab,
 } from './components';
 import './MarkupConstructor.css';
@@ -196,7 +197,7 @@ const MarkupConstructor: React.FC = () => {
             {
               key: 'base_percentages',
               label: 'Базовые проценты',
-              children: <BasePercentagesTab />,
+              children: <BasePercentagesForm />,
             },
             {
               key: 'parameters',
