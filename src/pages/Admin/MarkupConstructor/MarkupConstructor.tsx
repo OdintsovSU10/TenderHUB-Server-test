@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, App, Modal, Input, message, Tabs as AntTabs } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Tabs, App, Modal, Input, message, Card, Space, Typography, Tag, Button } from 'antd';
+import { ArrowLeftOutlined, CopyOutlined, SaveOutlined, EditOutlined } from '@ant-design/icons';
+
+const { Title, Text } = Typography;
 import { useMarkupTactics, useMarkupParameters, useMarkupSequences, usePricingDistribution, useBaseCosts } from './hooks';
 import { TabKey } from './types';
 import { MarkupConstructorProvider } from './MarkupConstructorContext';
@@ -143,18 +145,65 @@ const MarkupConstructor: React.FC = () => {
                   ) : (
                     // Редактор схемы с подвкладками
                     <div>
-                      {/* Заголовок с кнопкой назад */}
-                      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <a onClick={handleBackToList} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <ArrowLeftOutlined />
-                          Вернуться к списку схем
-                        </a>
-                        {tactics.currentTacticName && (
-                          <span style={{ fontSize: 16, fontWeight: 600 }}>
-                            Схема: {tactics.currentTacticName}
-                          </span>
-                        )}
+                      {/* Кнопка назад */}
+                      <div style={{ marginBottom: 16 }}>
+                        <Button
+                          type="link"
+                          icon={<ArrowLeftOutlined />}
+                          onClick={handleBackToList}
+                          style={{ paddingLeft: 0 }}
+                        >
+                          К списку схем
+                        </Button>
                       </div>
+
+                      {/* Заголовок схемы */}
+                      <Card
+                        size="small"
+                        style={{ marginBottom: 16 }}
+                        extra={
+                          <Space>
+                            <Button icon={<CopyOutlined />}>
+                              Сделать копию
+                            </Button>
+                            <Button type="primary" icon={<SaveOutlined />}>
+                              Сохранить
+                            </Button>
+                          </Space>
+                        }
+                      >
+                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                          <Space align="center">
+                            <Title level={4} style={{ margin: 0 }}>
+                              {tactics.currentTacticName}
+                            </Title>
+                            {tactics.tactics.find(t => t.id === tactics.currentTacticId)?.is_global && (
+                              <Tag color="gold">глобальная</Tag>
+                            )}
+                            <Button type="text" size="small" icon={<EditOutlined />} />
+                          </Space>
+                          <Text type="secondary">
+                            Настройте последовательность расчета для каждого типа позиций
+                          </Text>
+                        </Space>
+                      </Card>
+
+                      {/* Панель базовых процентов наценок */}
+                      {parameters.markupParameters.length > 0 && (
+                        <Card
+                          size="small"
+                          title={<Text strong>Базовые проценты наценок</Text>}
+                          style={{ marginBottom: 16 }}
+                        >
+                          <Space wrap size="small">
+                            {parameters.markupParameters.map((param, index) => (
+                              <Tag key={param.id} color="blue">
+                                {index + 1}. {param.label}: <Text strong>{param.default_value || 0}%</Text>
+                              </Tag>
+                            ))}
+                          </Space>
+                        </Card>
+                      )}
 
                       {/* Подвкладки для разных типов */}
                       <Tabs
