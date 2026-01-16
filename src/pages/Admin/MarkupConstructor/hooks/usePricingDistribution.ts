@@ -7,6 +7,21 @@ export const usePricingDistribution = () => {
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [savingPricing, setSavingPricing] = useState(false);
 
+  // Загрузить настройки pricing для тактики (из таблицы по tactic_id, если есть связь)
+  const fetchPricing = useCallback(async (tacticId: string) => {
+    setLoadingPricing(true);
+    try {
+      // В будущем можно хранить pricing в markup_tactics как JSONB
+      // Пока возвращаем пустые настройки
+      setPricingDistribution(null);
+    } catch (error) {
+      console.error('Error fetching pricing:', error);
+      message.error('Ошибка загрузки настроек ценообразования');
+    } finally {
+      setLoadingPricing(false);
+    }
+  }, []);
+
   const fetchPricingDistribution = useCallback(async (tenderId: string | null) => {
     if (!tenderId) {
       setPricingDistribution(null);
@@ -80,6 +95,24 @@ export const usePricingDistribution = () => {
     }
   }, []);
 
+  const savePricing = useCallback(async (tacticId: string) => {
+    setSavingPricing(true);
+    try {
+      // Здесь будет логика сохранения pricing для тактики
+      // Пока просто показываем успех
+      message.info('Сохранение pricing для тактики (требуется доработка схемы БД)');
+    } catch (error) {
+      console.error('Error saving pricing:', error);
+      message.error('Ошибка сохранения настроек ценообразования');
+    } finally {
+      setSavingPricing(false);
+    }
+  }, []);
+
+  const resetPricing = useCallback(() => {
+    setPricingDistribution(null);
+  }, []);
+
   const updateDistributionField = useCallback((
     field: keyof PricingDistribution,
     value: any
@@ -95,6 +128,9 @@ export const usePricingDistribution = () => {
     loadingPricing,
     savingPricing,
     setPricingDistribution,
+    fetchPricing,
+    savePricing,
+    resetPricing,
     fetchPricingDistribution,
     savePricingDistribution,
     updateDistributionField,
