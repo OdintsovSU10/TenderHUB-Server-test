@@ -1,24 +1,36 @@
 import React from 'react';
-import { Card, Button, Space, Typography, Spin } from 'antd';
+import { Card, Button, Space, Typography, Spin, message } from 'antd';
 import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useMarkupConstructorContext } from '../MarkupConstructorContext';
 
 const { Title, Text } = Typography;
 
-interface PricingTabProps {
-  loading: boolean;
-  saving: boolean;
-  onSave: () => void;
-  onReset: () => void;
-}
+export const PricingTab: React.FC = () => {
+  const { pricing, tactics } = useMarkupConstructorContext();
 
-export const PricingTab: React.FC<PricingTabProps> = ({
-  loading,
-  saving,
-  onSave,
-  onReset,
-}) => {
-  if (loading) {
-    return <Spin />;
+  // Обработчик сохранения
+  const handleSave = async () => {
+    if (!tactics.currentTacticId) {
+      message.error('Не выбрана схема наценок');
+      return;
+    }
+
+    await pricing.savePricing(tactics.currentTacticId);
+    message.success('Настройки ценообразования сохранены');
+  };
+
+  // Обработчик сброса
+  const handleReset = () => {
+    pricing.resetPricing();
+    message.info('Настройки сброшены к умолчанию');
+  };
+
+  if (pricing.loadingPricing) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <Spin size="large" />
+      </div>
+    );
   }
 
   return (
@@ -29,24 +41,47 @@ export const PricingTab: React.FC<PricingTabProps> = ({
             Распределение ценообразования
           </Title>
           <Text type="secondary" style={{ fontSize: '14px' }}>
-            Настройте, как распределяются базовые и наценочные затраты
+            {tactics.currentTacticId
+              ? `Настройки для схемы: ${tactics.currentTacticName}`
+              : 'Выберите схему наценок для настройки ценообразования'}
           </Text>
         </Space>
       }
       extra={
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={onReset}>
-            Сбросить к умолчанию
-          </Button>
-          <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>
-            Сохранить
-          </Button>
-        </Space>
+        tactics.currentTacticId && (
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              Сбросить к умолчанию
+            </Button>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={pricing.savingPricing}
+              onClick={handleSave}
+            >
+              Сохранить
+            </Button>
+          </Space>
+        )
       }
     >
-      <Text type="secondary">
-        Вкладка настройки ценообразования - в процессе рефакторинга
-      </Text>
+      {!tactics.currentTacticId ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+          Выберите схему наценок на вкладке "Порядок применения наценок"
+        </div>
+      ) : (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Text type="secondary">
+            Здесь будут настройки распределения затрат между материалами и работами
+          </Text>
+
+          {pricing.pricingDistribution && (
+            <div style={{ marginTop: 16 }}>
+              <Text>Текущие настройки загружены для схемы: {tactics.currentTacticName}</Text>
+            </div>
+          )}
+        </Space>
+      )}
     </Card>
   );
 };
