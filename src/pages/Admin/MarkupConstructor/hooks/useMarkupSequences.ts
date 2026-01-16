@@ -1,9 +1,49 @@
 import { useState, useCallback } from 'react';
+import { message } from 'antd';
+import { supabase } from '../../../../lib/supabase';
 import { TabKey, MarkupSequences, MarkupStep } from '../types';
 import { INITIAL_MARKUP_SEQUENCES } from '../constants';
 
 export const useMarkupSequences = () => {
   const [markupSequences, setMarkupSequences] = useState<MarkupSequences>(INITIAL_MARKUP_SEQUENCES);
+  const [loadingSequences, setLoadingSequences] = useState(false);
+
+  // Загрузка последовательностей из БД для конкретной тактики
+  const fetchSequences = useCallback(async (tacticId: string) => {
+    setLoadingSequences(true);
+    try {
+      const { data, error } = await supabase
+        .from('markup_tactics')
+        .select('sequences')
+        .eq('id', tacticId)
+        .single();
+
+      if (error) throw error;
+
+      if (data && data.sequences) {
+        // Преобразование из русского формата в английский
+        const sequencesEn: MarkupSequences = {
+          works: data.sequences['раб'] || [],
+          materials: data.sequences['мат'] || [],
+          subcontract_works: data.sequences['суб-раб'] || [],
+          subcontract_materials: data.sequences['суб-мат'] || [],
+          work_comp: data.sequences['раб-комп.'] || [],
+          material_comp: data.sequences['мат-комп.'] || [],
+        };
+
+        setMarkupSequences(sequencesEn);
+      } else {
+        // Если нет сохраненных последовательностей, используем пустые
+        setMarkupSequences(INITIAL_MARKUP_SEQUENCES);
+      }
+    } catch (error) {
+      console.error('Error fetching sequences:', error);
+      message.error('Ошибка загрузки последовательностей наценок');
+      setMarkupSequences(INITIAL_MARKUP_SEQUENCES);
+    } finally {
+      setLoadingSequences(false);
+    }
+  }, []);
 
   const addStep = useCallback((tab: TabKey, step: MarkupStep) => {
     setMarkupSequences(prev => {
@@ -80,6 +120,8 @@ export const useMarkupSequences = () => {
   return {
     markupSequences,
     setMarkupSequences,
+    loadingSequences,
+    fetchSequences,
     addStep,
     updateStep,
     deleteStep,

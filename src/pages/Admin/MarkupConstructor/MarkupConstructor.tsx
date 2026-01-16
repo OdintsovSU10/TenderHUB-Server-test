@@ -35,9 +35,10 @@ const MarkupConstructor: React.FC = () => {
   const pricing = usePricingDistribution();
   const baseCosts = useBaseCosts();
 
-  // Загрузка тактик при монтировании
+  // Загрузка тактик и параметров при монтировании
   useEffect(() => {
     tactics.fetchTactics();
+    parameters.fetchParameters();
   }, []);
 
   // Обработчик создания новой тактики
@@ -87,8 +88,11 @@ const MarkupConstructor: React.FC = () => {
     if (tactic) {
       tactics.setCurrentTacticName(tactic.name || '');
 
-      // Загрузить параметры тактики
-      await parameters.fetchParameters(tacticId);
+      // Загрузить последовательности наценок для тактики
+      await sequences.fetchSequences(tacticId);
+
+      // Загрузить базовые стоимости для тактики
+      await baseCosts.fetchBaseCosts(tacticId);
 
       // Загрузить распределение ценообразования (если есть)
       await pricing.fetchPricing(tacticId);
