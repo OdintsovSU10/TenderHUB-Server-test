@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { FormInstance } from 'antd';
-import { useMarkupTactics, useMarkupParameters, useMarkupSequences, usePricingDistribution } from './hooks';
+import { useMarkupTactics, useMarkupParameters, useMarkupSequences, usePricingDistribution, useBaseCosts } from './hooks';
 
 interface MarkupConstructorContextType {
   // Tactics hook
@@ -11,6 +11,8 @@ interface MarkupConstructorContextType {
   sequences: ReturnType<typeof useMarkupSequences>;
   // Pricing hook
   pricing: ReturnType<typeof usePricingDistribution>;
+  // Base costs hook
+  baseCosts: ReturnType<typeof useBaseCosts>;
   // Form instance for markup values
   form: FormInstance;
 }
