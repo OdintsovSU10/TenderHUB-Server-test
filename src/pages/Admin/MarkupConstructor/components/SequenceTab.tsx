@@ -9,6 +9,7 @@ import {
   Card,
   Row,
   Col,
+  Input,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { TabKey, MarkupStep, ActionType, OperandType } from '../types';
@@ -34,9 +35,11 @@ export const SequenceTab: React.FC<SequenceTabProps> = ({ tabKey }) => {
   const baseCost = baseCosts.baseCosts[tabKey] || 0;
 
   // State for adding new step
+  const [stepName, setStepName] = useState<string>('');
   const [baseIndex, setBaseIndex] = useState<number>(-1);
   const [action1, setAction1] = useState<ActionType>('multiply');
   const [operand1Value, setOperand1Value] = useState<string | number>('');
+  const [operandMode, setOperandMode] = useState<'select' | 'number'>('select');
 
   const formatNumberWithSpaces = (value: number | undefined) => {
     if (!value) return '';
@@ -99,6 +102,7 @@ export const SequenceTab: React.FC<SequenceTabProps> = ({ tabKey }) => {
     }
 
     const newStep: MarkupStep = {
+      name: stepName || undefined,
       baseIndex,
       action1,
       operand1Type: 'markup', // Default, will be overridden below
@@ -125,6 +129,7 @@ export const SequenceTab: React.FC<SequenceTabProps> = ({ tabKey }) => {
     addStep(tabKey, newStep);
 
     // Reset form
+    setStepName('');
     setBaseIndex(-1);
     setAction1('multiply');
     setOperand1Value('');
@@ -161,12 +166,24 @@ export const SequenceTab: React.FC<SequenceTabProps> = ({ tabKey }) => {
 
         {/* Add new step form */}
         <Card size="small" title="Создание нового пункта расчета">
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" style={{ width: '100%' }} size="small">
+            {/* Название пункта */}
+            <div>
+              <Text>Название пункта (опционально):</Text>
+              <Input
+                value={stepName}
+                onChange={(e) => setStepName(e.target.value)}
+                placeholder="Например: Накладные расходы"
+                style={{ marginTop: '4px' }}
+              />
+            </div>
+
+            {/* Базовое значение и Действие */}
             <Row gutter={8}>
               <Col span={12}>
                 <Text>Базовое значение:</Text>
                 <Select
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', marginTop: '4px' }}
                   value={baseIndex}
                   onChange={setBaseIndex}
                   options={baseOptions}
@@ -175,26 +192,72 @@ export const SequenceTab: React.FC<SequenceTabProps> = ({ tabKey }) => {
               <Col span={12}>
                 <Text>Действие:</Text>
                 <Select
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', marginTop: '4px' }}
                   value={action1}
                   onChange={setAction1}
                   options={ACTIONS.map((a) => ({ label: a.label, value: a.value }))}
                 />
               </Col>
             </Row>
-            <Row gutter={8}>
-              <Col span={24}>
-                <Text>Операнд:</Text>
-                <Select
-                  style={{ width: '100%' }}
-                  value={operand1Value}
-                  onChange={setOperand1Value}
-                  placeholder="Выберите наценку или пункт"
-                >
-                  {operandOptions}
-                </Select>
-              </Col>
-            </Row>
+
+            {/* Операции */}
+            <div>
+              <Text>Операции:</Text>
+              <div style={{ marginTop: '4px' }}>
+                <Button.Group style={{ width: '100%' }}>
+                  <Button
+                    type={operandMode === 'select' ? 'primary' : 'default'}
+                    onClick={() => {
+                      setOperandMode('select');
+                      setOperand1Value('');
+                    }}
+                    style={{ width: '50%' }}
+                  >
+                    Выбрать
+                  </Button>
+                  <Button
+                    type={operandMode === 'number' ? 'primary' : 'default'}
+                    onClick={() => {
+                      setOperandMode('number');
+                      setOperand1Value('');
+                    }}
+                    style={{ width: '50%' }}
+                  >
+                    Ввести число
+                  </Button>
+                </Button.Group>
+              </div>
+            </div>
+
+            {/* Операнд - Select or InputNumber */}
+            <div>
+              {operandMode === 'select' ? (
+                <>
+                  <Text>Операнд:</Text>
+                  <Select
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={typeof operand1Value === 'string' ? operand1Value : undefined}
+                    onChange={setOperand1Value}
+                    placeholder="Выберите наценку или пункт"
+                  >
+                    {operandOptions}
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <Text>Введите число:</Text>
+                  <InputNumber
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={typeof operand1Value === 'number' ? operand1Value : undefined}
+                    onChange={(value) => setOperand1Value(value || 0)}
+                    placeholder="Введите число"
+                    step={0.01}
+                    precision={2}
+                  />
+                </>
+              )}
+            </div>
+
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddStep} block>
               Добавить пункт
             </Button>

@@ -4,6 +4,7 @@ export { SequenceTab } from './SequenceTab';
 export { BasePercentagesTab } from './BasePercentagesTab';
 export { BasePercentagesForm } from './BasePercentagesForm';
 export { PricingTab } from './PricingTab';
+export { PricingDistributionForm } from './PricingDistributionForm';
 export { SequenceStepItem } from './SequenceStepItem';
 export type { SequenceStepItemProps } from './SequenceStepItem';
 export { SequenceStepList } from './SequenceStepList';

@@ -160,7 +160,8 @@ const MarkupConstructor: React.FC = () => {
                       {/* Заголовок схемы */}
                       <Card
                         size="small"
-                        style={{ marginBottom: 16 }}
+                        style={{ marginBottom: 16, background: 'transparent' }}
+                        bordered={true}
                         extra={
                           <Space>
                             <Button icon={<CopyOutlined />}>
@@ -193,7 +194,8 @@ const MarkupConstructor: React.FC = () => {
                         <Card
                           size="small"
                           title={<Text strong>Базовые проценты наценок</Text>}
-                          style={{ marginBottom: 16 }}
+                          style={{ marginBottom: 16, background: 'transparent' }}
+                          bordered={true}
                         >
                           <Space wrap size="small">
                             {parameters.markupParameters.map((param, index) => (

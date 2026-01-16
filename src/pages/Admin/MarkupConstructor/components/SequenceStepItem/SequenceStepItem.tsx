@@ -51,6 +51,45 @@ export const SequenceStepItem = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(step.name || '');
 
+  // Получить информацию о наценке
+  const getOperandInfo = () => {
+    if (step.operand1Type === 'markup' && step.operand1Key) {
+      const markup = parameters.markupParameters.find((p) => p.key === step.operand1Key);
+      if (markup) {
+        return {
+          label: markup.label,
+          value: markup.default_value || 0,
+          type: 'markup',
+        };
+      }
+    } else if (step.operand1Type === 'number' && step.operand1Key) {
+      return {
+        label: String(step.operand1Key),
+        value: step.operand1Key as number,
+        type: 'number',
+      };
+    }
+    return null;
+  };
+
+  const operandInfo = getOperandInfo();
+
+  // Получить символ операции
+  const getActionSymbol = () => {
+    switch (step.action1) {
+      case 'multiply':
+        return '×';
+      case 'add':
+        return '+';
+      case 'subtract':
+        return '−';
+      case 'divide':
+        return '÷';
+      default:
+        return '×';
+    }
+  };
+
   // Построить формулу для отображения
   const formula = buildFormula(
     step,
@@ -111,18 +150,16 @@ export const SequenceStepItem = ({
                 />
               </Space.Compact>
             ) : (
-              <Space>
-                <Text strong>{step.name || `Пункт ${index + 1}`}</Text>
-                <Button
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    setEditedName(step.name || '');
-                    setIsEditingName(true);
-                  }}
-                  type="text"
-                />
-              </Space>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setEditedName(step.name || '');
+                  setIsEditingName(true);
+                }}
+                type="text"
+                title="Редактировать название"
+              />
             )}
           </Space>
 
@@ -166,16 +203,28 @@ export const SequenceStepItem = ({
           </Space>
         </Space>
 
-        {/* Формула */}
-        <div style={{ padding: '8px 12px', background: '#f5f5f5', borderRadius: 4 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Формула:
-          </Text>
-          <br />
-          <Text code style={{ fontSize: 13 }}>
-            {formula}
-          </Text>
-        </div>
+        {/* Название и формула */}
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {/* Название с тегом наценки */}
+          <Space wrap>
+            {step.name && <Tag color="green">{step.name}</Tag>}
+            {operandInfo && operandInfo.type === 'markup' && (
+              <Tag color="green">
+                {operandInfo.label} ({operandInfo.value}%)
+              </Tag>
+            )}
+            {operandInfo && operandInfo.type === 'number' && (
+              <Tag color="blue">{getActionSymbol()} {operandInfo.value}</Tag>
+            )}
+          </Space>
+
+          {/* Формула расчета */}
+          <div style={{ padding: '8px 12px', background: 'rgba(245, 245, 245, 0.5)', borderRadius: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {formula}
+            </Text>
+          </div>
+        </Space>
 
         {/* Результат */}
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
