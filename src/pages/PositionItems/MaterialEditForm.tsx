@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Button, Select, AutoComplete, InputNumber, Input, message, Tag } from 'antd';
+import { useState, useEffect, useCallback } from 'react';
+import { Button, Select, AutoComplete, InputNumber, Input, message, Tag, Spin } from 'antd';
 import { CloseOutlined, SaveOutlined, LinkOutlined } from '@ant-design/icons';
 import type { BoqItemFull, CurrencyType } from '../../lib/supabase';
+import { useMaterialSearch } from '../../client/hooks';
 
 interface MaterialEditFormProps {
   record: BoqItemFull;
-  materialNames: any[];
   workItems: BoqItemFull[]; // Список работ для привязки
-  costCategories: any[];
+  costCategories: { value: string; label: string }[];
   currencyRates: { usd: number; eur: number; cny: number };
   gpVolume: number; // Количество ГП из позиции заказчика
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   readOnly?: boolean;
 }
@@ -53,7 +53,6 @@ const getWorkTypeColor = (type: string) => {
 
 const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
   record,
-  materialNames,
   workItems,
   costCategories,
   currencyRates,
@@ -62,28 +61,41 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
   onCancel,
   readOnly,
 }) => {
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState({
     boq_item_type: record.boq_item_type,
     material_type: record.material_type || 'основн.',
-    material_name_id: record.material_name_id,
-    unit_code: record.unit_code,
+    material_name_id: record.material_name_id as string | null,
+    unit_code: record.unit_code as string | null,
     parent_work_item_id: record.parent_work_item_id || null,
     consumption_coefficient: record.consumption_coefficient || 1,
     conversion_coefficient: record.conversion_coefficient || 1,
     base_quantity: record.base_quantity || 0,
     quantity: record.quantity || 0,
     unit_rate: record.unit_rate || 0,
-    currency_type: record.currency_type || 'RUB',
+    currency_type: (record.currency_type || 'RUB') as CurrencyType,
     delivery_price_type: record.delivery_price_type || 'в цене',
     delivery_amount: record.delivery_amount || 0,
-    detail_cost_category_id: record.detail_cost_category_id,
+    detail_cost_category_id: record.detail_cost_category_id as string | null,
     quote_link: record.quote_link || '',
     description: record.description || '',
   });
 
-  const [materialSearchText, setMaterialSearchText] = useState<string>(record.material_name || '');
+  // Используем TanStack Query хук для поиска материалов
+  const {
+    searchText: materialSearchText,
+    setSearchText: setMaterialSearchText,
+    results: materialSearchResults,
+    isLoading: isSearchingMaterials,
+  } = useMaterialSearch(record.material_name || '', 300);
 
   const [costSearchText, setCostSearchText] = useState<string>(record.detail_cost_category_full || '');
+
+  // Инициализация текста поиска при монтировании
+  useEffect(() => {
+    if (record.material_name) {
+      setMaterialSearchText(record.material_name);
+    }
+  }, [record.material_name, setMaterialSearchText]);
 
   // Флаг для отслеживания ручного ввода количества (только для непривязанных материалов)
   // Инициализируем как true если материал не привязан И quantity != gpVolume
@@ -96,7 +108,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
   });
 
   // Функция для получения курса валюты
-  const getCurrencyRate = (currency: CurrencyType): number => {
+  const getCurrencyRate = useCallback((currency: CurrencyType): number => {
     switch (currency) {
       case 'USD':
         return currencyRates.usd;
@@ -108,10 +120,10 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
       default:
         return 1;
     }
-  };
+  }, [currencyRates]);
 
   // Вычисление количества
-  const calculateQuantity = (): number => {
+  const calculateQuantity = useCallback((): number => {
     if (formData.parent_work_item_id) {
       // Материал привязан к работе
       const parentWork = workItems.find((w) => w.id === formData.parent_work_item_id);
@@ -124,10 +136,10 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
       // Коэффициент расхода применяется только к итоговой сумме, а не к количеству
       return gpVolume;
     }
-  };
+  }, [formData.parent_work_item_id, formData.conversion_coefficient, formData.consumption_coefficient, workItems, gpVolume]);
 
   // Вычисление цены доставки
-  const calculateDeliveryPrice = (): number => {
+  const calculateDeliveryPrice = useCallback((): number => {
     const rate = getCurrencyRate(formData.currency_type);
     const unitPriceInRub = formData.unit_rate * rate;
 
@@ -139,10 +151,10 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
       // 'в цене'
       return 0;
     }
-  };
+  }, [formData.currency_type, formData.unit_rate, formData.delivery_price_type, formData.delivery_amount, getCurrencyRate]);
 
   // Вычисление суммы
-  const calculateTotal = (): number => {
+  const calculateTotal = useCallback((): number => {
     // Использовать formData.quantity напрямую, т.к. оно уже содержит правильное значение
     // (либо автоматически рассчитанное, либо введенное вручную)
     const qty = formData.quantity || 0;
@@ -153,7 +165,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
     const consumptionCoeff = !formData.parent_work_item_id ? (formData.consumption_coefficient || 1) : 1;
     const total = qty * consumptionCoeff * (formData.unit_rate * rate + deliveryPrice);
     return Math.round(total * 100) / 100;
-  };
+  }, [formData.quantity, formData.currency_type, formData.unit_rate, formData.parent_work_item_id, formData.consumption_coefficient, getCurrencyRate, calculateDeliveryPrice]);
 
   // Обновление количества при изменении зависимых полей
   useEffect(() => {
@@ -165,12 +177,14 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
     }
 
     const newQuantity = calculateQuantity();
-    setFormData((prev: any) => ({ ...prev, quantity: newQuantity }));
+    setFormData((prev) => ({ ...prev, quantity: newQuantity }));
   }, [
     formData.parent_work_item_id,
     formData.conversion_coefficient,
     formData.consumption_coefficient,
     gpVolume,
+    isManualQuantity,
+    calculateQuantity,
   ]);
 
   // Сбросить флаг ручного ввода при привязке материала к работе
@@ -199,7 +213,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
     }
 
     // Подготовить данные для сохранения
-    const dataToSave: any = {
+    const dataToSave: Record<string, unknown> = {
       ...formData,
     };
 
@@ -238,14 +252,15 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
 
     // Для непривязанных материалов всегда применять коэффициент расхода к итоговой сумме
     const consumptionCoeff = !dataToSave.parent_work_item_id ? (formData.consumption_coefficient || 1) : 1;
-    const totalAmount = Math.round(dataToSave.quantity * consumptionCoeff * (formData.unit_rate * rate + deliveryPrice) * 100) / 100;
+    const qty = dataToSave.quantity as number;
+    const totalAmount = Math.round(qty * consumptionCoeff * (formData.unit_rate * rate + deliveryPrice) * 100) / 100;
     dataToSave.total_amount = totalAmount;
 
     await onSave(dataToSave);
   };
 
   // Получить опции для AutoComplete затрат
-  const getCostCategoryOptions = () => {
+  const getCostCategoryOptions = useCallback(() => {
     return costCategories
       .filter((c) => c.label.toLowerCase().includes(costSearchText.toLowerCase()))
       .map((c) => ({
@@ -253,22 +268,19 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
         id: c.value,
         label: c.label,
       }));
-  };
+  }, [costCategories, costSearchText]);
 
-  // Получить опции для AutoComplete наименований материалов
-  const getMaterialNameOptions = () => {
-    const searchText = materialSearchText || '';
-    if (searchText.length < 2) return [];
+  // Получить опции для AutoComplete наименований материалов (из API)
+  const getMaterialNameOptions = useCallback(() => {
+    if (materialSearchText.length < 2) return [];
 
-    return materialNames
-      .filter((m) => m.name.toLowerCase().includes(searchText.toLowerCase()))
-      .map((m) => ({
-        value: m.id,
-        label: m.name,
-        id: m.id,
-        unit: m.unit,
-      }));
-  };
+    return materialSearchResults.map((m) => ({
+      value: m.id,
+      label: m.name,
+      id: m.id,
+      unit: m.unit,
+    }));
+  }, [materialSearchResults, materialSearchText]);
 
   return (
     <fieldset disabled={readOnly} style={{ border: 'none', margin: 0, padding: 0 }}>
@@ -317,7 +329,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
                 unit_code: null,
               });
             }}
-            onSelect={(_value, option: any) => {
+            onSelect={(_value, option: { id: string; label: string; unit: string }) => {
               setFormData({
                 ...formData,
                 material_name_id: option.id,
@@ -334,11 +346,16 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
               });
             }}
             options={getMaterialNameOptions()}
-            placeholder="Выберите материал"
+            placeholder="Введите название материала (мин. 2 символа)"
             style={{ width: '100%' }}
             size="small"
             filterOption={false}
             allowClear
+            notFoundContent={
+              isSearchingMaterials ? <Spin size="small" /> :
+              materialSearchText.length >= 2 ? 'Ничего не найдено' :
+              'Введите минимум 2 символа'
+            }
           />
         </div>
 
@@ -465,7 +482,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
             style={{ width: '100%' }}
             size="small"
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-            parser={(value) => value!.replace(/\s/g, '').replace(/,/g, '.')}
+            parser={(value) => parseFloat(value!.replace(/\s/g, '').replace(/,/g, '.'))}
           />
         </div>
 
@@ -494,7 +511,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
               // Для 'не в цене' используется фиксированный 3%, поэтому delivery_amount = null
               // Для 'суммой' нужна сумма, по умолчанию 100
               // Для 'в цене' доставка включена, поэтому delivery_amount = null
-              const newDeliveryAmount = value === 'суммой' ? 100 : null;
+              const newDeliveryAmount = value === 'суммой' ? 100 : 0;
               setFormData({ ...formData, delivery_price_type: value, delivery_amount: newDeliveryAmount });
             }}
             style={{ width: '100%' }}
@@ -519,7 +536,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
               style={{ width: '100%' }}
               size="small"
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-              parser={(value) => value!.replace(/\s/g, '').replace(/,/g, '.')}
+              parser={(value) => parseFloat(value!.replace(/\s/g, '').replace(/,/g, '.'))}
             />
           </div>
         )}
@@ -545,7 +562,7 @@ const MaterialEditForm: React.FC<MaterialEditFormProps> = ({
             onChange={(value) => {
               setCostSearchText(value);
             }}
-            onSelect={(_value, option: any) => {
+            onSelect={(_value, option: { id: string; label: string }) => {
               setFormData({
                 ...formData,
                 detail_cost_category_id: option.id,

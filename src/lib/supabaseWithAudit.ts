@@ -14,7 +14,8 @@ export async function insertBoqItemWithAudit(
 
   const { data: result, error } = await supabase.rpc('insert_boq_item_with_audit', {
     p_user_id: userId,
-    p_data: data as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    p_data: data as unknown as Record<string, any>,
   });
 
   if (error) throw error;
@@ -36,7 +37,8 @@ export async function updateBoqItemWithAudit(
   const { data: result, error } = await supabase.rpc('update_boq_item_with_audit', {
     p_user_id: userId,
     p_item_id: itemId,
-    p_data: data as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    p_data: data as unknown as Record<string, any>,
   });
 
   if (error) throw error;
@@ -61,16 +63,4 @@ export async function deleteBoqItemWithAudit(
 
   if (error) throw error;
   return { data: result, error: null };
-}
-
-/**
- * @deprecated Старый метод executeWithAudit больше не работает из-за connection pooling
- * Используйте вместо этого: insertBoqItemWithAudit, updateBoqItemWithAudit, deleteBoqItemWithAudit
- */
-export async function executeWithAudit<T>(
-  userId: string | undefined,
-  operation: () => Promise<T>
-): Promise<T> {
-  console.warn('[executeWithAudit] DEPRECATED: используйте RPC wrapper функции вместо executeWithAudit');
-  return operation();
 }

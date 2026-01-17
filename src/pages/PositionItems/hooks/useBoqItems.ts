@@ -18,8 +18,8 @@ interface Template {
 }
 
 export const useBoqItems = (positionId: string | undefined) => {
-  // Используем кэшированные справочники из контекста
-  const { materialNames, workNames, units } = useNomenclatures();
+  // Используем единицы измерения из контекста (маленькая таблица)
+  const { units } = useNomenclatures();
 
   const [position, setPosition] = useState<ClientPosition | null>(null);
   const [items, setItems] = useState<BoqItemFull[]>([]);
@@ -340,7 +340,7 @@ export const useBoqItems = (positionId: string | undefined) => {
       fetchMaterials();
       fetchTemplates();
       fetchCostCategories();
-      // workNames, materialNames, units загружаются из NomenclaturesContext
+      // units загружаются из NomenclaturesContext
     }
   }, [positionId]);
 
@@ -353,8 +353,6 @@ export const useBoqItems = (positionId: string | undefined) => {
     loading,
     currencyRates,
     costCategories,
-    workNames,
-    materialNames,
     units,
     gpVolume,
     setGpVolume,

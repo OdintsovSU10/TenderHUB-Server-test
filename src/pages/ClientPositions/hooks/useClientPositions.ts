@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { message } from 'antd';
 import { supabase, type Tender, type ClientPosition } from '../../../lib/supabase';
+
+interface PositionStats {
+  position_id: string;
+  works_count: number;
+  materials_count: number;
+  total_sum: number;
+}
 
 export const useClientPositions = () => {
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -10,6 +17,10 @@ export const useClientPositions = () => {
   const [positionCounts, setPositionCounts] = useState<Record<string, { works: number; materials: number; total: number }>>({});
   const [totalSum, setTotalSum] = useState<number>(0);
   const [leafPositionIndices, setLeafPositionIndices] = useState<Set<string>>(new Set());
+
+  // Throttle для realtime обновлений
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRefreshRef = useRef(false);
 
   // Загрузка тендеров
   useEffect(() => {
@@ -25,8 +36,9 @@ export const useClientPositions = () => {
 
       if (error) throw error;
       setTenders(data || []);
-    } catch (error: any) {
-      message.error('Ошибка загрузки тендеров: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка загрузки тендеров: ' + err.message);
     }
   };
 
@@ -62,11 +74,11 @@ export const useClientPositions = () => {
     return leafIds;
   };
 
-  // Загрузка позиций заказчика
-  const fetchClientPositions = async (tenderId: string) => {
+  // Загрузка позиций заказчика через RPC
+  const fetchClientPositions = useCallback(async (tenderId: string) => {
     setLoading(true);
     try {
-      // Загружаем данные батчами, так как Supabase ограничивает 1000 строк за запрос
+      // 1. Загружаем позиции (с пагинацией если нужно)
       let allPositions: ClientPosition[] = [];
       let from = 0;
       const positionsBatchSize = 1000;
@@ -97,83 +109,102 @@ export const useClientPositions = () => {
       const leafIndices = computeLeafPositions(allPositions);
       setLeafPositionIndices(leafIndices);
 
-      // Загружаем счетчики работ/материалов батчами по позициям
+      // 2. Загружаем статистику по позициям через RPC (один запрос вместо множества)
       if (allPositions.length > 0) {
-        const positionIds = allPositions.map(p => p.id);
+        const { data: statsData, error: statsError } = await supabase
+          .rpc('get_client_positions_stats', { p_tender_id: tenderId });
 
-        // Разбиваем на батчи по 100 ID для избежания ошибки 400 (URL too long)
-        const boqBatchSize = 100;
-        const batches = [];
-        for (let i = 0; i < positionIds.length; i += boqBatchSize) {
-          batches.push(positionIds.slice(i, i + boqBatchSize));
+        if (statsError) {
+          console.error('Ошибка загрузки статистики позиций:', statsError);
+        } else {
+          const counts: Record<string, { works: number; materials: number; total: number }> = {};
+          (statsData as PositionStats[] || []).forEach((stat) => {
+            counts[stat.position_id] = {
+              works: stat.works_count,
+              materials: stat.materials_count,
+              total: Number(stat.total_sum) || 0,
+            };
+          });
+          setPositionCounts(counts);
         }
 
-        let allBoqData: any[] = [];
-        for (const batch of batches) {
-          const { data: boqData, error: boqError } = await supabase
-            .from('boq_items')
-            .select('client_position_id, boq_item_type, total_amount')
-            .in('client_position_id', batch);
+        // 3. Загружаем общую сумму через RPC (один запрос)
+        const { data: totalData, error: totalError } = await supabase
+          .rpc('get_tender_total_sum', { p_tender_id: tenderId });
 
-          if (boqError) throw boqError;
-          allBoqData = [...allBoqData, ...(boqData || [])];
+        if (totalError) {
+          console.error('Ошибка загрузки общей суммы:', totalError);
+          setTotalSum(0);
+        } else {
+          setTotalSum(Number(totalData) || 0);
         }
-
-        // Обрабатываем данные в памяти для счётчиков по позициям
-        const counts: Record<string, { works: number; materials: number; total: number }> = {};
-
-        allBoqData.forEach((item) => {
-          // Подсчет работ и материалов
-          if (!counts[item.client_position_id]) {
-            counts[item.client_position_id] = { works: 0, materials: 0, total: 0 };
-          }
-
-          if (['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type)) {
-            counts[item.client_position_id].works += 1;
-          } else if (['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type)) {
-            counts[item.client_position_id].materials += 1;
-          }
-
-          // Суммирование для позиции
-          const itemTotal = Number(item.total_amount) || 0;
-          counts[item.client_position_id].total += itemTotal;
-        });
-
-        setPositionCounts(counts);
-
-        // Загружаем общую сумму напрямую по tender_id с батчингом (как в Dashboard)
-        let totalSum = 0;
-        let from = 0;
-        const sumBatchSize = 1000;
-        let hasMoreSum = true;
-
-        while (hasMoreSum) {
-          const { data: sumData } = await supabase
-            .from('boq_items')
-            .select('total_amount')
-            .eq('tender_id', tenderId)
-            .range(from, from + sumBatchSize - 1);
-
-          if (sumData && sumData.length > 0) {
-            totalSum += sumData.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
-            from += sumBatchSize;
-            hasMoreSum = sumData.length === sumBatchSize;
-          } else {
-            hasMoreSum = false;
-          }
-        }
-
-        setTotalSum(totalSum);
       } else {
         setPositionCounts({});
         setTotalSum(0);
       }
-    } catch (error: any) {
-      message.error('Ошибка загрузки позиций: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка загрузки позиций: ' + err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Throttled refresh для realtime подписки
+  const throttledRefresh = useCallback((tenderId: string) => {
+    if (throttleTimerRef.current) {
+      // Уже ожидаем - помечаем что нужен ещё один refresh
+      pendingRefreshRef.current = true;
+      return;
+    }
+
+    // Выполняем refresh
+    fetchClientPositions(tenderId);
+
+    // Устанавливаем throttle на 2 секунды
+    throttleTimerRef.current = setTimeout(() => {
+      throttleTimerRef.current = null;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        fetchClientPositions(tenderId);
+      }
+    }, 2000);
+  }, [fetchClientPositions]);
+
+  // Подписка на изменения boq_items для текущего тендера
+  useEffect(() => {
+    if (!selectedTender?.id) return;
+
+    const tenderId = selectedTender.id;
+
+    // Подписываемся только на изменения для текущего тендера
+    const subscription = supabase
+      .channel(`boq_items_tender_${tenderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boq_items',
+          filter: `tender_id=eq.${tenderId}`,
+        },
+        () => {
+          // Throttled refresh при изменениях
+          throttledRefresh(tenderId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      // Очистка throttle таймера
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+      pendingRefreshRef.current = false;
+      subscription.unsubscribe();
+    };
+  }, [selectedTender?.id, throttledRefresh]);
 
   return {
     tenders,

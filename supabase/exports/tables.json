@@ -822,6 +822,51 @@
       }
     ]
   },
+  "auth.oauth_client_states": {
+    "schema": "auth",
+    "name": "oauth_client_states",
+    "comment": "Stores OAuth states for third-party provider authentication flows where Supabase acts as the OAuth client.",
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "provider_type",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "code_verifier",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "oauth_client_states_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      }
+    ]
+  },
   "auth.oauth_clients": {
     "schema": "auth",
     "name": "oauth_clients",
@@ -2044,193 +2089,193 @@
   "public.boq_items": {
     "schema": "public",
     "name": "boq_items",
-    "comment": "Элементы позиций заказчика (Bill of Quantities Items)",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор элемента позиции (UUID)",
+        "comment": null,
         "default": "gen_random_uuid()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "tender_id",
-        "comment": "Привязка к таблице tenders",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "client_position_id",
-        "comment": "Привязка к таблице client_positions",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "sort_number",
-        "comment": "Сортировка элементов позиций заказчика",
+        "comment": null,
         "default": "0",
         "data_type": "integer",
         "is_nullable": false
       },
       {
         "name": "boq_item_type",
-        "comment": "Тип строки в виде enum (мат, суб-мат, мат-комп., раб, суб-раб, раб-комп.)",
+        "comment": null,
         "default": null,
         "data_type": "boq_item_type",
         "is_nullable": false
       },
       {
         "name": "material_type",
-        "comment": "Тип материала (основной/вспомогательный)",
+        "comment": null,
         "default": null,
         "data_type": "material_type",
         "is_nullable": true
       },
       {
         "name": "material_name_id",
-        "comment": "Наименование материала, связан с таблицей material_names",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "work_name_id",
-        "comment": "Наименование работы, связан с таблицей work_names",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "unit_code",
-        "comment": "Единица измерения, связана с таблицей units",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "quantity",
-        "comment": "Количество",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "base_quantity",
-        "comment": "Базовое количество для непривязанного материала к работе",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "consumption_coefficient",
-        "comment": "Коэффициент расхода материала",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "conversion_coefficient",
-        "comment": "Коэффициент перевода материала",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "delivery_price_type",
-        "comment": "Тип доставки (в цене, не в цене, суммой)",
+        "comment": null,
         "default": null,
         "data_type": "delivery_price_type",
         "is_nullable": true
       },
       {
         "name": "delivery_amount",
-        "comment": "Стоимость доставки",
+        "comment": null,
         "default": "0.00",
         "data_type": "numeric(15,2)",
         "is_nullable": true
       },
       {
         "name": "currency_type",
-        "comment": "Тип валюты (RUB, USD, EUR, CNY)",
+        "comment": null,
         "default": "'RUB'::currency_type",
         "data_type": "currency_type",
         "is_nullable": true
       },
       {
         "name": "total_amount",
-        "comment": "Итоговая сумма",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,2)",
         "is_nullable": true
       },
       {
         "name": "detail_cost_category_id",
-        "comment": "Затрата на строительство, связь с таблицей detail_cost_categories",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "quote_link",
-        "comment": "Ссылка на КП",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "commercial_markup",
-        "comment": "Коэффициент наценки",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_material_cost",
-        "comment": "Итоговая стоимость материала в коммерческой стоимости",
+        "comment": null,
         "default": null,
-        "data_type": "numeric(18,2)",
+        "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_work_cost",
-        "comment": "Итоговая стоимость работы в коммерческой стоимости",
+        "comment": null,
         "default": null,
-        "data_type": "numeric(18,2)",
+        "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "parent_work_item_id",
-        "comment": "Привязка материала к работе (FK к boq_items.id, NULL если материал независимый)",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "description",
-        "comment": "Примечание к элементу позиции",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "unit_rate",
-        "comment": "Цена за единицу",
+        "comment": null,
         "default": "0.00",
         "data_type": "numeric(18,2)",
         "is_nullable": true
@@ -2238,52 +2283,12 @@
     ],
     "constraints": [
       {
-        "name": "boq_items_base_quantity_positive",
-        "type": "CHECK",
-        "column": "base_quantity",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "boq_items_client_position_id_fkey",
         "type": "FOREIGN KEY",
         "column": "client_position_id",
         "foreign_table": "client_positions",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "boq_items_consumption_coefficient_positive",
-        "type": "CHECK",
-        "column": "consumption_coefficient",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_conversion_coefficient_positive",
-        "type": "CHECK",
-        "column": "conversion_coefficient",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_delivery_amount_check",
-        "type": "CHECK",
-        "column": "delivery_amount",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_delivery_amount_check",
-        "type": "CHECK",
-        "column": "delivery_price_type",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
       },
       {
         "name": "boq_items_detail_cost_category_id_fkey",
@@ -2294,60 +2299,12 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "boq_items_material_check",
-        "type": "CHECK",
-        "column": "boq_item_type",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_material_check",
-        "type": "CHECK",
-        "column": "material_name_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_material_check",
-        "type": "CHECK",
-        "column": "material_type",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_material_check",
-        "type": "CHECK",
-        "column": "work_name_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "boq_items_material_name_id_fkey",
         "type": "FOREIGN KEY",
         "column": "material_name_id",
         "foreign_table": "material_names",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "boq_items_parent_work_check",
-        "type": "CHECK",
-        "column": "boq_item_type",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_parent_work_check",
-        "type": "CHECK",
-        "column": "parent_work_item_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
       },
       {
         "name": "boq_items_parent_work_item_id_fkey",
@@ -2361,14 +2318,6 @@
         "name": "boq_items_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "boq_items_quantity_positive",
-        "type": "CHECK",
-        "column": "quantity",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
@@ -2399,168 +2348,241 @@
       }
     ]
   },
-  "public.client_positions": {
+  "public.boq_items_audit": {
     "schema": "public",
-    "name": "client_positions",
-    "comment": "Позиции заказчика из ВОРа (Bill of Quantities)",
+    "name": "boq_items_audit",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор позиции",
+        "comment": null,
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "boq_item_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "operation_type",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "changed_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      },
+      {
+        "name": "changed_by",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": true
+      },
+      {
+        "name": "old_data",
+        "comment": null,
+        "default": null,
+        "data_type": "jsonb",
+        "is_nullable": true
+      },
+      {
+        "name": "new_data",
+        "comment": null,
+        "default": null,
+        "data_type": "jsonb",
+        "is_nullable": true
+      },
+      {
+        "name": "changed_fields",
+        "comment": null,
+        "default": null,
+        "data_type": "text[]",
+        "is_nullable": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "boq_items_audit_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      }
+    ]
+  },
+  "public.client_positions": {
+    "schema": "public",
+    "name": "client_positions",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "tender_id",
-        "comment": "Связь с тендером",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "position_number",
-        "comment": "Номер позиции, поддерживает decimal для дополнительных работ (например: 5.1, 5.2)",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,2)",
         "is_nullable": false
       },
       {
         "name": "unit_code",
-        "comment": "Код единицы измерения (ссылка на units.code)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "volume",
-        "comment": "Объем заказчика",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "client_note",
-        "comment": "Примечание заказчика",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "item_no",
-        "comment": "Номер раздела заказчика (из файла ВОР)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "work_name",
-        "comment": "Название работы/позиции",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "manual_volume",
-        "comment": "Количество ГП (ручной ввод)",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "manual_note",
-        "comment": "Примечание ГП (ручной ввод)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "hierarchy_level",
-        "comment": "Уровень в иерархии (вводится вручную)",
+        "comment": null,
         "default": "0",
         "data_type": "integer",
         "is_nullable": true
       },
       {
         "name": "is_additional",
-        "comment": "Признак дополнительной строки",
+        "comment": null,
         "default": "false",
         "data_type": "boolean",
         "is_nullable": true
       },
       {
         "name": "parent_position_id",
-        "comment": "Связь с родительской позицией для доп. строк",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "total_material",
-        "comment": "Прямая стоимость материалов (расчетная)",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,2)",
         "is_nullable": true
       },
       {
         "name": "total_works",
-        "comment": "Прямая стоимость работ (расчетная)",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,2)",
         "is_nullable": true
       },
       {
         "name": "material_cost_per_unit",
-        "comment": "Стоимость материалов за единицу",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "work_cost_per_unit",
-        "comment": "Стоимость работ за единицу",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_material",
-        "comment": "Коммерческая стоимость материалов с наценками",
+        "comment": null,
         "default": "0",
-        "data_type": "numeric(18,2)",
+        "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_work",
-        "comment": "Коммерческая стоимость работ с наценками",
+        "comment": null,
         "default": "0",
-        "data_type": "numeric(18,2)",
+        "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_material_per_unit",
-        "comment": "Коммерческая стоимость материалов за единицу",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "total_commercial_work_per_unit",
-        "comment": "Коммерческая стоимость работ за единицу",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,6)",
         "is_nullable": true
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
@@ -2625,7 +2647,7 @@
         "comment": null,
         "default": null,
         "data_type": "uuid",
-        "is_nullable": false
+        "is_nullable": true
       },
       {
         "name": "volume",
@@ -2647,6 +2669,13 @@
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
+      },
+      {
+        "name": "group_key",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
       }
     ],
     "constraints": [
@@ -2667,22 +2696,6 @@
         "foreign_table_schema": null
       },
       {
-        "name": "construction_cost_volumes_tender_id_detail_cost_category_id_key",
-        "type": "UNIQUE",
-        "column": "detail_cost_category_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "construction_cost_volumes_tender_id_detail_cost_category_id_key",
-        "type": "UNIQUE",
-        "column": "tender_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "construction_cost_volumes_tender_id_fkey",
         "type": "FOREIGN KEY",
         "column": "tender_id",
@@ -2695,39 +2708,39 @@
   "public.cost_categories": {
     "schema": "public",
     "name": "cost_categories",
-    "comment": "Справочник      \r\n  категорий затрат",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор категории (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "name",
-        "comment": "Наименование категории затрат",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "unit",
-        "comment": "Единица измерения категории",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -2755,88 +2768,88 @@
   "public.cost_redistribution_results": {
     "schema": "public",
     "name": "cost_redistribution_results",
-    "comment": "Результаты перераспределения стоимости работ между затратами на строительство.\r\n    Хранит финансовые данные после перераспределения и правила для воспроизводимости расчета.",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор записи результата",
+        "comment": null,
         "default": "gen_random_uuid()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "tender_id",
-        "comment": "Ссылка на тендер",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "markup_tactic_id",
-        "comment": "Ссылка на тактику наценок",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "boq_item_id",
-        "comment": "Ссылка на элемент BOQ (работа)",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "original_work_cost",
-        "comment": "Исходная стоимость работы до перераспределения",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,2)",
         "is_nullable": true
       },
       {
         "name": "deducted_amount",
-        "comment": "Сумма, вычтенная из стоимости работы",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,2)",
         "is_nullable": false
       },
       {
         "name": "added_amount",
-        "comment": "Сумма, добавленная к стоимости работы",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(18,2)",
         "is_nullable": false
       },
       {
         "name": "final_work_cost",
-        "comment": "Финальная стоимость работы после перераспределения",
+        "comment": null,
         "default": null,
         "data_type": "numeric(18,2)",
         "is_nullable": true
       },
       {
         "name": "redistribution_rules",
-        "comment": "JSONB с правилами вычитания и целевыми затратами для воспроизводимости расчета.\r\n    Формат: {\r\n        \"deductions\": [\r\n            {\"detail_cost_category_id\": \"uuid\", \"category_name\": \"...\", \"percentage\": 10}\r\n        ],\r\n        \"targets\": [\r\n            {\"detail_cost_category_id\": \"uuid\", \"category_name\": \"...\", \"weight\": 1.0}\r\n        ]\r\n    }",
+        "comment": null,
         "default": null,
         "data_type": "jsonb",
         "is_nullable": true
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "created_by",
-        "comment": "Пользователь, создавший запись",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
@@ -2884,7 +2897,7 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "uq_cost_redistribution_results_tender_tactic_boq",
+        "name": "cost_redistribution_results_tender_tactic_boq_key",
         "type": "UNIQUE",
         "column": "boq_item_id",
         "foreign_table": null,
@@ -2892,7 +2905,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "uq_cost_redistribution_results_tender_tactic_boq",
+        "name": "cost_redistribution_results_tender_tactic_boq_key",
         "type": "UNIQUE",
         "column": "markup_tactic_id",
         "foreign_table": null,
@@ -2900,7 +2913,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "uq_cost_redistribution_results_tender_tactic_boq",
+        "name": "cost_redistribution_results_tender_tactic_boq_key",
         "type": "UNIQUE",
         "column": "tender_id",
         "foreign_table": null,
@@ -2912,60 +2925,60 @@
   "public.detail_cost_categories": {
     "schema": "public",
     "name": "detail_cost_categories",
-    "comment": "Детальные категории затрат по локациям",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор детальной категории (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "cost_category_id",
-        "comment": "Ссылка на категорию затрат",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "location",
-        "comment": "Локация/местоположение",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "name",
-        "comment": "Наименование детальной категории",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "unit",
-        "comment": "Единица измерения",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "order_num",
-        "comment": "Порядковый      \r\n  номер для сортировки",
+        "comment": null,
         "default": "0",
         "data_type": "integer",
         "is_nullable": true
       },
       {
         "name": "created_at",
-        "comment": "Дата и\r\n  время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и\r\n  время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -3001,82 +3014,66 @@
   "public.markup_parameters": {
     "schema": "public",
     "name": "markup_parameters",
-    "comment": "Справочник параметров наценок",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор параметра",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "key",
-        "comment": "Ключ параметра (snake_case с цифрами, уникальный)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "label",
-        "comment": "Название параметра (для UI)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "is_active",
-        "comment": "Активен ли параметр",
+        "comment": null,
         "default": "true",
         "data_type": "boolean",
         "is_nullable": false
       },
       {
         "name": "order_num",
-        "comment": "Порядок отображения",
+        "comment": null,
         "default": "0",
         "data_type": "integer",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата создания",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "updated_at",
-        "comment": "Дата последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "default_value",
-        "comment": "Базовое (глобальное) значение процента по умолчанию. Используется при создании новых тендеров и как значение по умолчанию в интерфейсе.",
+        "comment": null,
         "default": "0",
         "data_type": "numeric(5,2)",
         "is_nullable": false
       }
     ],
     "constraints": [
-      {
-        "name": "markup_parameters_default_value_range",
-        "type": "CHECK",
-        "column": "default_value",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "markup_parameters_key_check",
-        "type": "CHECK",
-        "column": "key",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
       {
         "name": "markup_parameters_key_key",
         "type": "UNIQUE",
@@ -3098,7 +3095,7 @@
   "public.markup_tactics": {
     "schema": "public",
     "name": "markup_tactics",
-    "comment": "Хранение тактик наценок для конструктора наценок",
+    "comment": null,
     "columns": [
       {
         "name": "id",
@@ -3116,14 +3113,14 @@
       },
       {
         "name": "sequences",
-        "comment": "JSON с последовательностями операций наценок для каждого типа позиций",
+        "comment": null,
         "default": "'{\"мат\": [], \"раб\": [], \"суб-мат\": [], \"суб-раб\": [], \"мат-комп.\": [], \"раб-комп.\": []}'::jsonb",
         "data_type": "jsonb",
         "is_nullable": false
       },
       {
         "name": "base_costs",
-        "comment": "JSON с базовыми стоимостями для каждого типа позиций",
+        "comment": null,
         "default": "'{\"мат\": 0, \"раб\": 0, \"суб-мат\": 0, \"суб-раб\": 0, \"мат-комп.\": 0, \"раб-комп.\": 0}'::jsonb",
         "data_type": "jsonb",
         "is_nullable": false
@@ -3137,7 +3134,7 @@
       },
       {
         "name": "is_global",
-        "comment": "Глобальная тактика, доступная всем пользователям",
+        "comment": null,
         "default": "false",
         "data_type": "boolean",
         "is_nullable": true
@@ -3179,39 +3176,39 @@
   "public.material_names": {
     "schema": "public",
     "name": "material_names",
-    "comment": "Справочник наименований материалов",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор материала (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "name",
-        "comment": "Наименование материала",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "unit",
-        "comment": "Единица измерения материала",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -3239,81 +3236,81 @@
   "public.materials_library": {
     "schema": "public",
     "name": "materials_library",
-    "comment": "Справочник материалов (Material library) с полной детализацией",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор работы (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "material_type",
-        "comment": "Тип материала (основной/вспомогательный)",
+        "comment": null,
         "default": null,
         "data_type": "material_type",
         "is_nullable": false
       },
       {
         "name": "item_type",
-        "comment": "Вид материала (мат, суб-мат, мат-комп)",
+        "comment": null,
         "default": null,
         "data_type": "boq_item_type",
         "is_nullable": false
       },
       {
         "name": "consumption_coefficient",
-        "comment": "Коэффициент расхода",
+        "comment": null,
         "default": "1.0000",
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "unit_rate",
-        "comment": "Цена материала за единицу",
+        "comment": null,
         "default": null,
         "data_type": "numeric(15,2)",
         "is_nullable": false
       },
       {
         "name": "currency_type",
-        "comment": "Тип валюты (рубли, евро, доллары, юани)",
+        "comment": null,
         "default": "'RUB'::currency_type",
         "data_type": "currency_type",
         "is_nullable": false
       },
       {
         "name": "delivery_price_type",
-        "comment": "Тип доставки (в цене, не в цене, суммой)",
+        "comment": null,
         "default": "'в цене'::delivery_price_type",
         "data_type": "delivery_price_type",
         "is_nullable": false
       },
       {
         "name": "delivery_amount",
-        "comment": "Сумма доставки",
+        "comment": null,
         "default": "0.00",
         "data_type": "numeric(15,2)",
         "is_nullable": true
       },
       {
         "name": "material_name_id",
-        "comment": "Связь с наименованием материала (откуда берется название и единица измерения)",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата создания",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата изменения",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -3341,60 +3338,60 @@
   "public.notifications": {
     "schema": "public",
     "name": "notifications",
-    "comment": "Системные уведомления для пользователей",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор уведомления",
+        "comment": null,
         "default": "gen_random_uuid()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "type",
-        "comment": "Тип уведомления (success, info, warning, pending)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "title",
-        "comment": "Заголовок уведомления",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "message",
-        "comment": "Текст уведомления",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "related_entity_type",
-        "comment": "Тип связанной сущности (tender, position, cost, etc.)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "related_entity_id",
-        "comment": "ID связанной сущности",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "is_read",
-        "comment": "Признак прочтения уведомления",
+        "comment": null,
         "default": "false",
         "data_type": "boolean",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
@@ -3408,46 +3405,474 @@
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
+      }
+    ]
+  },
+  "public.organization_members": {
+    "schema": "public",
+    "name": "organization_members",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "gen_random_uuid()",
+        "data_type": "uuid",
+        "is_nullable": false
       },
       {
-        "name": "notifications_type_check",
-        "type": "CHECK",
-        "column": "type",
+        "name": "organization_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "user_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "role",
+        "comment": null,
+        "default": "'member'::text",
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "status",
+        "comment": null,
+        "default": "'active'::text",
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "joined_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "organization_members_org_fkey",
+        "type": "FOREIGN KEY",
+        "column": "organization_id",
+        "foreign_table": "organizations",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      },
+      {
+        "name": "organization_members_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "organization_members_user_fkey",
+        "type": "FOREIGN KEY",
+        "column": "user_id",
+        "foreign_table": "users",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      }
+    ]
+  },
+  "public.organizations": {
+    "schema": "public",
+    "name": "organizations",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "gen_random_uuid()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "name",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "description",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": true
+      },
+      {
+        "name": "updated_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": true
+      },
+      {
+        "name": "created_by",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "organizations_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
       }
     ]
   },
+  "public.project_additional_agreements": {
+    "schema": "public",
+    "name": "project_additional_agreements",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "project_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "agreement_date",
+        "comment": null,
+        "default": null,
+        "data_type": "date",
+        "is_nullable": false
+      },
+      {
+        "name": "amount",
+        "comment": null,
+        "default": null,
+        "data_type": "numeric(15,2)",
+        "is_nullable": false
+      },
+      {
+        "name": "description",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "agreement_number",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      },
+      {
+        "name": "updated_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "project_additional_agreements_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "project_additional_agreements_project_id_fkey",
+        "type": "FOREIGN KEY",
+        "column": "project_id",
+        "foreign_table": "projects",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      }
+    ]
+  },
+  "public.project_monthly_completion": {
+    "schema": "public",
+    "name": "project_monthly_completion",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "project_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "year",
+        "comment": null,
+        "default": null,
+        "data_type": "integer",
+        "is_nullable": false
+      },
+      {
+        "name": "month",
+        "comment": null,
+        "default": null,
+        "data_type": "integer",
+        "is_nullable": false
+      },
+      {
+        "name": "actual_amount",
+        "comment": null,
+        "default": "0",
+        "data_type": "numeric(15,2)",
+        "is_nullable": false
+      },
+      {
+        "name": "forecast_amount",
+        "comment": null,
+        "default": null,
+        "data_type": "numeric(15,2)",
+        "is_nullable": true
+      },
+      {
+        "name": "note",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      },
+      {
+        "name": "updated_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "project_monthly_completion_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "project_monthly_completion_project_id_fkey",
+        "type": "FOREIGN KEY",
+        "column": "project_id",
+        "foreign_table": "projects",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      },
+      {
+        "name": "project_monthly_completion_project_year_month_key",
+        "type": "UNIQUE",
+        "column": "month",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "project_monthly_completion_project_year_month_key",
+        "type": "UNIQUE",
+        "column": "project_id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "project_monthly_completion_project_year_month_key",
+        "type": "UNIQUE",
+        "column": "year",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      }
+    ]
+  },
+  "public.projects": {
+    "schema": "public",
+    "name": "projects",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "name",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "client_name",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "name": "contract_cost",
+        "comment": null,
+        "default": "0",
+        "data_type": "numeric(15,2)",
+        "is_nullable": false
+      },
+      {
+        "name": "area",
+        "comment": null,
+        "default": null,
+        "data_type": "numeric(12,2)",
+        "is_nullable": true
+      },
+      {
+        "name": "construction_end_date",
+        "comment": null,
+        "default": null,
+        "data_type": "date",
+        "is_nullable": true
+      },
+      {
+        "name": "tender_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": true
+      },
+      {
+        "name": "is_active",
+        "comment": null,
+        "default": "true",
+        "data_type": "boolean",
+        "is_nullable": false
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      },
+      {
+        "name": "updated_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": false
+      },
+      {
+        "name": "created_by",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": true
+      },
+      {
+        "name": "contract_date",
+        "comment": null,
+        "default": null,
+        "data_type": "date",
+        "is_nullable": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "projects_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "projects_tender_id_fkey",
+        "type": "FOREIGN KEY",
+        "column": "tender_id",
+        "foreign_table": "tenders",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      }
+    ]
+  },
   "public.roles": {
     "schema": "public",
     "name": "roles",
-    "comment": "Role definitions with permissions",
+    "comment": null,
     "columns": [
       {
         "name": "code",
-        "comment": "Role code identifier (e.g., administrator, engineer)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "name",
-        "comment": "Human-readable role name in Russian",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "allowed_pages",
-        "comment": "Array of allowed page paths for this role. Empty array means full access.",
+        "comment": null,
         "default": "'[]'::jsonb",
         "data_type": "jsonb",
         "is_nullable": false
       },
       {
         "name": "is_system_role",
-        "comment": "System roles cannot be deleted",
+        "comment": null,
         "default": "false",
         "data_type": "boolean",
         "is_nullable": false
@@ -3468,7 +3893,7 @@
       },
       {
         "name": "color",
-        "comment": "Ant Design tag color for the role\r\n  (e.g., blue, green, purple, etc.)",
+        "comment": null,
         "default": "'default'::text",
         "data_type": "text",
         "is_nullable": true
@@ -3476,24 +3901,8 @@
     ],
     "constraints": [
       {
-        "name": "roles_code_format",
-        "type": "CHECK",
-        "column": "code",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "roles_name_key",
         "type": "UNIQUE",
-        "column": "name",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "roles_name_not_empty",
-        "type": "CHECK",
         "column": "name",
         "foreign_table": null,
         "foreign_column": null,
@@ -3512,7 +3921,7 @@
   "public.subcontract_growth_exclusions": {
     "schema": "public",
     "name": "subcontract_growth_exclusions",
-    "comment": "Исключения роста субподряда для категорий затрат",
+    "comment": null,
     "columns": [
       {
         "name": "id",
@@ -3537,7 +3946,7 @@
       },
       {
         "name": "exclusion_type",
-        "comment": "Тип исключения: works (суб-раб) или materials (суб-мат)",
+        "comment": null,
         "default": "'works'::text",
         "data_type": "text",
         "is_nullable": false
@@ -3567,17 +3976,33 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "subcontract_growth_exclusions_exclusion_type_check",
-        "type": "CHECK",
+        "name": "subcontract_growth_exclusions_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "subcontract_growth_exclusions_tender_category_type_key",
+        "type": "UNIQUE",
+        "column": "detail_cost_category_id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "subcontract_growth_exclusions_tender_category_type_key",
+        "type": "UNIQUE",
         "column": "exclusion_type",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
       },
       {
-        "name": "subcontract_growth_exclusions_pkey",
-        "type": "PRIMARY KEY",
-        "column": "id",
+        "name": "subcontract_growth_exclusions_tender_category_type_key",
+        "type": "UNIQUE",
+        "column": "tender_id",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
@@ -3589,30 +4014,6 @@
         "foreign_table": "tenders",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "subcontract_growth_exclusions_unique",
-        "type": "UNIQUE",
-        "column": "detail_cost_category_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "subcontract_growth_exclusions_unique",
-        "type": "UNIQUE",
-        "column": "exclusion_type",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "subcontract_growth_exclusions_unique",
-        "type": "UNIQUE",
-        "column": "tender_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
       }
     ]
   },
@@ -3716,60 +4117,12 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "template_items_kind_check",
-        "type": "CHECK",
-        "column": "kind",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "template_items_material_library_fk",
         "type": "FOREIGN KEY",
         "column": "material_library_id",
         "foreign_table": "materials_library",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "template_items_material_logic_check",
-        "type": "CHECK",
-        "column": "conversation_coeff",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_material_logic_check",
-        "type": "CHECK",
-        "column": "kind",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_material_logic_check",
-        "type": "CHECK",
-        "column": "material_library_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_material_logic_check",
-        "type": "CHECK",
-        "column": "parent_work_item_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_material_logic_check",
-        "type": "CHECK",
-        "column": "work_library_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
       },
       {
         "name": "template_items_parent_work_item_fk",
@@ -3802,46 +4155,6 @@
         "foreign_table": "works_library",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "template_items_work_logic_check",
-        "type": "CHECK",
-        "column": "conversation_coeff",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_work_logic_check",
-        "type": "CHECK",
-        "column": "kind",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_work_logic_check",
-        "type": "CHECK",
-        "column": "material_library_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_work_logic_check",
-        "type": "CHECK",
-        "column": "parent_work_item_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "template_items_work_logic_check",
-        "type": "CHECK",
-        "column": "work_library_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
       }
     ]
   },
@@ -3908,7 +4221,7 @@
   "public.tender_documents": {
     "schema": "public",
     "name": "tender_documents",
-    "comment": "Проектная документация в markdown. RLS отключен для development.",
+    "comment": null,
     "columns": [
       {
         "name": "id",
@@ -3926,7 +4239,7 @@
       },
       {
         "name": "section_type",
-        "comment": "Раздел проектной документации: АР (архитектурные решения), КР (конструктивные решения), ИОС, ТХ, ПОС и т.д.",
+        "comment": null,
         "default": null,
         "data_type": "character varying(50)",
         "is_nullable": false
@@ -3940,14 +4253,14 @@
       },
       {
         "name": "original_filename",
-        "comment": "Имя загруженного файла для отладки и логов",
+        "comment": null,
         "default": null,
         "data_type": "character varying(255)",
         "is_nullable": true
       },
       {
         "name": "content_markdown",
-        "comment": "Полный текст документа в markdown формате после конвертации из PDF/DOCX",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
@@ -3999,7 +4312,7 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "unique_tender_section_file",
+        "name": "tender_documents_tender_section_file_key",
         "type": "UNIQUE",
         "column": "original_filename",
         "foreign_table": null,
@@ -4007,7 +4320,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "unique_tender_section_file",
+        "name": "tender_documents_tender_section_file_key",
         "type": "UNIQUE",
         "column": "section_type",
         "foreign_table": null,
@@ -4015,7 +4328,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "unique_tender_section_file",
+        "name": "tender_documents_tender_section_file_key",
         "type": "UNIQUE",
         "column": "tender_id",
         "foreign_table": null,
@@ -4027,46 +4340,46 @@
   "public.tender_markup_percentage": {
     "schema": "public",
     "name": "tender_markup_percentage",
-    "comment": "Проценты наценок по тендерам (связь с справочником параметров)",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор записи",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "tender_id",
-        "comment": "Ссылка на тендер",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "markup_parameter_id",
-        "comment": "Ссылка на параметр наценки",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "value",
-        "comment": "Значение процента (0-100)",
+        "comment": null,
         "default": "0",
-        "data_type": "numeric(5,2)",
+        "data_type": "numeric(8,5)",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата создания",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
       },
       {
         "name": "updated_at",
-        "comment": "Дата последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
@@ -4098,7 +4411,7 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "tender_markup_percentage_unique",
+        "name": "tender_markup_percentage_tender_param_key",
         "type": "UNIQUE",
         "column": "markup_parameter_id",
         "foreign_table": null,
@@ -4106,17 +4419,9 @@
         "foreign_table_schema": null
       },
       {
-        "name": "tender_markup_percentage_unique",
+        "name": "tender_markup_percentage_tender_param_key",
         "type": "UNIQUE",
         "column": "tender_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_markup_percentage_value_check",
-        "type": "CHECK",
-        "column": "value",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
@@ -4126,7 +4431,7 @@
   "public.tender_pricing_distribution": {
     "schema": "public",
     "name": "tender_pricing_distribution",
-    "comment": "Правила распределения затрат и наценок между КП (материалы) и работами для каждого        \r\n  тендера",
+    "comment": null,
     "columns": [
       {
         "name": "id",
@@ -4151,42 +4456,42 @@
       },
       {
         "name": "basic_material_base_target",
-        "comment": "Куда направляется базовая стоимость основных материалов: material = КП, work =\r\n  работы",
+        "comment": null,
         "default": "'material'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "basic_material_markup_target",
-        "comment": "Куда направляется наценка на основные материалы: material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "auxiliary_material_base_target",
-        "comment": "Куда направляется базовая стоимость вспомогательных материалов: material = КП, work =     \r\n  работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "auxiliary_material_markup_target",
-        "comment": "Куда направляется наценка на вспомогательные материалы: material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "work_base_target",
-        "comment": "Куда направляется базовая стоимость работ: material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "work_markup_target",
-        "comment": "Куда направляется наценка на работы: material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
@@ -4235,98 +4540,34 @@
       },
       {
         "name": "component_material_base_target",
-        "comment": "Куда направляется базовая стоимость компонентных материалов (мат-комп.): material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "component_material_markup_target",
-        "comment": "Куда направляется наценка на компонентные материалы (мат-комп.): material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "component_work_base_target",
-        "comment": "Куда направляется базовая стоимость компонентных работ (раб-комп.): material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "component_work_markup_target",
-        "comment": "Куда направляется наценка на компонентные работы (раб-комп.): material = КП, work = работы",
+        "comment": null,
         "default": "'work'::text",
         "data_type": "text",
         "is_nullable": false
       }
     ],
     "constraints": [
-      {
-        "name": "tender_pricing_distribution_auxiliary_material_base_targe_check",
-        "type": "CHECK",
-        "column": "auxiliary_material_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_auxiliary_material_markup_tar_check",
-        "type": "CHECK",
-        "column": "auxiliary_material_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_basic_material_base_target_check",
-        "type": "CHECK",
-        "column": "basic_material_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_basic_material_markup_target_check",
-        "type": "CHECK",
-        "column": "basic_material_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_component_material_base_target_chec",
-        "type": "CHECK",
-        "column": "component_material_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_component_material_markup_target_ch",
-        "type": "CHECK",
-        "column": "component_material_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_component_work_base_target_check",
-        "type": "CHECK",
-        "column": "component_work_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_component_work_markup_target_check",
-        "type": "CHECK",
-        "column": "component_work_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
       {
         "name": "tender_pricing_distribution_markup_tactic_id_fkey",
         "type": "FOREIGN KEY",
@@ -4344,38 +4585,6 @@
         "foreign_table_schema": null
       },
       {
-        "name": "tender_pricing_distribution_subcontract_auxiliary_materi_check1",
-        "type": "CHECK",
-        "column": "subcontract_auxiliary_material_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_subcontract_auxiliary_materia_check",
-        "type": "CHECK",
-        "column": "subcontract_auxiliary_material_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_subcontract_basic_material_ba_check",
-        "type": "CHECK",
-        "column": "subcontract_basic_material_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_subcontract_basic_material_ma_check",
-        "type": "CHECK",
-        "column": "subcontract_basic_material_markup_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "tender_pricing_distribution_tender_id_fkey",
         "type": "FOREIGN KEY",
         "column": "tender_id",
@@ -4384,7 +4593,7 @@
         "foreign_table_schema": "public"
       },
       {
-        "name": "tender_pricing_distribution_tender_id_markup_tactic_id_key",
+        "name": "tender_pricing_distribution_tender_tactic_key",
         "type": "UNIQUE",
         "column": "markup_tactic_id",
         "foreign_table": null,
@@ -4392,25 +4601,9 @@
         "foreign_table_schema": null
       },
       {
-        "name": "tender_pricing_distribution_tender_id_markup_tactic_id_key",
+        "name": "tender_pricing_distribution_tender_tactic_key",
         "type": "UNIQUE",
         "column": "tender_id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_work_base_target_check",
-        "type": "CHECK",
-        "column": "work_base_target",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "tender_pricing_distribution_work_markup_target_check",
-        "type": "CHECK",
-        "column": "work_markup_target",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
@@ -4420,174 +4613,195 @@
   "public.tenders": {
     "schema": "public",
     "name": "tenders",
-    "comment": "Основная таблица для хранения информации о тендерах",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор тендера (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "title",
-        "comment": "Название тендера",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "description",
-        "comment": "Подробное описание тендера",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "client_name",
-        "comment": "Наименование заказчика",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "tender_number",
-        "comment": "Номер тендера (уникальный, текст+цифры)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "submission_deadline",
-        "comment": "Дата и время окончания приема заявок",
+        "comment": null,
         "default": null,
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "version",
-        "comment": "Версия тендера",
+        "comment": null,
         "default": "1",
         "data_type": "integer",
         "is_nullable": true
       },
       {
         "name": "area_client",
-        "comment": "Площадь объекта заказчика (м²)",
+        "comment": null,
         "default": null,
         "data_type": "numeric(12,2)",
         "is_nullable": true
       },
       {
         "name": "area_sp",
-        "comment": "Площадь СП (м²)",
+        "comment": null,
         "default": null,
         "data_type": "numeric(12,2)",
         "is_nullable": true
       },
       {
         "name": "usd_rate",
-        "comment": "Курс доллара США",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "eur_rate",
-        "comment": "Курс евро",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "cny_rate",
-        "comment": "Курс китайского юаня",
+        "comment": null,
         "default": null,
         "data_type": "numeric(10,4)",
         "is_nullable": true
       },
       {
         "name": "upload_folder",
-        "comment": "Ссылка на папку с загруженными файлами",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "bsm_link",
-        "comment": "Ссылка на БСМ (Bill of Materials)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "tz_link",
-        "comment": "Ссылка на техническое задание",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "qa_form_link",
-        "comment": "Ссылка на форму вопросов и ответов",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": true
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "created_by",
-        "comment": "ID пользователя, создавшего тендер",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "markup_tactic_id",
-        "comment": "Ссылка на тактику наценок для данного тендера",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "apply_subcontract_works_growth",
-        "comment": "Применять ли рост стоимости для субподрядных работ (суб-раб)",
+        "comment": null,
         "default": "true",
         "data_type": "boolean",
         "is_nullable": true
       },
       {
         "name": "apply_subcontract_materials_growth",
-        "comment": "Применять ли рост стоимости для субподрядных материалов (суб-мат)",
+        "comment": null,
         "default": "true",
         "data_type": "boolean",
         "is_nullable": true
       },
       {
         "name": "housing_class",
-        "comment": "Класс жилья (комфорт, бизнес, премиум, делюкс)",
+        "comment": null,
         "default": null,
         "data_type": "housing_class_type",
         "is_nullable": true
       },
       {
         "name": "construction_scope",
-        "comment": "Объем строительства (генподряд, коробка, монолит)",
+        "comment": null,
         "default": null,
         "data_type": "construction_scope_type",
+        "is_nullable": true
+      },
+      {
+        "name": "project_folder_link",
+        "comment": null,
+        "default": null,
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "name": "is_archived",
+        "comment": null,
+        "default": "false",
+        "data_type": "boolean",
+        "is_nullable": false
+      },
+      {
+        "name": "volume_title",
+        "comment": null,
+        "default": "'Полный объём строительства'::text",
+        "data_type": "text",
         "is_nullable": true
       }
     ],
@@ -4707,10 +4921,102 @@
       }
     ]
   },
+  "public.user_position_filters": {
+    "schema": "public",
+    "name": "user_position_filters",
+    "comment": null,
+    "columns": [
+      {
+        "name": "id",
+        "comment": null,
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "user_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "tender_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "position_id",
+        "comment": null,
+        "default": null,
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "name": "created_at",
+        "comment": null,
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "is_nullable": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "user_position_filters_pkey",
+        "type": "PRIMARY KEY",
+        "column": "id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "user_position_filters_position_id_fkey",
+        "type": "FOREIGN KEY",
+        "column": "position_id",
+        "foreign_table": "client_positions",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      },
+      {
+        "name": "user_position_filters_tender_id_fkey",
+        "type": "FOREIGN KEY",
+        "column": "tender_id",
+        "foreign_table": "tenders",
+        "foreign_column": "id",
+        "foreign_table_schema": "public"
+      },
+      {
+        "name": "user_position_filters_user_tender_position_key",
+        "type": "UNIQUE",
+        "column": "position_id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "user_position_filters_user_tender_position_key",
+        "type": "UNIQUE",
+        "column": "tender_id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      },
+      {
+        "name": "user_position_filters_user_tender_position_key",
+        "type": "UNIQUE",
+        "column": "user_id",
+        "foreign_table": null,
+        "foreign_column": null,
+        "foreign_table_schema": null
+      }
+    ]
+  },
   "public.user_tasks": {
     "schema": "public",
     "name": "user_tasks",
-    "comment": "Задачи пользователей по тендерам",
+    "comment": null,
     "columns": [
       {
         "name": "id",
@@ -4742,7 +5048,7 @@
       },
       {
         "name": "task_status",
-        "comment": "Статус задачи: running (в работе), paused (остановлена),\r\n  completed (завершена)",
+        "comment": null,
         "default": "'running'::task_status",
         "data_type": "task_status",
         "is_nullable": true
@@ -4771,14 +5077,6 @@
     ],
     "constraints": [
       {
-        "name": "user_tasks_description_check",
-        "type": "CHECK",
-        "column": "description",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "user_tasks_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
@@ -4793,67 +5091,59 @@
         "foreign_table": "tenders",
         "foreign_column": "id",
         "foreign_table_schema": "public"
-      },
-      {
-        "name": "user_tasks_user_id_fkey",
-        "type": "FOREIGN KEY",
-        "column": "user_id",
-        "foreign_table": "users",
-        "foreign_column": "id",
-        "foreign_table_schema": "public"
       }
     ]
   },
   "public.users": {
     "schema": "public",
     "name": "users",
-    "comment": "User accounts with role-based access control     \r\n  via role_code",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "User ID linked to auth.users",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "full_name",
-        "comment": "User full name (ФИО)",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "email",
-        "comment": "User email address",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "access_status",
-        "comment": "Access status: pending (awaiting approval), approved (can login), blocked (access denied)",
+        "comment": null,
         "default": "'pending'::access_status_type",
         "data_type": "access_status_type",
         "is_nullable": false
       },
       {
         "name": "approved_by",
-        "comment": "ID of Admin/Leader who approved this user",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": true
       },
       {
         "name": "approved_at",
-        "comment": "Timestamp when user was approved",
+        "comment": null,
         "default": null,
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "registration_date",
-        "comment": "Date when user registered",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": false
@@ -4874,42 +5164,42 @@
       },
       {
         "name": "access_enabled",
-        "comment": "Флаг доступа: true - пользователь может войти, false - доступ закрыт",
+        "comment": null,
         "default": "true",
         "data_type": "boolean",
         "is_nullable": true
       },
       {
         "name": "role_code",
-        "comment": "Current role code, references roles.code",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "allowed_pages",
-        "comment": "Array of page paths the user      \r\n  can access. Empty array means full access. Sync from roles.allowed_pages based     \r\n  on role_code.",
+        "comment": null,
         "default": "'[]'::jsonb",
         "data_type": "jsonb",
         "is_nullable": true
       },
       {
         "name": "tender_deadline_extensions",
-        "comment": "Массив объектов {tender_id: uuid, extended_deadline: timestamp} для ручного продления дедлайна пользователю",
+        "comment": null,
         "default": "'[]'::jsonb",
         "data_type": "jsonb",
         "is_nullable": true
       },
       {
         "name": "current_work_mode",
-        "comment": "Текущий режим работы: office (офис), remote (удаленка)",
+        "comment": null,
         "default": "'office'::work_mode",
         "data_type": "work_mode",
         "is_nullable": true
       },
       {
         "name": "current_work_status",
-        "comment": "Текущий статус работы: working (работаю), not_working (не        \r\n  работаю)",
+        "comment": null,
         "default": "'working'::work_status",
         "data_type": "work_status",
         "is_nullable": true
@@ -4925,33 +5215,9 @@
         "foreign_table_schema": "auth"
       },
       {
-        "name": "users_approved_by_fkey",
-        "type": "FOREIGN KEY",
-        "column": "approved_by",
-        "foreign_table": "users",
-        "foreign_column": "id",
-        "foreign_table_schema": "public"
-      },
-      {
-        "name": "users_email_check",
-        "type": "CHECK",
-        "column": "email",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
         "name": "users_email_key",
         "type": "UNIQUE",
         "column": "email",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "users_full_name_check",
-        "type": "CHECK",
-        "column": "full_name",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null
@@ -4977,39 +5243,39 @@
   "public.work_names": {
     "schema": "public",
     "name": "work_names",
-    "comment": "Справочник наименований работ",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор работы (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "name",
-        "comment": "Наименование работы",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "unit",
-        "comment": "Единица измерения работы",
+        "comment": null,
         "default": null,
         "data_type": "text",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -5037,53 +5303,53 @@
   "public.works_library": {
     "schema": "public",
     "name": "works_library",
-    "comment": "Справочник работ (Works library) с полной детализацией",
+    "comment": null,
     "columns": [
       {
         "name": "id",
-        "comment": "Уникальный идентификатор работы (UUID)",
+        "comment": null,
         "default": "uuid_generate_v4()",
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "work_name_id",
-        "comment": "Связь с наименованием работы (откуда берется название и единица измерения)",
+        "comment": null,
         "default": null,
         "data_type": "uuid",
         "is_nullable": false
       },
       {
         "name": "item_type",
-        "comment": "Категория работы (раб/суб-раб/раб-комп.)",
+        "comment": null,
         "default": null,
         "data_type": "boq_item_type",
         "is_nullable": false
       },
       {
         "name": "unit_rate",
-        "comment": "Цена за единицу измерения",
+        "comment": null,
         "default": null,
         "data_type": "numeric(15,2)",
         "is_nullable": false
       },
       {
         "name": "currency_type",
-        "comment": "Тип валюты (RUB/USD/EUR/CNY)",
+        "comment": null,
         "default": "'RUB'::currency_type",
         "data_type": "currency_type",
         "is_nullable": false
       },
       {
         "name": "created_at",
-        "comment": "Дата и время создания записи",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
       },
       {
         "name": "updated_at",
-        "comment": "Дата и время последнего обновления",
+        "comment": null,
         "default": "now()",
         "data_type": "timestamp with time zone",
         "is_nullable": true
@@ -5108,9 +5374,9 @@
       }
     ]
   },
-  "realtime.messages_2025_12_09": {
+  "realtime.messages_2026_01_16": {
     "schema": "realtime",
-    "name": "messages_2025_12_09",
+    "name": "messages_2026_01_16",
     "comment": null,
     "columns": [
       {
@@ -5172,7 +5438,7 @@
     ],
     "constraints": [
       {
-        "name": "messages_2025_12_09_pkey",
+        "name": "messages_2026_01_16_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
         "foreign_table": null,
@@ -5180,7 +5446,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "messages_2025_12_09_pkey",
+        "name": "messages_2026_01_16_pkey",
         "type": "PRIMARY KEY",
         "column": "inserted_at",
         "foreign_table": null,
@@ -5189,9 +5455,9 @@
       }
     ]
   },
-  "realtime.messages_2025_12_10": {
+  "realtime.messages_2026_01_17": {
     "schema": "realtime",
-    "name": "messages_2025_12_10",
+    "name": "messages_2026_01_17",
     "comment": null,
     "columns": [
       {
@@ -5253,7 +5519,7 @@
     ],
     "constraints": [
       {
-        "name": "messages_2025_12_10_pkey",
+        "name": "messages_2026_01_17_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
         "foreign_table": null,
@@ -5261,7 +5527,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "messages_2025_12_10_pkey",
+        "name": "messages_2026_01_17_pkey",
         "type": "PRIMARY KEY",
         "column": "inserted_at",
         "foreign_table": null,
@@ -5270,9 +5536,9 @@
       }
     ]
   },
-  "realtime.messages_2025_12_11": {
+  "realtime.messages_2026_01_18": {
     "schema": "realtime",
-    "name": "messages_2025_12_11",
+    "name": "messages_2026_01_18",
     "comment": null,
     "columns": [
       {
@@ -5334,7 +5600,7 @@
     ],
     "constraints": [
       {
-        "name": "messages_2025_12_11_pkey",
+        "name": "messages_2026_01_18_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
         "foreign_table": null,
@@ -5342,7 +5608,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "messages_2025_12_11_pkey",
+        "name": "messages_2026_01_18_pkey",
         "type": "PRIMARY KEY",
         "column": "inserted_at",
         "foreign_table": null,
@@ -5351,9 +5617,9 @@
       }
     ]
   },
-  "realtime.messages_2025_12_12": {
+  "realtime.messages_2026_01_19": {
     "schema": "realtime",
-    "name": "messages_2025_12_12",
+    "name": "messages_2026_01_19",
     "comment": null,
     "columns": [
       {
@@ -5415,7 +5681,7 @@
     ],
     "constraints": [
       {
-        "name": "messages_2025_12_12_pkey",
+        "name": "messages_2026_01_19_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
         "foreign_table": null,
@@ -5423,7 +5689,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "messages_2025_12_12_pkey",
+        "name": "messages_2026_01_19_pkey",
         "type": "PRIMARY KEY",
         "column": "inserted_at",
         "foreign_table": null,
@@ -5432,9 +5698,9 @@
       }
     ]
   },
-  "realtime.messages_2025_12_13": {
+  "realtime.messages_2026_01_20": {
     "schema": "realtime",
-    "name": "messages_2025_12_13",
+    "name": "messages_2026_01_20",
     "comment": null,
     "columns": [
       {
@@ -5496,7 +5762,7 @@
     ],
     "constraints": [
       {
-        "name": "messages_2025_12_13_pkey",
+        "name": "messages_2026_01_20_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
         "foreign_table": null,
@@ -5504,169 +5770,7 @@
         "foreign_table_schema": null
       },
       {
-        "name": "messages_2025_12_13_pkey",
-        "type": "PRIMARY KEY",
-        "column": "inserted_at",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      }
-    ]
-  },
-  "realtime.messages_2025_12_14": {
-    "schema": "realtime",
-    "name": "messages_2025_12_14",
-    "comment": null,
-    "columns": [
-      {
-        "name": "topic",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "extension",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "payload",
-        "comment": null,
-        "default": null,
-        "data_type": "jsonb",
-        "is_nullable": true
-      },
-      {
-        "name": "event",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": true
-      },
-      {
-        "name": "private",
-        "comment": null,
-        "default": "false",
-        "data_type": "boolean",
-        "is_nullable": true
-      },
-      {
-        "name": "updated_at",
-        "comment": null,
-        "default": "now()",
-        "data_type": "timestamp without time zone",
-        "is_nullable": false
-      },
-      {
-        "name": "inserted_at",
-        "comment": null,
-        "default": "now()",
-        "data_type": "timestamp without time zone",
-        "is_nullable": false
-      },
-      {
-        "name": "id",
-        "comment": null,
-        "default": "gen_random_uuid()",
-        "data_type": "uuid",
-        "is_nullable": false
-      }
-    ],
-    "constraints": [
-      {
-        "name": "messages_2025_12_14_pkey",
-        "type": "PRIMARY KEY",
-        "column": "id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "messages_2025_12_14_pkey",
-        "type": "PRIMARY KEY",
-        "column": "inserted_at",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      }
-    ]
-  },
-  "realtime.messages_2025_12_15": {
-    "schema": "realtime",
-    "name": "messages_2025_12_15",
-    "comment": null,
-    "columns": [
-      {
-        "name": "topic",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "extension",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "payload",
-        "comment": null,
-        "default": null,
-        "data_type": "jsonb",
-        "is_nullable": true
-      },
-      {
-        "name": "event",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": true
-      },
-      {
-        "name": "private",
-        "comment": null,
-        "default": "false",
-        "data_type": "boolean",
-        "is_nullable": true
-      },
-      {
-        "name": "updated_at",
-        "comment": null,
-        "default": "now()",
-        "data_type": "timestamp without time zone",
-        "is_nullable": false
-      },
-      {
-        "name": "inserted_at",
-        "comment": null,
-        "default": "now()",
-        "data_type": "timestamp without time zone",
-        "is_nullable": false
-      },
-      {
-        "name": "id",
-        "comment": null,
-        "default": "gen_random_uuid()",
-        "data_type": "uuid",
-        "is_nullable": false
-      }
-    ],
-    "constraints": [
-      {
-        "name": "messages_2025_12_15_pkey",
-        "type": "PRIMARY KEY",
-        "column": "id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      },
-      {
-        "name": "messages_2025_12_15_pkey",
+        "name": "messages_2026_01_20_pkey",
         "type": "PRIMARY KEY",
         "column": "inserted_at",
         "foreign_table": null,
@@ -6495,75 +6599,6 @@
         "name": "vector_indexes_pkey",
         "type": "PRIMARY KEY",
         "column": "id",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      }
-    ]
-  },
-  "supabase_migrations.schema_migrations": {
-    "schema": "supabase_migrations",
-    "name": "schema_migrations",
-    "comment": null,
-    "columns": [
-      {
-        "name": "version",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "statements",
-        "comment": null,
-        "default": null,
-        "data_type": "text[]",
-        "is_nullable": true
-      },
-      {
-        "name": "name",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": true
-      }
-    ],
-    "constraints": [
-      {
-        "name": "schema_migrations_pkey",
-        "type": "PRIMARY KEY",
-        "column": "version",
-        "foreign_table": null,
-        "foreign_column": null,
-        "foreign_table_schema": null
-      }
-    ]
-  },
-  "supabase_migrations.seed_files": {
-    "schema": "supabase_migrations",
-    "name": "seed_files",
-    "comment": null,
-    "columns": [
-      {
-        "name": "path",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      },
-      {
-        "name": "hash",
-        "comment": null,
-        "default": null,
-        "data_type": "text",
-        "is_nullable": false
-      }
-    ],
-    "constraints": [
-      {
-        "name": "seed_files_pkey",
-        "type": "PRIMARY KEY",
-        "column": "path",
         "foreign_table": null,
         "foreign_column": null,
         "foreign_table_schema": null

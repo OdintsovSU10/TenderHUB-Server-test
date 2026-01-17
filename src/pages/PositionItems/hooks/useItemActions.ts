@@ -2,7 +2,6 @@ import { message } from 'antd';
 import {
   supabase,
   type ClientPosition,
-  type BoqItemInsert,
   type BoqItemType,
   type MaterialType,
   type CurrencyType,
@@ -13,11 +12,8 @@ import {
 } from '../../../lib/supabase';
 import { insertTemplateItems } from '../../../utils/insertTemplateItems';
 import { useAuth } from '../../../contexts/AuthContext';
-import {
-  insertBoqItemWithAudit,
-  updateBoqItemWithAudit,
-  deleteBoqItemWithAudit,
-} from '../../../lib/supabaseWithAudit';
+import { useBoqItemWriteService } from '../../../client/contexts/CoreServicesContext';
+import type { BoqItemCreate } from '@/core/domain/entities';
 
 interface UseItemActionsProps {
   position: ClientPosition | null;
@@ -37,35 +33,20 @@ export const useItemActions = ({
   fetchItems,
 }: UseItemActionsProps) => {
   const { user } = useAuth();
+  const boqItemWriteService = useBoqItemWriteService();
 
-  const updateClientPositionTotals = async (positionId: string) => {
+  /**
+   * Пересчитать итоги позиции (total_material, total_works) через RPC
+   */
+  const recalcPositionTotals = async (positionId: string) => {
     try {
-      const { data: boqItems, error: fetchError } = await supabase
-        .from('boq_items')
-        .select('boq_item_type, total_amount')
-        .eq('client_position_id', positionId);
-
-      if (fetchError) throw fetchError;
-
-      const totalMaterial = (boqItems || [])
-        .filter(item => ['мат', 'суб-мат', 'мат-комп.'].includes(item.boq_item_type))
-        .reduce((sum, item) => sum + (item.total_amount || 0), 0);
-
-      const totalWorks = (boqItems || [])
-        .filter(item => ['раб', 'суб-раб', 'раб-комп.'].includes(item.boq_item_type))
-        .reduce((sum, item) => sum + (item.total_amount || 0), 0);
-
-      const { error } = await supabase
-        .from('client_positions')
-        .update({
-          total_material: totalMaterial,
-          total_works: totalWorks,
-        })
-        .eq('id', positionId);
-
-      if (error) throw error;
-    } catch (error: any) {
-      console.error('Ошибка обновления итогов позиции:', error.message);
+      const result = await boqItemWriteService.recalcPositionTotals(positionId);
+      if (!result.success) {
+        console.error('Ошибка обновления итогов позиции:', result.error);
+      }
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Ошибка обновления итогов позиции:', err.message);
     }
   };
 
@@ -86,7 +67,7 @@ export const useItemActions = ({
       const rate = getCurrencyRate(workLib.currency_type as CurrencyType);
       const totalAmount = quantity * unitRate * rate;
 
-      const newItem: BoqItemInsert = {
+      const newItem: BoqItemCreate = {
         tender_id: position.tender_id,
         client_position_id: position.id,
         sort_number: maxSort + 1,
@@ -99,13 +80,20 @@ export const useItemActions = ({
         total_amount: totalAmount,
       };
 
-      await insertBoqItemWithAudit(user?.id, newItem);
+      if (user?.id) {
+        boqItemWriteService.setUser(user.id);
+      }
+      const result = await boqItemWriteService.create(newItem);
+      if (!result.success) {
+        throw new Error(result.error || 'Ошибка создания элемента');
+      }
 
       message.success('Работа добавлена');
       await fetchItems();
-      await updateClientPositionTotals(position.id);
-    } catch (error: any) {
-      message.error('Ошибка добавления работы: ' + error.message);
+      await recalcPositionTotals(position.id);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка добавления работы: ' + err.message);
     }
   };
 
@@ -141,7 +129,7 @@ export const useItemActions = ({
       // Для непривязанных материалов применяем коэффициент расхода к итоговой сумме
       const totalAmount = quantity * consumptionCoeff * (unitRate * rate + deliveryPrice);
 
-      const newItem: BoqItemInsert = {
+      const newItem: BoqItemCreate = {
         tender_id: position.tender_id,
         client_position_id: position.id,
         sort_number: maxSort + 1,
@@ -159,13 +147,20 @@ export const useItemActions = ({
         total_amount: totalAmount,
       };
 
-      await insertBoqItemWithAudit(user?.id, newItem);
+      if (user?.id) {
+        boqItemWriteService.setUser(user.id);
+      }
+      const result = await boqItemWriteService.create(newItem);
+      if (!result.success) {
+        throw new Error(result.error || 'Ошибка создания элемента');
+      }
 
       message.success('Материал добавлен');
       await fetchItems();
-      await updateClientPositionTotals(position.id);
-    } catch (error: any) {
-      message.error('Ошибка добавления материала: ' + error.message);
+      await recalcPositionTotals(position.id);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка добавления материала: ' + err.message);
     }
   };
 
@@ -175,17 +170,28 @@ export const useItemActions = ({
       return;
     }
 
+    if (!user?.id) {
+      message.error('Пользователь не авторизован');
+      return;
+    }
+
     try {
       setLoading(true);
-      const result = await insertTemplateItems(templateId, position.id, user?.id);
+      const result = await insertTemplateItems(
+        templateId,
+        position.id,
+        boqItemWriteService,
+        user.id
+      );
 
       message.success(
         `Вставлено из шаблона: ${result.worksCount} работ, ${result.materialsCount} материалов`
       );
       await fetchItems();
-      await updateClientPositionTotals(position.id);
-    } catch (error: any) {
-      message.error('Ошибка вставки шаблона: ' + error.message);
+      await recalcPositionTotals(position.id);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка вставки шаблона: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -193,89 +199,90 @@ export const useItemActions = ({
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteBoqItemWithAudit(user?.id, id);
+      if (user?.id) {
+        boqItemWriteService.setUser(user.id);
+      }
+      const result = await boqItemWriteService.delete(id);
+      if (!result.success) {
+        throw new Error(result.error || 'Ошибка удаления элемента');
+      }
 
       message.success('Элемент удален');
       await fetchItems();
       if (position) {
-        await updateClientPositionTotals(position.id);
+        await recalcPositionTotals(position.id);
       }
-    } catch (error: any) {
-      message.error('Ошибка удаления: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка удаления: ' + err.message);
     }
   };
 
-  const updateLinkedMaterialsQuantity = async (workId: string) => {
+  /**
+   * Пересчитать количество и сумму привязанных материалов через RPC
+   * Выполняется на сервере без JS циклов
+   */
+  const recalcLinkedMaterials = async (workId: string) => {
     try {
-      const { data: workData, error: workError } = await supabase
-        .from('boq_items')
-        .select('quantity')
-        .eq('id', workId)
-        .single();
-
-      if (workError) throw workError;
-
-      const workQuantity = workData.quantity || 0;
-
-      const { data: linkedMaterials, error: materialsError } = await supabase
-        .from('boq_items')
-        .select('id, conversion_coefficient, consumption_coefficient, unit_rate, currency_type, delivery_price_type, delivery_amount')
-        .eq('parent_work_item_id', workId);
-
-      if (materialsError) throw materialsError;
-
-      for (const material of linkedMaterials || []) {
-        const conversionCoeff = material.conversion_coefficient || 1;
-        const consumptionCoeff = material.consumption_coefficient || 1;
-        const newQuantity = workQuantity * conversionCoeff * consumptionCoeff;
-
-        const unitRate = material.unit_rate || 0;
-        const rate = getCurrencyRate(material.currency_type as CurrencyType);
-        let deliveryPrice = 0;
-
-        if (material.delivery_price_type === 'не в цене') {
-          deliveryPrice = Math.round(unitRate * rate * 0.03 * 100) / 100;
-        } else if (material.delivery_price_type === 'суммой' && material.delivery_amount) {
-          deliveryPrice = material.delivery_amount;
-        }
-
-        const totalAmount = newQuantity * (unitRate * rate + deliveryPrice);
-
-        await updateBoqItemWithAudit(user?.id, material.id, {
-          quantity: newQuantity,
-          total_amount: totalAmount,
-        });
+      const result = await boqItemWriteService.recalcLinkedMaterials(workId);
+      if (!result.success) {
+        console.error('Ошибка обновления материалов:', result.error);
       }
-    } catch (error: any) {
-      console.error('Ошибка обновления количества материалов:', error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Ошибка обновления количества материалов:', err.message);
     }
   };
 
   const handleFormSave = async (
-    data: any,
+    data: Partial<BoqItemCreate>,
     expandedRowKeys: string[],
     items: BoqItemFull[],
-    onSuccess: () => void
+    onSuccess: () => void,
+    onConflict?: () => void
   ) => {
     try {
       const recordId = expandedRowKeys[0];
       if (!recordId) return;
 
-      await updateBoqItemWithAudit(user?.id, recordId, data);
+      // Получаем текущую версию записи для optimistic concurrency
+      const currentItem = items.find(item => item.id === recordId);
+      const expectedVersion = currentItem?.row_version;
+
+      if (user?.id) {
+        boqItemWriteService.setUser(user.id);
+      }
+
+      const result = await boqItemWriteService.update(recordId, data, expectedVersion);
+
+      // Обработка конфликта версий
+      if (result.conflict) {
+        if (onConflict) {
+          onConflict();
+        } else {
+          message.error('Запись была изменена другим пользователем');
+        }
+        return;
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Ошибка обновления элемента');
+      }
 
       const updatedItem = items.find(item => item.id === recordId);
       if (updatedItem && ['раб', 'суб-раб', 'раб-комп.'].includes(updatedItem.boq_item_type)) {
-        await updateLinkedMaterialsQuantity(recordId);
+        await recalcLinkedMaterials(recordId);
       }
 
       message.success('Изменения сохранены');
       await fetchItems();
       if (position) {
-        await updateClientPositionTotals(position.id);
+        await recalcPositionTotals(position.id);
       }
       onSuccess();
-    } catch (error: any) {
-      message.error('Ошибка сохранения: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка сохранения: ' + err.message);
     }
   };
 
@@ -296,8 +303,9 @@ export const useItemActions = ({
 
       if (error) throw error;
       onSuccess();
-    } catch (error: any) {
-      message.error('Ошибка сохранения данных ГП: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка сохранения данных ГП: ' + err.message);
     }
   };
 
@@ -319,15 +327,15 @@ export const useItemActions = ({
       if (error) throw error;
       onSuccess();
       message.success('Данные дополнительной работы сохранены');
-    } catch (error: any) {
-      message.error('Ошибка сохранения данных: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка сохранения данных: ' + err.message);
     }
   };
 
   const getItemGroupBounds = (
     item: BoqItemFull,
-    items: BoqItemFull[],
-    currentIndex: number
+    items: BoqItemFull[]
   ): { start: number; end: number } => {
     // Привязанный материал - границы блока работы
     if (item.parent_work_item_id) {
@@ -393,7 +401,7 @@ export const useItemActions = ({
     try {
       const currentIndex = items.findIndex(i => i.id === itemId);
       const item = items[currentIndex];
-      const bounds = getItemGroupBounds(item, items, currentIndex);
+      const bounds = getItemGroupBounds(item, items);
 
       // Проверка возможности перемещения
       if (direction === 'up' && currentIndex <= bounds.start) {
@@ -406,24 +414,21 @@ export const useItemActions = ({
         return;
       }
 
-      // Swap с соседним элементом
+      // Swap с соседним элементом через один RPC вызов
       const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
       const targetItem = items[targetIndex];
 
-      // Обновить sort_number атомарно
-      const updates = [
-        { id: item.id, sort_number: targetItem.sort_number },
-        { id: targetItem.id, sort_number: item.sort_number }
-      ];
-
-      for (const update of updates) {
-        await updateBoqItemWithAudit(user?.id, update.id, { sort_number: update.sort_number });
+      // Атомарно меняем sort_number на сервере
+      const result = await boqItemWriteService.swapSortNumbers(item.id, targetItem.id);
+      if (!result.success) {
+        throw new Error(result.error || 'Ошибка перемещения');
       }
 
       await fetchItems();
       message.success('Элемент перемещен');
-    } catch (error: any) {
-      message.error('Ошибка перемещения: ' + error.message);
+    } catch (error: unknown) {
+      const err = error as Error;
+      message.error('Ошибка перемещения: ' + err.message);
     }
   };
 

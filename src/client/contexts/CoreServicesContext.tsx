@@ -15,6 +15,7 @@ import type {
   IBoqItemRepository,
   ITenderRepository,
   IClientPositionRepository,
+  IBoqItemWriteService,
 } from '@/core/ports';
 
 // Адаптеры
@@ -25,6 +26,7 @@ import {
   SupabaseBoqItemRepository,
   SupabaseTenderRepository,
   SupabaseClientPositionRepository,
+  SupabaseBoqItemWriteService,
 } from '../adapters';
 
 /**
@@ -45,6 +47,9 @@ export interface CoreServices {
   boqItemRepository: IBoqItemRepository;
   tenderRepository: ITenderRepository;
   clientPositionRepository: IClientPositionRepository;
+
+  // Сервис записи BOQ элементов (с audit)
+  boqItemWriteService: IBoqItemWriteService;
 }
 
 const CoreServicesContext = createContext<CoreServices | null>(null);
@@ -76,6 +81,9 @@ export function CoreServicesProvider({ children }: CoreServicesProviderProps) {
     const tenderRepository = new SupabaseTenderRepository();
     const clientPositionRepository = new SupabaseClientPositionRepository();
 
+    // Сервис записи BOQ элементов
+    const boqItemWriteService = new SupabaseBoqItemWriteService();
+
     return {
       positionHierarchy,
       markupCalculator,
@@ -86,6 +94,7 @@ export function CoreServicesProvider({ children }: CoreServicesProviderProps) {
       boqItemRepository,
       tenderRepository,
       clientPositionRepository,
+      boqItemWriteService,
     };
   }, []);
 
@@ -142,4 +151,8 @@ export function useMarkupCalculator(): MarkupCalculatorService {
 
 export function useMatchingService(): MatchingService {
   return useCoreServices().matching;
+}
+
+export function useBoqItemWriteService(): IBoqItemWriteService {
+  return useCoreServices().boqItemWriteService;
 }

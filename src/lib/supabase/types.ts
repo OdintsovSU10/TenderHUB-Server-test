@@ -494,6 +494,8 @@ export interface BoqItem extends BoqItemInsert {
   id: string;
   created_at: string;
   updated_at: string;
+  // Optimistic concurrency control
+  row_version: number;
 }
 
 // Расширенный тип с JOIN данными
@@ -725,6 +727,13 @@ export interface User extends UserInsert {
   tender_deadline_extensions?: TenderDeadlineExtension[];
 }
 
+// Информация об организации пользователя
+export interface UserOrganization {
+  id: string;
+  name: string;
+  role: 'owner' | 'admin' | 'member';
+}
+
 // Упрощенный тип пользователя для AuthContext
 export interface AuthUser {
   id: string;
@@ -736,6 +745,10 @@ export interface AuthUser {
   access_status: AccessStatus;
   allowed_pages: string[];
   access_enabled: boolean;
+  /** Организации, в которых состоит пользователь */
+  organizations: UserOrganization[];
+  /** Текущая активная организация */
+  currentOrganizationId: string | null;
 }
 
 // =============================================

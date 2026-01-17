@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import { message } from 'antd';
-import { supabase } from '../../../lib/supabase';
-import { executeWithAudit } from '../../../lib/supabaseWithAudit';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useRollbackBoqItem } from '../../../client/hooks/useBoqItemMutations';
 import type { BoqItemAudit } from '../../../types/audit';
 
 interface UseAuditRollbackReturn {
@@ -13,11 +10,11 @@ interface UseAuditRollbackReturn {
 /**
  * Хук для восстановления BOQ item к предыдущей версии из audit log
  *
+ * @param positionId - ID позиции для инвалидации запросов
  * @returns Функция rollback и состояние загрузки
  */
-export function useAuditRollback(): UseAuditRollbackReturn {
-  const { user } = useAuth();
-  const [rolling, setRolling] = useState(false);
+export function useAuditRollback(positionId: string): UseAuditRollbackReturn {
+  const rollbackMutation = useRollbackBoqItem();
 
   const rollback = async (record: BoqItemAudit) => {
     // Проверка возможности rollback
@@ -31,26 +28,15 @@ export function useAuditRollback(): UseAuditRollbackReturn {
       return;
     }
 
-    setRolling(true);
-
     try {
-      // Восстанавливаем значения из old_data
-      await executeWithAudit(user?.id, async () => {
-        const { error } = await supabase
-          .from('boq_items')
-          .update(record.old_data!)
-          .eq('id', record.boq_item_id);
-
-        if (error) throw error;
+      await rollbackMutation.mutateAsync({
+        boqItemId: record.boq_item_id,
+        positionId,
+        oldData: record.old_data,
       });
 
       message.success('Версия успешно восстановлена');
-
-      // Перезагрузка страницы для обновления данных
-      // Альтернатива: вызвать refetch из контекста или props
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // TanStack Query автоматически инвалидирует запросы - перезагрузка не нужна
     } catch (err) {
       console.error('[useAuditRollback] Ошибка восстановления:', err);
 
@@ -58,13 +44,11 @@ export function useAuditRollback(): UseAuditRollbackReturn {
         err instanceof Error ? err.message : 'Неизвестная ошибка восстановления';
 
       message.error(`Ошибка восстановления: ${errorMessage}`);
-    } finally {
-      setRolling(false);
     }
   };
 
   return {
     rollback,
-    rolling,
+    rolling: rollbackMutation.isPending,
   };
 }

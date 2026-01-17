@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { Button, Select, AutoComplete, InputNumber, Input, message } from 'antd';
+import { useState, useEffect, useCallback } from 'react';
+import { Button, Select, AutoComplete, InputNumber, Input, message, Spin } from 'antd';
 import { CloseOutlined, SaveOutlined } from '@ant-design/icons';
 import type { BoqItemFull, CurrencyType } from '../../lib/supabase';
+import { useWorkSearch } from '../../client/hooks';
 
 interface WorkEditFormProps {
   record: BoqItemFull;
-  workNames: any[];
-  costCategories: any[];
+  costCategories: { value: string; label: string }[];
   currencyRates: { usd: number; eur: number; cny: number };
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   readOnly?: boolean;
 }
@@ -37,30 +37,43 @@ const getBorderColor = (type: string) => {
 
 const WorkEditForm: React.FC<WorkEditFormProps> = ({
   record,
-  workNames,
   costCategories,
   currencyRates,
   onSave,
   onCancel,
   readOnly,
 }) => {
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState({
     boq_item_type: record.boq_item_type,
-    work_name_id: record.work_name_id,
-    unit_code: record.unit_code,
+    work_name_id: record.work_name_id as string | null,
+    unit_code: record.unit_code as string | null,
     quantity: record.quantity || 0,
     unit_rate: record.unit_rate || 0,
-    currency_type: record.currency_type || 'RUB',
-    detail_cost_category_id: record.detail_cost_category_id,
+    currency_type: (record.currency_type || 'RUB') as CurrencyType,
+    detail_cost_category_id: record.detail_cost_category_id as string | null,
     quote_link: record.quote_link || '',
     description: record.description || '',
   });
 
-  const [workSearchText, setWorkSearchText] = useState<string>(record.work_name || '');
+  // Используем TanStack Query хук для поиска работ
+  const {
+    searchText: workSearchText,
+    setSearchText: setWorkSearchText,
+    results: workSearchResults,
+    isLoading: isSearchingWorks,
+  } = useWorkSearch(record.work_name || '', 300);
+
   const [costSearchText, setCostSearchText] = useState<string>(record.detail_cost_category_full || '');
 
+  // Инициализация текста поиска при монтировании
+  useEffect(() => {
+    if (record.work_name) {
+      setWorkSearchText(record.work_name);
+    }
+  }, [record.work_name, setWorkSearchText]);
+
   // Функция для получения курса валюты
-  const getCurrencyRate = (currency: CurrencyType): number => {
+  const getCurrencyRate = useCallback((currency: CurrencyType): number => {
     switch (currency) {
       case 'USD':
         return currencyRates.usd;
@@ -72,14 +85,14 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
       default:
         return 1;
     }
-  };
+  }, [currencyRates]);
 
   // Вычисление суммы
-  const calculateTotal = (): number => {
+  const calculateTotal = useCallback((): number => {
     const rate = getCurrencyRate(formData.currency_type);
     const total = formData.quantity * formData.unit_rate * rate;
     return Math.round(total * 100) / 100;
-  };
+  }, [formData.quantity, formData.unit_rate, formData.currency_type, getCurrencyRate]);
 
   // Обработчик сохранения
   const handleSave = async () => {
@@ -107,7 +120,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
   };
 
   // Получить опции для AutoComplete затрат
-  const getCostCategoryOptions = () => {
+  const getCostCategoryOptions = useCallback(() => {
     return costCategories
       .filter((c) => c.label.toLowerCase().includes(costSearchText.toLowerCase()))
       .map((c) => ({
@@ -115,22 +128,19 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
         id: c.value,
         label: c.label,
       }));
-  };
+  }, [costCategories, costSearchText]);
 
-  // Получить опции для AutoComplete наименований работ
-  const getWorkNameOptions = () => {
-    const searchText = workSearchText || '';
-    if (searchText.length < 2) return [];
+  // Получить опции для AutoComplete наименований работ (из API)
+  const getWorkNameOptions = useCallback(() => {
+    if (workSearchText.length < 2) return [];
 
-    return workNames
-      .filter((w) => w.name.toLowerCase().includes(searchText.toLowerCase()))
-      .map((w) => ({
-        value: w.id,
-        label: w.name,
-        id: w.id,
-        unit: w.unit,
-      }));
-  };
+    return workSearchResults.map((w) => ({
+      value: w.id,
+      label: w.name,
+      id: w.id,
+      unit: w.unit,
+    }));
+  }, [workSearchResults, workSearchText]);
 
   return (
     <fieldset disabled={readOnly} style={{ border: 'none', margin: 0, padding: 0 }}>
@@ -165,7 +175,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
                 unit_code: null,
               });
             }}
-            onSelect={(_value, option: any) => {
+            onSelect={(_value, option: { id: string; label: string; unit: string }) => {
               setFormData({
                 ...formData,
                 work_name_id: option.id,
@@ -182,11 +192,16 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
               });
             }}
             options={getWorkNameOptions()}
-            placeholder="Выберите работу"
+            placeholder="Введите название работы (мин. 2 символа)"
             style={{ width: '100%' }}
             size="small"
             filterOption={false}
             allowClear
+            notFoundContent={
+              isSearchingWorks ? <Spin size="small" /> :
+              workSearchText.length >= 2 ? 'Ничего не найдено' :
+              'Введите минимум 2 символа'
+            }
           />
         </div>
 
@@ -239,7 +254,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
             style={{ width: '100%' }}
             size="small"
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-            parser={(value) => value!.replace(/\s/g, '').replace(/,/g, '.')}
+            parser={(value) => parseFloat(value!.replace(/\s/g, '').replace(/,/g, '.'))}
           />
         </div>
 
@@ -265,7 +280,7 @@ const WorkEditForm: React.FC<WorkEditFormProps> = ({
           onChange={(value) => {
             setCostSearchText(value);
           }}
-          onSelect={(_value, option: any) => {
+          onSelect={(_value, option: { id: string; label: string }) => {
             setFormData({
               ...formData,
               detail_cost_category_id: option.id,

@@ -6,3 +6,4 @@
 export * from './INotificationService';
 export * from './IConfirmationService';
 export * from './ILoggerService';
+export * from './IBoqItemWriteService';

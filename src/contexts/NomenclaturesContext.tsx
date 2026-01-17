@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import type { MaterialName, WorkName } from '../lib/supabase/types';
 
 interface Unit {
   code: string;
@@ -8,18 +7,32 @@ interface Unit {
 }
 
 interface NomenclaturesContextType {
-  materialNames: MaterialName[];
-  workNames: WorkName[];
+  /** Список единиц измерения (небольшая таблица, загружается при старте) */
   units: Unit[];
   isLoaded: boolean;
   isLoading: boolean;
   error: string | null;
-  refreshMaterialNames: () => Promise<void>;
-  refreshWorkNames: () => Promise<void>;
-  refreshAll: () => Promise<void>;
-  getMaterialNameById: (id: string) => MaterialName | undefined;
-  getWorkNameById: (id: string) => WorkName | undefined;
+  /** Обновить список единиц измерения */
+  refreshUnits: () => Promise<void>;
+  /** Получить единицу измерения по коду */
   getUnitByCode: (code: string) => Unit | undefined;
+
+  // Deprecated: эти массивы больше не загружаются автоматически
+  // Используйте хуки useMaterialAutocomplete и useWorkAutocomplete из @/client/hooks
+  /** @deprecated Используйте useMaterialAutocomplete */
+  materialNames: never[];
+  /** @deprecated Используйте useWorkAutocomplete */
+  workNames: never[];
+  /** @deprecated Не используется */
+  refreshMaterialNames: () => Promise<void>;
+  /** @deprecated Не используется */
+  refreshWorkNames: () => Promise<void>;
+  /** @deprecated Не используется */
+  refreshAll: () => Promise<void>;
+  /** @deprecated Используйте useMaterialNameById */
+  getMaterialNameById: (id: string) => undefined;
+  /** @deprecated Используйте useWorkNameById */
+  getWorkNameById: (id: string) => undefined;
 }
 
 const NomenclaturesContext = createContext<NomenclaturesContextType | undefined>(undefined);
@@ -28,71 +41,14 @@ interface NomenclaturesProviderProps {
   children: ReactNode;
 }
 
-// Batch загрузка с пагинацией (обход лимита Supabase в 1000 строк)
-async function fetchAllWithBatching<T>(
-  tableName: string,
-  orderBy: string = 'name'
-): Promise<T[]> {
-  let allData: T[] = [];
-  let from = 0;
-  const batchSize = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('*')
-      .order(orderBy, { ascending: true })
-      .range(from, from + batchSize - 1);
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      allData = [...allData, ...data];
-      from += batchSize;
-      hasMore = data.length === batchSize;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allData;
-}
-
 export const NomenclaturesProvider: React.FC<NomenclaturesProviderProps> = ({ children }) => {
-  const [materialNames, setMaterialNames] = useState<MaterialName[]>([]);
-  const [workNames, setWorkNames] = useState<WorkName[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Кэш для быстрого поиска по ID
-  const [materialNamesMap, setMaterialNamesMap] = useState<Map<string, MaterialName>>(new Map());
-  const [workNamesMap, setWorkNamesMap] = useState<Map<string, WorkName>>(new Map());
+  // Кэш для быстрого поиска по коду
   const [unitsMap, setUnitsMap] = useState<Map<string, Unit>>(new Map());
-
-  const refreshMaterialNames = useCallback(async () => {
-    try {
-      const data = await fetchAllWithBatching<MaterialName>('material_names', 'name');
-      setMaterialNames(data);
-      setMaterialNamesMap(new Map(data.map(item => [item.id, item])));
-    } catch (err: any) {
-      console.error('[NomenclaturesContext] Ошибка загрузки material_names:', err);
-      throw err;
-    }
-  }, []);
-
-  const refreshWorkNames = useCallback(async () => {
-    try {
-      const data = await fetchAllWithBatching<WorkName>('work_names', 'name');
-      setWorkNames(data);
-      setWorkNamesMap(new Map(data.map(item => [item.id, item])));
-    } catch (err: any) {
-      console.error('[NomenclaturesContext] Ошибка загрузки work_names:', err);
-      throw err;
-    }
-  }, []);
 
   const refreshUnits = useCallback(async () => {
     try {
@@ -106,62 +62,64 @@ export const NomenclaturesProvider: React.FC<NomenclaturesProviderProps> = ({ ch
       const unitsData = data || [];
       setUnits(unitsData);
       setUnitsMap(new Map(unitsData.map(item => [item.code, item])));
-    } catch (err: any) {
-      console.error('[NomenclaturesContext] Ошибка загрузки units:', err);
+    } catch (err: unknown) {
+      const e = err as Error;
+      console.error('[NomenclaturesContext] Ошибка загрузки units:', e.message);
       throw err;
     }
   }, []);
 
-  const refreshAll = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await Promise.all([
-        refreshMaterialNames(),
-        refreshWorkNames(),
-        refreshUnits(),
-      ]);
-      setIsLoaded(true);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки справочников');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [refreshMaterialNames, refreshWorkNames, refreshUnits]);
+  // Загрузка только units при монтировании
+  useEffect(() => {
+    const loadUnits = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await refreshUnits();
+        setIsLoaded(true);
+      } catch (err: unknown) {
+        const e = err as Error;
+        setError(e.message || 'Ошибка загрузки справочников');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadUnits();
+  }, [refreshUnits]);
 
-  // Быстрый поиск по ID (O(1) вместо O(n))
-  const getMaterialNameById = useCallback((id: string): MaterialName | undefined => {
-    return materialNamesMap.get(id);
-  }, [materialNamesMap]);
-
-  const getWorkNameById = useCallback((id: string): WorkName | undefined => {
-    return workNamesMap.get(id);
-  }, [workNamesMap]);
-
+  // Быстрый поиск по коду (O(1))
   const getUnitByCode = useCallback((code: string): Unit | undefined => {
     return unitsMap.get(code);
   }, [unitsMap]);
 
-  // Загрузка при монтировании
-  useEffect(() => {
-    refreshAll();
-  }, [refreshAll]);
+  // Deprecated функции - возвращают пустые значения
+  const deprecatedNoOp = useCallback(async () => {
+    console.warn('[NomenclaturesContext] Deprecated: используйте хуки из @/client/hooks');
+  }, []);
+
+  const deprecatedGetById = useCallback((): undefined => {
+    console.warn('[NomenclaturesContext] Deprecated: используйте useMaterialNameById/useWorkNameById');
+    return undefined;
+  }, []);
 
   return (
     <NomenclaturesContext.Provider
       value={{
-        materialNames,
-        workNames,
         units,
         isLoaded,
         isLoading,
         error,
-        refreshMaterialNames,
-        refreshWorkNames,
-        refreshAll,
-        getMaterialNameById,
-        getWorkNameById,
+        refreshUnits,
         getUnitByCode,
+
+        // Deprecated - пустые значения для обратной совместимости
+        materialNames: [] as never[],
+        workNames: [] as never[],
+        refreshMaterialNames: deprecatedNoOp,
+        refreshWorkNames: deprecatedNoOp,
+        refreshAll: deprecatedNoOp,
+        getMaterialNameById: deprecatedGetById,
+        getWorkNameById: deprecatedGetById,
       }}
     >
       {children}

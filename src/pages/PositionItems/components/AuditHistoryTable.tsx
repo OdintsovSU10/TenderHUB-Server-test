@@ -24,7 +24,7 @@ interface AuditHistoryTableProps {
  */
 const AuditHistoryTable: React.FC<AuditHistoryTableProps> = ({ positionId, filters }) => {
   const { auditRecords, loading } = useAuditHistory(positionId, filters);
-  const { rollback, rolling } = useAuditRollback();
+  const { rollback, rolling } = useAuditRollback(positionId || '');
 
   const handleRollback = (record: BoqItemAudit) => {
     const theme = localStorage.getItem('tenderHub_theme') || 'light';

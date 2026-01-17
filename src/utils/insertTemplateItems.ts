@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { executeWithAudit } from '../lib/supabaseWithAudit';
+import type { IBoqItemWriteService } from '@/core/ports/services';
+import type { BoqItem, BoqItemCreate } from '@/core/domain/entities';
 
 interface InsertTemplateResult {
   worksCount: number;
@@ -10,11 +11,17 @@ interface InsertTemplateResult {
 /**
  * Insert all items from a template into a client position (BOQ)
  * Preserves parent_work_item_id relationships using array indices
+ *
+ * @param templateId - ID шаблона
+ * @param clientPositionId - ID позиции заказчика
+ * @param boqItemWriteService - Сервис записи BOQ элементов
+ * @param userId - ID пользователя для audit
  */
 export async function insertTemplateItems(
   templateId: string,
   clientPositionId: string,
-  userId?: string
+  boqItemWriteService: IBoqItemWriteService,
+  userId: string
 ): Promise<InsertTemplateResult> {
   // Validate template exists and get its default detail_cost_category_id
   const { data: template, error: templateError } = await supabase
@@ -110,8 +117,8 @@ export async function insertTemplateItems(
     }
   };
 
-  // Step 2: Insert all items with temporary null parent_work_item_id
-  const boqItemsToInsert = templateItems.map((ti, index) => {
+  // Step 2: Prepare items for insertion
+  const boqItemsToInsert: BoqItemCreate[] = templateItems.map((ti, index) => {
     const isWork = ti.kind === 'work';
     const library = isWork ? ti.work_library : ti.material_library;
 
@@ -174,23 +181,18 @@ export async function insertTemplateItems(
     };
   });
 
-  let newBoqItems: any[] = [];
+  // Step 3: Insert items using the write service with audit
+  boqItemWriteService.setUser(userId);
+  const insertResult = await boqItemWriteService.createMany(boqItemsToInsert);
 
-  await executeWithAudit(userId, async () => {
-    const { data, error: insertError } = await supabase
-      .from('boq_items')
-      .insert(boqItemsToInsert)
-      .select();
+  if (!insertResult.success || insertResult.insertedItems.length === 0) {
+    throw new Error(insertResult.error || 'Ошибка вставки элементов');
+  }
 
-    if (insertError || !data) {
-      throw new Error(`Ошибка вставки элементов: ${insertError?.message}`);
-    }
+  const newBoqItems: BoqItem[] = insertResult.insertedItems;
 
-    newBoqItems = data;
-  });
-
-  // Step 3: Restore parent_work_item_id relationships using array indices
-  const updates: Array<{ id: string; parent_work_item_id: string }> = [];
+  // Step 4: Restore parent_work_item_id relationships using array indices
+  const updates: Array<{ id: string; data: { parent_work_item_id: string } }> = [];
 
   templateItems.forEach((templateItem, i) => {
     if (templateItem.parent_work_item_id) {
@@ -201,32 +203,28 @@ export async function insertTemplateItems(
 
       if (parentIndex !== -1) {
         // Use the same index to get the new parent work ID
-        updates.push({
-          id: newBoqItems[i].id,
-          parent_work_item_id: newBoqItems[parentIndex].id,
-        });
+        const newItemId = insertResult.idMapping.get(i);
+        const newParentId = insertResult.idMapping.get(parentIndex);
+
+        if (newItemId && newParentId) {
+          updates.push({
+            id: newItemId,
+            data: { parent_work_item_id: newParentId },
+          });
+        }
       }
     }
   });
 
-  // Batch update parent_work_item_id
+  // Batch update parent_work_item_id using the write service
   if (updates.length > 0) {
-    await executeWithAudit(userId, async () => {
-      for (const update of updates) {
-        const { error: updateError } = await supabase
-          .from('boq_items')
-          .update({ parent_work_item_id: update.parent_work_item_id })
-          .eq('id', update.id);
-
-        if (updateError) {
-          console.error('Error updating parent_work_item_id:', updateError);
-          // Continue with other updates even if one fails
-        }
-      }
-    });
+    const updateResult = await boqItemWriteService.updateMany(updates);
+    if (!updateResult.success) {
+      console.error('[insertTemplateItems] Error updating parent relationships:', updateResult.error);
+    }
   }
 
-  // Step 4: Recalculate position totals
+  // Step 5: Recalculate position totals
   const { data: totals, error: totalsError } = await supabase
     .from('boq_items')
     .select('boq_item_type, total_amount')

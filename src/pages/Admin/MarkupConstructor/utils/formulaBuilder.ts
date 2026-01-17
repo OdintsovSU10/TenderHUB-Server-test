@@ -3,8 +3,14 @@
  */
 
 import type { FormInstance } from 'antd';
-import type { MarkupStep, MarkupParameter } from '../../../lib/supabase';
+import type { MarkupStep } from '../types';
 import { ACTIONS } from '../constants';
+
+interface MarkupParameter {
+  key: string;
+  label: string;
+  default_value?: number;
+}
 
 /**
  * Построить текстовую формулу для шага наценки

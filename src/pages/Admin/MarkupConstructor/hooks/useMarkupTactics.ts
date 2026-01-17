@@ -1,6 +1,10 @@
 import { useState, useCallback } from 'react';
 import { message } from 'antd';
 import { supabase, MarkupTactic } from '../../../../lib/supabase';
+import type { MarkupStep, TabKey } from '../types';
+
+type MarkupSequences = Record<TabKey, MarkupStep[]>;
+type BaseCosts = Record<TabKey, number>;
 
 export const useMarkupTactics = () => {
   const [tactics, setTactics] = useState<MarkupTactic[]>([]);
@@ -154,14 +158,14 @@ export const useMarkupTactics = () => {
     try {
       const { error } = await supabase
         .from('markup_tactics')
-        .update({ tactic_name: newName })
+        .update({ name: newName })
         .eq('id', tacticId);
 
       if (error) throw error;
 
       message.success('Название схемы обновлено');
       setTactics(prev =>
-        prev.map(t => (t.id === tacticId ? { ...t, tactic_name: newName } : t))
+        prev.map(t => (t.id === tacticId ? { ...t, name: newName } : t))
       );
 
       if (currentTacticId === tacticId) {
@@ -172,6 +176,135 @@ export const useMarkupTactics = () => {
       message.error('Ошибка обновления названия схемы');
     }
   }, [currentTacticId]);
+
+  /**
+   * Сохранение тактики с последовательностями и базовыми затратами
+   */
+  const saveTactic = useCallback(async (
+    markupSequences: MarkupSequences,
+    baseCosts: BaseCosts,
+    tacticName?: string,
+    tenderId?: string | null
+  ) => {
+    try {
+      // localStorage fallback
+      localStorage.setItem('markupSequences', JSON.stringify(markupSequences));
+      localStorage.setItem('markupBaseCosts', JSON.stringify(baseCosts));
+      localStorage.setItem('markupSequencesVersion', 'v2');
+
+      // Преобразование из английского формата в русский для Supabase
+      const sequencesRu = {
+        'раб': markupSequences.works,
+        'мат': markupSequences.materials,
+        'суб-раб': markupSequences.subcontract_works,
+        'суб-мат': markupSequences.subcontract_materials,
+        'раб-комп.': markupSequences.work_comp,
+        'мат-комп.': markupSequences.material_comp,
+      };
+
+      const baseCostsRu = {
+        'раб': baseCosts.works,
+        'мат': baseCosts.materials,
+        'суб-раб': baseCosts.subcontract_works,
+        'суб-мат': baseCosts.subcontract_materials,
+        'раб-комп.': baseCosts.work_comp,
+        'мат-комп.': baseCosts.material_comp,
+      };
+
+      const name = tacticName || currentTacticName || 'Без названия';
+
+      if (currentTacticId) {
+        // Обновляем существующую тактику
+        const { error } = await supabase
+          .from('markup_tactics')
+          .update({
+            name,
+            sequences: sequencesRu,
+            base_costs: baseCostsRu,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentTacticId);
+
+        if (error) {
+          console.error('Ошибка обновления в Supabase:', error);
+          message.warning('Порядок расчета сохранен локально, но не удалось обновить в БД');
+          return false;
+        }
+
+        // Если выбран тендер, привязываем тактику
+        if (tenderId) {
+          await supabase
+            .from('tenders')
+            .update({ markup_tactic_id: currentTacticId })
+            .eq('id', tenderId);
+        }
+
+        await fetchTactics();
+        message.success('Порядок расчета успешно обновлен');
+        return true;
+      } else {
+        // Создаём новую тактику
+        const { data, error } = await supabase
+          .from('markup_tactics')
+          .insert({
+            name,
+            sequences: sequencesRu,
+            base_costs: baseCostsRu,
+            is_global: false,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Ошибка сохранения в Supabase:', error);
+          message.warning('Порядок расчета сохранен локально, но не удалось сохранить в БД');
+          return false;
+        }
+
+        setCurrentTacticId(data.id);
+        setCurrentTacticName(data.name);
+
+        // Если выбран тендер, привязываем тактику
+        if (tenderId) {
+          await supabase
+            .from('tenders')
+            .update({ markup_tactic_id: data.id })
+            .eq('id', tenderId);
+        }
+
+        await fetchTactics();
+        message.success('Порядок расчета успешно создан');
+        return true;
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения тактики:', error);
+      message.error('Ошибка сохранения схемы наценок');
+      return false;
+    }
+  }, [currentTacticId, currentTacticName, fetchTactics]);
+
+  /**
+   * Загрузка данных из localStorage (для восстановления несохранённых изменений)
+   */
+  const loadFromLocalStorage = useCallback((): { sequences: MarkupSequences | null; baseCosts: BaseCosts | null } => {
+    try {
+      const version = localStorage.getItem('markupSequencesVersion');
+      if (version !== 'v2') {
+        return { sequences: null, baseCosts: null };
+      }
+
+      const sequencesStr = localStorage.getItem('markupSequences');
+      const baseCostsStr = localStorage.getItem('markupBaseCosts');
+
+      const sequences = sequencesStr ? JSON.parse(sequencesStr) : null;
+      const baseCosts = baseCostsStr ? JSON.parse(baseCostsStr) : null;
+
+      return { sequences, baseCosts };
+    } catch (error) {
+      console.error('Ошибка загрузки из localStorage:', error);
+      return { sequences: null, baseCosts: null };
+    }
+  }, []);
 
   const startEditingName = useCallback((name: string) => {
     setEditingName(name);
@@ -214,6 +347,8 @@ export const useMarkupTactics = () => {
     copyTactic,
     deleteTactic,
     updateTacticName,
+    saveTactic,
+    loadFromLocalStorage,
     startEditingName,
     cancelEditingName,
     saveEditingName,

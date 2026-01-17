@@ -4,11 +4,14 @@ export * from './debug';
 export * from './excel';
 export * from './matching';
 export * from './rounding';
-export * from './versionTransfer';
+// versionTransfer exports explicit items to avoid conflicts with boqItems
+export { createNewVersion } from './versionTransfer/createNewVersion';
+export { transferPositionData } from './versionTransfer/transferPositionData';
+export { transferAdditionalPositions } from './versionTransfer/handleAdditionalPositions';
+// copyBoqItems, getBoqItemsCount, hasBoqItems already exported from ./boqItems
 
 // Root utilities
 export * from './calculateGrandTotal';
-export * from './copyBoqItems';
 export * from './deadlineCheck';
 export * from './initializeTestMarkup';
 export * from './insertTemplateItems';

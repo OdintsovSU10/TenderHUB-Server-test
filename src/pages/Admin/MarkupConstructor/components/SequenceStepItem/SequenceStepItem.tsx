@@ -96,7 +96,7 @@ export const SequenceStepItem = ({
     baseName,
     parameters.markupParameters,
     form,
-    sequences.markupSequences[step.tender_id as any] || []
+    []
   );
 
   // Обработчик сохранения имени

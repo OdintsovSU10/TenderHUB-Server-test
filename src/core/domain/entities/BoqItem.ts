@@ -64,6 +64,9 @@ export interface BoqItem {
   // Timestamps
   created_at: string;
   updated_at: string;
+
+  // Optimistic concurrency
+  row_version: number;
 }
 
 /**

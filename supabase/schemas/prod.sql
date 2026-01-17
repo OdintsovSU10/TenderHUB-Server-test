@@ -1,5 +1,5 @@
 -- Database Schema SQL Export
--- Generated: 2025-12-30T13:46:01.534275
+-- Generated: 2026-01-17T21:02:23.187258
 -- Database: postgres
 -- Host: aws-1-eu-west-1.pooler.supabase.com
 
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS auth.flow_state (
     id uuid NOT NULL,
     user_id uuid,
     auth_code text NOT NULL,
-    code_challenge_method USER-DEFINED NOT NULL,
+    code_challenge_method auth.code_challenge_method NOT NULL,
     code_challenge text NOT NULL,
     provider_type text NOT NULL,
     provider_access_token text,
@@ -48,12 +48,12 @@ CREATE TABLE IF NOT EXISTS auth.identities (
     last_sign_in_at timestamp with time zone,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
-    email text,
+    email text DEFAULT lower((identity_data ->> 'email'::text)),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     CONSTRAINT identities_pkey PRIMARY KEY (id),
     CONSTRAINT identities_provider_id_provider_unique UNIQUE (provider),
     CONSTRAINT identities_provider_id_provider_unique UNIQUE (provider_id),
-    CONSTRAINT identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 COMMENT ON TABLE auth.identities IS 'Auth: Stores identities associated to a user.';
 COMMENT ON COLUMN auth.identities.email IS 'Auth: Email is a generated column that references the optional email property in the identity_data';
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS auth.mfa_amr_claims (
     CONSTRAINT amr_id_pk PRIMARY KEY (id),
     CONSTRAINT mfa_amr_claims_session_id_authentication_method_pkey UNIQUE (authentication_method),
     CONSTRAINT mfa_amr_claims_session_id_authentication_method_pkey UNIQUE (session_id),
-    CONSTRAINT mfa_amr_claims_session_id_fkey FOREIGN KEY (session_id) REFERENCES None.None(None)
+    CONSTRAINT mfa_amr_claims_session_id_fkey FOREIGN KEY (session_id) REFERENCES auth.sessions(id)
 );
 COMMENT ON TABLE auth.mfa_amr_claims IS 'auth: stores authenticator method reference claims for multi factor authentication';
 
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS auth.mfa_challenges (
     ip_address inet NOT NULL,
     otp_code text,
     web_authn_session_data jsonb,
-    CONSTRAINT mfa_challenges_auth_factor_id_fkey FOREIGN KEY (factor_id) REFERENCES None.None(None),
+    CONSTRAINT mfa_challenges_auth_factor_id_fkey FOREIGN KEY (factor_id) REFERENCES auth.mfa_factors(id),
     CONSTRAINT mfa_challenges_pkey PRIMARY KEY (id)
 );
 COMMENT ON TABLE auth.mfa_challenges IS 'auth: stores metadata about challenge requests made';
@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS auth.mfa_factors (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
     friendly_name text,
-    factor_type USER-DEFINED NOT NULL,
-    status USER-DEFINED NOT NULL,
+    factor_type auth.factor_type NOT NULL,
+    status auth.factor_status NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     secret text,
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS auth.mfa_factors (
     last_webauthn_challenge_data jsonb,
     CONSTRAINT mfa_factors_last_challenged_at_key UNIQUE (last_challenged_at),
     CONSTRAINT mfa_factors_pkey PRIMARY KEY (id),
-    CONSTRAINT mfa_factors_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT mfa_factors_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 COMMENT ON TABLE auth.mfa_factors IS 'auth: stores metadata about factors';
 COMMENT ON COLUMN auth.mfa_factors.last_webauthn_challenge_data IS 'Stores the latest WebAuthn challenge data including attestation/assertion for customer verification';
@@ -134,9 +134,9 @@ CREATE TABLE IF NOT EXISTS auth.oauth_authorizations (
     state text,
     resource text,
     code_challenge text,
-    code_challenge_method USER-DEFINED,
-    response_type USER-DEFINED NOT NULL DEFAULT 'code'::auth.oauth_response_type,
-    status USER-DEFINED NOT NULL DEFAULT 'pending'::auth.oauth_authorization_status,
+    code_challenge_method auth.code_challenge_method,
+    response_type auth.oauth_response_type NOT NULL DEFAULT 'code'::auth.oauth_response_type,
+    status auth.oauth_authorization_status NOT NULL DEFAULT 'pending'::auth.oauth_authorization_status,
     authorization_code text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     expires_at timestamp with time zone NOT NULL DEFAULT (now() + '00:03:00'::interval),
@@ -144,9 +144,9 @@ CREATE TABLE IF NOT EXISTS auth.oauth_authorizations (
     nonce text,
     CONSTRAINT oauth_authorizations_authorization_code_key UNIQUE (authorization_code),
     CONSTRAINT oauth_authorizations_authorization_id_key UNIQUE (authorization_id),
-    CONSTRAINT oauth_authorizations_client_id_fkey FOREIGN KEY (client_id) REFERENCES None.None(None),
+    CONSTRAINT oauth_authorizations_client_id_fkey FOREIGN KEY (client_id) REFERENCES auth.oauth_clients(id),
     CONSTRAINT oauth_authorizations_pkey PRIMARY KEY (id),
-    CONSTRAINT oauth_authorizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT oauth_authorizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 
 -- Table: auth.oauth_client_states
@@ -164,7 +164,7 @@ COMMENT ON TABLE auth.oauth_client_states IS 'Stores OAuth states for third-part
 CREATE TABLE IF NOT EXISTS auth.oauth_clients (
     id uuid NOT NULL,
     client_secret_hash text,
-    registration_type USER-DEFINED NOT NULL,
+    registration_type auth.oauth_registration_type NOT NULL,
     redirect_uris text NOT NULL,
     grant_types text NOT NULL,
     client_name text,
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS auth.oauth_clients (
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     deleted_at timestamp with time zone,
-    client_type USER-DEFINED NOT NULL DEFAULT 'confidential'::auth.oauth_client_type,
+    client_type auth.oauth_client_type NOT NULL DEFAULT 'confidential'::auth.oauth_client_type,
     CONSTRAINT oauth_clients_pkey PRIMARY KEY (id)
 );
 
@@ -185,31 +185,31 @@ CREATE TABLE IF NOT EXISTS auth.oauth_consents (
     scopes text NOT NULL,
     granted_at timestamp with time zone NOT NULL DEFAULT now(),
     revoked_at timestamp with time zone,
-    CONSTRAINT oauth_consents_client_id_fkey FOREIGN KEY (client_id) REFERENCES None.None(None),
+    CONSTRAINT oauth_consents_client_id_fkey FOREIGN KEY (client_id) REFERENCES auth.oauth_clients(id),
     CONSTRAINT oauth_consents_pkey PRIMARY KEY (id),
     CONSTRAINT oauth_consents_user_client_unique UNIQUE (client_id),
     CONSTRAINT oauth_consents_user_client_unique UNIQUE (user_id),
-    CONSTRAINT oauth_consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT oauth_consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 
 -- Table: auth.one_time_tokens
 CREATE TABLE IF NOT EXISTS auth.one_time_tokens (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
-    token_type USER-DEFINED NOT NULL,
+    token_type auth.one_time_token_type NOT NULL,
     token_hash text NOT NULL,
     relates_to text NOT NULL,
     created_at timestamp without time zone NOT NULL DEFAULT now(),
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     CONSTRAINT one_time_tokens_pkey PRIMARY KEY (id),
-    CONSTRAINT one_time_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT one_time_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 
 -- Table: auth.refresh_tokens
 -- Description: Auth: Store of tokens used to refresh JWT tokens once they expire.
 CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
     instance_id uuid,
-    id bigint(64) NOT NULL DEFAULT nextval('auth.refresh_tokens_id_seq'::regclass),
+    id bigint NOT NULL DEFAULT nextval('auth.refresh_tokens_id_seq'::regclass),
     token character varying(255),
     user_id character varying(255),
     revoked boolean,
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
     parent character varying(255),
     session_id uuid,
     CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id),
-    CONSTRAINT refresh_tokens_session_id_fkey FOREIGN KEY (session_id) REFERENCES None.None(None),
+    CONSTRAINT refresh_tokens_session_id_fkey FOREIGN KEY (session_id) REFERENCES auth.sessions(id),
     CONSTRAINT refresh_tokens_token_unique UNIQUE (token)
 );
 COMMENT ON TABLE auth.refresh_tokens IS 'Auth: Store of tokens used to refresh JWT tokens once they expire.';
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS auth.saml_providers (
     name_id_format text,
     CONSTRAINT saml_providers_entity_id_key UNIQUE (entity_id),
     CONSTRAINT saml_providers_pkey PRIMARY KEY (id),
-    CONSTRAINT saml_providers_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES None.None(None)
+    CONSTRAINT saml_providers_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id)
 );
 COMMENT ON TABLE auth.saml_providers IS 'Auth: Manages SAML Identity Provider connections.';
 
@@ -252,16 +252,17 @@ CREATE TABLE IF NOT EXISTS auth.saml_relay_states (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     flow_state_id uuid,
-    CONSTRAINT saml_relay_states_flow_state_id_fkey FOREIGN KEY (flow_state_id) REFERENCES None.None(None),
+    CONSTRAINT saml_relay_states_flow_state_id_fkey FOREIGN KEY (flow_state_id) REFERENCES auth.flow_state(id),
     CONSTRAINT saml_relay_states_pkey PRIMARY KEY (id),
-    CONSTRAINT saml_relay_states_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES None.None(None)
+    CONSTRAINT saml_relay_states_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id)
 );
 COMMENT ON TABLE auth.saml_relay_states IS 'Auth: Contains SAML Relay State information for each Service Provider initiated login.';
 
 -- Table: auth.schema_migrations
 -- Description: Auth: Manages updates to the auth system.
 CREATE TABLE IF NOT EXISTS auth.schema_migrations (
-    version character varying(255) NOT NULL
+    version character varying(255) NOT NULL,
+    CONSTRAINT schema_migrations_pkey PRIMARY KEY (version)
 );
 COMMENT ON TABLE auth.schema_migrations IS 'Auth: Manages updates to the auth system.';
 
@@ -273,7 +274,7 @@ CREATE TABLE IF NOT EXISTS auth.sessions (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     factor_id uuid,
-    aal USER-DEFINED,
+    aal auth.aal_level,
     not_after timestamp with time zone,
     refreshed_at timestamp without time zone,
     user_agent text,
@@ -281,11 +282,11 @@ CREATE TABLE IF NOT EXISTS auth.sessions (
     tag text,
     oauth_client_id uuid,
     refresh_token_hmac_key text,
-    refresh_token_counter bigint(64),
+    refresh_token_counter bigint,
     scopes text,
-    CONSTRAINT sessions_oauth_client_id_fkey FOREIGN KEY (oauth_client_id) REFERENCES None.None(None),
+    CONSTRAINT sessions_oauth_client_id_fkey FOREIGN KEY (oauth_client_id) REFERENCES auth.oauth_clients(id),
     CONSTRAINT sessions_pkey PRIMARY KEY (id),
-    CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 COMMENT ON TABLE auth.sessions IS 'Auth: Stores session data associated to a user.';
 COMMENT ON COLUMN auth.sessions.not_after IS 'Auth: Not after is a nullable column that contains a timestamp after which the session should be regarded as expired.';
@@ -301,7 +302,7 @@ CREATE TABLE IF NOT EXISTS auth.sso_domains (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     CONSTRAINT sso_domains_pkey PRIMARY KEY (id),
-    CONSTRAINT sso_domains_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES None.None(None)
+    CONSTRAINT sso_domains_sso_provider_id_fkey FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id)
 );
 COMMENT ON TABLE auth.sso_domains IS 'Auth: Manages SSO email address domain mapping to an SSO Identity Provider.';
 
@@ -347,9 +348,9 @@ CREATE TABLE IF NOT EXISTS auth.users (
     phone_change text DEFAULT ''::character varying,
     phone_change_token character varying(255) DEFAULT ''::character varying,
     phone_change_sent_at timestamp with time zone,
-    confirmed_at timestamp with time zone,
+    confirmed_at timestamp with time zone DEFAULT LEAST(email_confirmed_at, phone_confirmed_at),
     email_change_token_current character varying(255) DEFAULT ''::character varying,
-    email_change_confirm_status smallint(16) DEFAULT 0,
+    email_change_confirm_status smallint DEFAULT 0,
     banned_until timestamp with time zone,
     reauthentication_token character varying(255) DEFAULT ''::character varying,
     reauthentication_sent_at timestamp with time zone,
@@ -368,9 +369,9 @@ CREATE TABLE IF NOT EXISTS public.boq_items (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     tender_id uuid NOT NULL,
     client_position_id uuid NOT NULL,
-    sort_number integer(32) NOT NULL DEFAULT 0,
-    boq_item_type USER-DEFINED NOT NULL,
-    material_type USER-DEFINED,
+    sort_number integer NOT NULL DEFAULT 0,
+    boq_item_type boq_item_type NOT NULL,
+    material_type material_type,
     material_name_id uuid,
     work_name_id uuid,
     unit_code text,
@@ -378,9 +379,9 @@ CREATE TABLE IF NOT EXISTS public.boq_items (
     base_quantity numeric(18,6),
     consumption_coefficient numeric(10,4),
     conversion_coefficient numeric(10,4),
-    delivery_price_type USER-DEFINED,
+    delivery_price_type delivery_price_type,
     delivery_amount numeric(15,2) DEFAULT 0.00,
-    currency_type USER-DEFINED DEFAULT 'RUB'::currency_type,
+    currency_type currency_type DEFAULT 'RUB'::currency_type,
     total_amount numeric(18,2),
     detail_cost_category_id uuid,
     quote_link text,
@@ -392,14 +393,14 @@ CREATE TABLE IF NOT EXISTS public.boq_items (
     parent_work_item_id uuid,
     description text,
     unit_rate numeric(18,2) DEFAULT 0.00,
-    CONSTRAINT boq_items_client_position_id_fkey FOREIGN KEY (client_position_id) REFERENCES None.None(None),
-    CONSTRAINT boq_items_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
-    CONSTRAINT boq_items_material_name_id_fkey FOREIGN KEY (material_name_id) REFERENCES None.None(None),
+    CONSTRAINT boq_items_client_position_id_fkey FOREIGN KEY (client_position_id) REFERENCES public.client_positions(id),
+    CONSTRAINT boq_items_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id),
+    CONSTRAINT boq_items_material_name_id_fkey FOREIGN KEY (material_name_id) REFERENCES public.material_names(id),
     CONSTRAINT boq_items_parent_work_item_id_fkey FOREIGN KEY (parent_work_item_id) REFERENCES public.boq_items(id),
     CONSTRAINT boq_items_pkey PRIMARY KEY (id),
-    CONSTRAINT boq_items_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
-    CONSTRAINT boq_items_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES None.None(None),
-    CONSTRAINT boq_items_work_name_id_fkey FOREIGN KEY (work_name_id) REFERENCES None.None(None)
+    CONSTRAINT boq_items_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
+    CONSTRAINT boq_items_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES public.units(code),
+    CONSTRAINT boq_items_work_name_id_fkey FOREIGN KEY (work_name_id) REFERENCES public.work_names(id)
 );
 COMMENT ON TABLE public.boq_items IS 'Элементы позиций заказчика (Bill of Quantities Items)';
 COMMENT ON COLUMN public.boq_items.id IS 'Уникальный идентификатор элемента позиции (UUID)';
@@ -440,8 +441,8 @@ CREATE TABLE IF NOT EXISTS public.boq_items_audit (
     changed_by uuid,
     old_data jsonb,
     new_data jsonb,
-    changed_fields ARRAY,
-    CONSTRAINT boq_items_audit_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES None.None(None),
+    changed_fields text[],
+    CONSTRAINT boq_items_audit_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id),
     CONSTRAINT boq_items_audit_pkey PRIMARY KEY (id)
 );
 COMMENT ON TABLE public.boq_items_audit IS 'История изменений BOQ items с полным snapshot данных';
@@ -466,7 +467,7 @@ CREATE TABLE IF NOT EXISTS public.client_positions (
     work_name text NOT NULL,
     manual_volume numeric(18,6),
     manual_note text,
-    hierarchy_level integer(32) DEFAULT 0,
+    hierarchy_level integer DEFAULT 0,
     is_additional boolean DEFAULT false,
     parent_position_id uuid,
     total_material numeric(18,2) DEFAULT 0,
@@ -481,8 +482,8 @@ CREATE TABLE IF NOT EXISTS public.client_positions (
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT client_positions_parent_position_id_fkey FOREIGN KEY (parent_position_id) REFERENCES public.client_positions(id),
     CONSTRAINT client_positions_pkey PRIMARY KEY (id),
-    CONSTRAINT client_positions_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
-    CONSTRAINT client_positions_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES None.None(None)
+    CONSTRAINT client_positions_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
+    CONSTRAINT client_positions_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES public.units(code)
 );
 COMMENT ON TABLE public.client_positions IS 'Позиции заказчика из ВОРа (Bill of Quantities)';
 COMMENT ON COLUMN public.client_positions.id IS 'Уникальный идентификатор позиции';
@@ -510,8 +511,7 @@ COMMENT ON COLUMN public.client_positions.created_at IS 'Дата и время 
 COMMENT ON COLUMN public.client_positions.updated_at IS 'Дата и время последнего обновления записи';
 
 -- Table: public.construction_cost_volumes
--- Description: Объемы затрат по тендерам (детальные категории и 
-
+-- Description: Объемы затрат по тендерам (детальные категории и 
   группы)
 CREATE TABLE IF NOT EXISTS public.construction_cost_volumes (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -521,23 +521,19 @@ CREATE TABLE IF NOT EXISTS public.construction_cost_volumes (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     group_key text,
-    CONSTRAINT construction_cost_volumes_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
+    CONSTRAINT construction_cost_volumes_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id),
     CONSTRAINT construction_cost_volumes_pkey PRIMARY KEY (id),
-    CONSTRAINT construction_cost_volumes_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None)
+    CONSTRAINT construction_cost_volumes_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id)
 );
-COMMENT ON TABLE public.construction_cost_volumes IS 'Объемы затрат по тендерам (детальные категории и 
-
+COMMENT ON TABLE public.construction_cost_volumes IS 'Объемы затрат по тендерам (детальные категории и 
   группы)';
-COMMENT ON COLUMN public.construction_cost_volumes.detail_cost_category_id IS 'ID детальной категории 
-
+COMMENT ON COLUMN public.construction_cost_volumes.detail_cost_category_id IS 'ID детальной категории 
   затрат (для деталей)';
-COMMENT ON COLUMN public.construction_cost_volumes.group_key IS 'Ключ группы в формате 
-
+COMMENT ON COLUMN public.construction_cost_volumes.group_key IS 'Ключ группы в формате 
   category-{название} или location-{категория}-{локализация} (для групп)';
 
 -- Table: public.cost_categories
--- Description: Справочник      
-
+-- Description: Справочник      
   категорий затрат
 CREATE TABLE IF NOT EXISTS public.cost_categories (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -546,10 +542,9 @@ CREATE TABLE IF NOT EXISTS public.cost_categories (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT cost_categories_pkey PRIMARY KEY (id),
-    CONSTRAINT cost_categories_unit_fkey FOREIGN KEY (unit) REFERENCES None.None(None)
+    CONSTRAINT cost_categories_unit_fkey FOREIGN KEY (unit) REFERENCES public.units(code)
 );
-COMMENT ON TABLE public.cost_categories IS 'Справочник      
-
+COMMENT ON TABLE public.cost_categories IS 'Справочник      
   категорий затрат';
 COMMENT ON COLUMN public.cost_categories.id IS 'Уникальный идентификатор категории (UUID)';
 COMMENT ON COLUMN public.cost_categories.name IS 'Наименование категории затрат';
@@ -558,8 +553,7 @@ COMMENT ON COLUMN public.cost_categories.created_at IS 'Дата и время �
 COMMENT ON COLUMN public.cost_categories.updated_at IS 'Дата и время последнего обновления';
 
 -- Table: public.cost_redistribution_results
--- Description: Результаты перераспределения стоимости работ между затратами на строительство.
-
+-- Description: Результаты перераспределения стоимости работ между затратами на строительство.
     Хранит финансовые данные после перераспределения и правила для воспроизводимости расчета.
 CREATE TABLE IF NOT EXISTS public.cost_redistribution_results (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -574,17 +568,16 @@ CREATE TABLE IF NOT EXISTS public.cost_redistribution_results (
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     created_by uuid,
-    CONSTRAINT cost_redistribution_results_boq_item_id_fkey FOREIGN KEY (boq_item_id) REFERENCES None.None(None),
-    CONSTRAINT cost_redistribution_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES None.None(None),
-    CONSTRAINT cost_redistribution_results_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES None.None(None),
+    CONSTRAINT cost_redistribution_results_boq_item_id_fkey FOREIGN KEY (boq_item_id) REFERENCES public.boq_items(id),
+    CONSTRAINT cost_redistribution_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+    CONSTRAINT cost_redistribution_results_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES public.markup_tactics(id),
     CONSTRAINT cost_redistribution_results_pkey PRIMARY KEY (id),
-    CONSTRAINT cost_redistribution_results_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
+    CONSTRAINT cost_redistribution_results_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
     CONSTRAINT uq_cost_redistribution_results_tender_tactic_boq UNIQUE (boq_item_id),
     CONSTRAINT uq_cost_redistribution_results_tender_tactic_boq UNIQUE (markup_tactic_id),
     CONSTRAINT uq_cost_redistribution_results_tender_tactic_boq UNIQUE (tender_id)
 );
-COMMENT ON TABLE public.cost_redistribution_results IS 'Результаты перераспределения стоимости работ между затратами на строительство.
-
+COMMENT ON TABLE public.cost_redistribution_results IS 'Результаты перераспределения стоимости работ между затратами на строительство.
     Хранит финансовые данные после перераспределения и правила для воспроизводимости расчета.';
 COMMENT ON COLUMN public.cost_redistribution_results.id IS 'Уникальный идентификатор записи результата';
 COMMENT ON COLUMN public.cost_redistribution_results.tender_id IS 'Ссылка на тендер';
@@ -594,22 +587,14 @@ COMMENT ON COLUMN public.cost_redistribution_results.original_work_cost IS 'Ис
 COMMENT ON COLUMN public.cost_redistribution_results.deducted_amount IS 'Сумма, вычтенная из стоимости работы';
 COMMENT ON COLUMN public.cost_redistribution_results.added_amount IS 'Сумма, добавленная к стоимости работы';
 COMMENT ON COLUMN public.cost_redistribution_results.final_work_cost IS 'Финальная стоимость работы после перераспределения';
-COMMENT ON COLUMN public.cost_redistribution_results.redistribution_rules IS 'JSONB с правилами вычитания и целевыми затратами для воспроизводимости расчета.
-
-    Формат: {
-
-        "deductions": [
-
-            {"detail_cost_category_id": "uuid", "category_name": "...", "percentage": 10}
-
-        ],
-
-        "targets": [
-
-            {"detail_cost_category_id": "uuid", "category_name": "...", "weight": 1.0}
-
-        ]
-
+COMMENT ON COLUMN public.cost_redistribution_results.redistribution_rules IS 'JSONB с правилами вычитания и целевыми затратами для воспроизводимости расчета.
+    Формат: {
+        "deductions": [
+            {"detail_cost_category_id": "uuid", "category_name": "...", "percentage": 10}
+        ],
+        "targets": [
+            {"detail_cost_category_id": "uuid", "category_name": "...", "weight": 1.0}
+        ]
     }';
 COMMENT ON COLUMN public.cost_redistribution_results.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN public.cost_redistribution_results.updated_at IS 'Дата и время последнего обновления записи';
@@ -623,12 +608,12 @@ CREATE TABLE IF NOT EXISTS public.detail_cost_categories (
     location text NOT NULL,
     name text NOT NULL,
     unit text NOT NULL,
-    order_num integer(32) DEFAULT 0,
+    order_num integer DEFAULT 0,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT detail_cost_categories_cost_category_id_fkey FOREIGN KEY (cost_category_id) REFERENCES None.None(None),
+    CONSTRAINT detail_cost_categories_cost_category_id_fkey FOREIGN KEY (cost_category_id) REFERENCES public.cost_categories(id),
     CONSTRAINT detail_cost_categories_pkey PRIMARY KEY (id),
-    CONSTRAINT detail_cost_categories_unit_fkey FOREIGN KEY (unit) REFERENCES None.None(None)
+    CONSTRAINT detail_cost_categories_unit_fkey FOREIGN KEY (unit) REFERENCES public.units(code)
 );
 COMMENT ON TABLE public.detail_cost_categories IS 'Детальные категории затрат по локациям';
 COMMENT ON COLUMN public.detail_cost_categories.id IS 'Уникальный идентификатор детальной категории (UUID)';
@@ -636,14 +621,11 @@ COMMENT ON COLUMN public.detail_cost_categories.cost_category_id IS 'Ссылк�
 COMMENT ON COLUMN public.detail_cost_categories.location IS 'Локация/местоположение';
 COMMENT ON COLUMN public.detail_cost_categories.name IS 'Наименование детальной категории';
 COMMENT ON COLUMN public.detail_cost_categories.unit IS 'Единица измерения';
-COMMENT ON COLUMN public.detail_cost_categories.order_num IS 'Порядковый      
-
+COMMENT ON COLUMN public.detail_cost_categories.order_num IS 'Порядковый      
   номер для сортировки';
-COMMENT ON COLUMN public.detail_cost_categories.created_at IS 'Дата и
-
+COMMENT ON COLUMN public.detail_cost_categories.created_at IS 'Дата и
   время создания записи';
-COMMENT ON COLUMN public.detail_cost_categories.updated_at IS 'Дата и
-
+COMMENT ON COLUMN public.detail_cost_categories.updated_at IS 'Дата и
   время последнего обновления';
 
 -- Table: public.markup_parameters
@@ -653,7 +635,7 @@ CREATE TABLE IF NOT EXISTS public.markup_parameters (
     key text NOT NULL,
     label text NOT NULL,
     is_active boolean NOT NULL DEFAULT true,
-    order_num integer(32) NOT NULL DEFAULT 0,
+    order_num integer NOT NULL DEFAULT 0,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     default_value numeric(5,2) NOT NULL DEFAULT 0,
@@ -682,7 +664,7 @@ CREATE TABLE IF NOT EXISTS public.markup_tactics (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT markup_tactics_pkey PRIMARY KEY (id),
-    CONSTRAINT markup_tactics_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT markup_tactics_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 COMMENT ON TABLE public.markup_tactics IS 'Хранение тактик наценок для конструктора наценок';
 COMMENT ON COLUMN public.markup_tactics.sequences IS 'JSON с последовательностями операций наценок для каждого типа позиций';
@@ -698,7 +680,7 @@ CREATE TABLE IF NOT EXISTS public.material_names (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT material_names_pkey PRIMARY KEY (id),
-    CONSTRAINT material_names_unit_fkey FOREIGN KEY (unit) REFERENCES None.None(None)
+    CONSTRAINT material_names_unit_fkey FOREIGN KEY (unit) REFERENCES public.units(code)
 );
 COMMENT ON TABLE public.material_names IS 'Справочник наименований материалов';
 COMMENT ON COLUMN public.material_names.id IS 'Уникальный идентификатор материала (UUID)';
@@ -711,17 +693,17 @@ COMMENT ON COLUMN public.material_names.updated_at IS 'Дата и время п
 -- Description: Справочник материалов (Material library) с полной детализацией
 CREATE TABLE IF NOT EXISTS public.materials_library (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
-    material_type USER-DEFINED NOT NULL,
-    item_type USER-DEFINED NOT NULL,
+    material_type material_type NOT NULL,
+    item_type boq_item_type NOT NULL,
     consumption_coefficient numeric(10,4) DEFAULT 1.0000,
     unit_rate numeric(15,2) NOT NULL,
-    currency_type USER-DEFINED NOT NULL DEFAULT 'RUB'::currency_type,
-    delivery_price_type USER-DEFINED NOT NULL DEFAULT 'в цене'::delivery_price_type,
+    currency_type currency_type NOT NULL DEFAULT 'RUB'::currency_type,
+    delivery_price_type delivery_price_type NOT NULL DEFAULT 'в цене'::delivery_price_type,
     delivery_amount numeric(15,2) DEFAULT 0.00,
     material_name_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT materials_library_material_name_id_fkey FOREIGN KEY (material_name_id) REFERENCES None.None(None),
+    CONSTRAINT materials_library_material_name_id_fkey FOREIGN KEY (material_name_id) REFERENCES public.material_names(id),
     CONSTRAINT materials_library_pkey PRIMARY KEY (id)
 );
 COMMENT ON TABLE public.materials_library IS 'Справочник материалов (Material library) с полной детализацией';
@@ -760,6 +742,69 @@ COMMENT ON COLUMN public.notifications.related_entity_id IS 'ID связанно
 COMMENT ON COLUMN public.notifications.is_read IS 'Признак прочтения уведомления';
 COMMENT ON COLUMN public.notifications.created_at IS 'Дата и время создания';
 
+-- Table: public.project_additional_agreements
+-- Description: Дополнительные соглашения к договорам объектов
+CREATE TABLE IF NOT EXISTS public.project_additional_agreements (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    project_id uuid NOT NULL,
+    agreement_date date NOT NULL,
+    amount numeric(15,2) NOT NULL,
+    description text,
+    agreement_number text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT project_additional_agreements_pkey PRIMARY KEY (id),
+    CONSTRAINT project_additional_agreements_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
+);
+COMMENT ON TABLE public.project_additional_agreements IS 'Дополнительные соглашения к договорам объектов';
+
+-- Table: public.project_monthly_completion
+-- Description: Ежемесячное закрытие выполнения по объектам
+CREATE TABLE IF NOT EXISTS public.project_monthly_completion (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    project_id uuid NOT NULL,
+    year integer NOT NULL,
+    month integer NOT NULL,
+    actual_amount numeric(15,2) NOT NULL DEFAULT 0,
+    forecast_amount numeric(15,2),
+    note text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT project_monthly_completion_pkey PRIMARY KEY (id),
+    CONSTRAINT project_monthly_completion_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+    CONSTRAINT project_monthly_completion_unique UNIQUE (month),
+    CONSTRAINT project_monthly_completion_unique UNIQUE (project_id),
+    CONSTRAINT project_monthly_completion_unique UNIQUE (year)
+);
+COMMENT ON TABLE public.project_monthly_completion IS 'Ежемесячное закрытие выполнения по объектам';
+COMMENT ON COLUMN public.project_monthly_completion.actual_amount IS 'Фактически закрытое выполнение за месяц';
+COMMENT ON COLUMN public.project_monthly_completion.forecast_amount IS 'Прогнозное выполнение для будущих месяцев';
+
+-- Table: public.projects
+-- Description: Текущие объекты строительства
+CREATE TABLE IF NOT EXISTS public.projects (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    name text NOT NULL,
+    client_name text NOT NULL,
+    contract_cost numeric(15,2) NOT NULL DEFAULT 0,
+    area numeric(12,2),
+    construction_end_date date,
+    tender_id uuid,
+    is_active boolean NOT NULL DEFAULT true,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    created_by uuid,
+    contract_date date,
+    CONSTRAINT projects_pkey PRIMARY KEY (id),
+    CONSTRAINT projects_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id)
+);
+COMMENT ON TABLE public.projects IS 'Текущие объекты строительства';
+COMMENT ON COLUMN public.projects.contract_cost IS 'Стоимость основного договора';
+COMMENT ON COLUMN public.projects.area IS 'Площадь объекта в м²';
+COMMENT ON COLUMN public.projects.construction_end_date IS 'Планируемая дата окончания строительства';
+COMMENT ON COLUMN public.projects.tender_id IS 'Опциональная связь с тендером (nullable FK)';
+COMMENT ON COLUMN public.projects.contract_date IS 'Дата заключения договора';
+
 -- Table: public.roles
 -- Description: Role definitions with permissions
 CREATE TABLE IF NOT EXISTS public.roles (
@@ -778,8 +823,7 @@ COMMENT ON COLUMN public.roles.code IS 'Role code identifier (e.g., administrato
 COMMENT ON COLUMN public.roles.name IS 'Human-readable role name in Russian';
 COMMENT ON COLUMN public.roles.allowed_pages IS 'Array of allowed page paths for this role. Empty array means full access.';
 COMMENT ON COLUMN public.roles.is_system_role IS 'System roles cannot be deleted';
-COMMENT ON COLUMN public.roles.color IS 'Ant Design tag color for the role
-
+COMMENT ON COLUMN public.roles.color IS 'Ant Design tag color for the role
   (e.g., blue, green, purple, etc.)';
 
 -- Table: public.subcontract_growth_exclusions
@@ -791,9 +835,9 @@ CREATE TABLE IF NOT EXISTS public.subcontract_growth_exclusions (
     exclusion_type text NOT NULL DEFAULT 'works'::text,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT subcontract_growth_exclusions_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
+    CONSTRAINT subcontract_growth_exclusions_detail_cost_category_id_fkey FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id),
     CONSTRAINT subcontract_growth_exclusions_pkey PRIMARY KEY (id),
-    CONSTRAINT subcontract_growth_exclusions_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
+    CONSTRAINT subcontract_growth_exclusions_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
     CONSTRAINT subcontract_growth_exclusions_unique UNIQUE (detail_cost_category_id),
     CONSTRAINT subcontract_growth_exclusions_unique UNIQUE (exclusion_type),
     CONSTRAINT subcontract_growth_exclusions_unique UNIQUE (tender_id)
@@ -810,17 +854,17 @@ CREATE TABLE IF NOT EXISTS public.template_items (
     material_library_id uuid,
     parent_work_item_id uuid,
     conversation_coeff numeric(18,6),
-    position integer(32) NOT NULL DEFAULT 0,
+    position integer NOT NULL DEFAULT 0,
     note text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     detail_cost_category_id uuid,
-    CONSTRAINT template_items_detail_cost_category_fk FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
-    CONSTRAINT template_items_material_library_fk FOREIGN KEY (material_library_id) REFERENCES None.None(None),
+    CONSTRAINT template_items_detail_cost_category_fk FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id),
+    CONSTRAINT template_items_material_library_fk FOREIGN KEY (material_library_id) REFERENCES public.materials_library(id),
     CONSTRAINT template_items_parent_work_item_fk FOREIGN KEY (parent_work_item_id) REFERENCES public.template_items(id),
     CONSTRAINT template_items_pkey PRIMARY KEY (id),
-    CONSTRAINT template_items_template_fk FOREIGN KEY (template_id) REFERENCES None.None(None),
-    CONSTRAINT template_items_work_library_fk FOREIGN KEY (work_library_id) REFERENCES None.None(None)
+    CONSTRAINT template_items_template_fk FOREIGN KEY (template_id) REFERENCES public.templates(id),
+    CONSTRAINT template_items_work_library_fk FOREIGN KEY (work_library_id) REFERENCES public.works_library(id)
 );
 
 -- Table: public.templates
@@ -830,7 +874,7 @@ CREATE TABLE IF NOT EXISTS public.templates (
     detail_cost_category_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT templates_detail_cost_category_fk FOREIGN KEY (detail_cost_category_id) REFERENCES None.None(None),
+    CONSTRAINT templates_detail_cost_category_fk FOREIGN KEY (detail_cost_category_id) REFERENCES public.detail_cost_categories(id),
     CONSTRAINT templates_pkey PRIMARY KEY (id)
 );
 
@@ -843,12 +887,12 @@ CREATE TABLE IF NOT EXISTS public.tender_documents (
     title character varying(255) NOT NULL,
     original_filename character varying(255),
     content_markdown text NOT NULL,
-    file_size bigint(64),
+    file_size bigint,
     upload_date timestamp with time zone DEFAULT now(),
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT tender_documents_pkey PRIMARY KEY (id),
-    CONSTRAINT tender_documents_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
+    CONSTRAINT tender_documents_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
     CONSTRAINT unique_tender_section_file UNIQUE (original_filename),
     CONSTRAINT unique_tender_section_file UNIQUE (section_type),
     CONSTRAINT unique_tender_section_file UNIQUE (tender_id)
@@ -867,9 +911,9 @@ CREATE TABLE IF NOT EXISTS public.tender_markup_percentage (
     value numeric(8,5) NOT NULL DEFAULT 0,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT tender_markup_percentage_markup_parameter_id_fkey FOREIGN KEY (markup_parameter_id) REFERENCES None.None(None),
+    CONSTRAINT tender_markup_percentage_markup_parameter_id_fkey FOREIGN KEY (markup_parameter_id) REFERENCES public.markup_parameters(id),
     CONSTRAINT tender_markup_percentage_pkey PRIMARY KEY (id),
-    CONSTRAINT tender_markup_percentage_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
+    CONSTRAINT tender_markup_percentage_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
     CONSTRAINT tender_markup_percentage_unique UNIQUE (markup_parameter_id),
     CONSTRAINT tender_markup_percentage_unique UNIQUE (tender_id)
 );
@@ -882,8 +926,7 @@ COMMENT ON COLUMN public.tender_markup_percentage.created_at IS 'Дата соз
 COMMENT ON COLUMN public.tender_markup_percentage.updated_at IS 'Дата последнего обновления';
 
 -- Table: public.tender_pricing_distribution
--- Description: Правила распределения затрат и наценок между КП (материалы) и работами для каждого        
-
+-- Description: Правила распределения затрат и наценок между КП (материалы) и работами для каждого        
   тендера
 CREATE TABLE IF NOT EXISTS public.tender_pricing_distribution (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -905,21 +948,18 @@ CREATE TABLE IF NOT EXISTS public.tender_pricing_distribution (
     component_material_markup_target text NOT NULL DEFAULT 'work'::text,
     component_work_base_target text NOT NULL DEFAULT 'work'::text,
     component_work_markup_target text NOT NULL DEFAULT 'work'::text,
-    CONSTRAINT tender_pricing_distribution_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES None.None(None),
+    CONSTRAINT tender_pricing_distribution_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES public.markup_tactics(id),
     CONSTRAINT tender_pricing_distribution_pkey PRIMARY KEY (id),
-    CONSTRAINT tender_pricing_distribution_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
+    CONSTRAINT tender_pricing_distribution_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
     CONSTRAINT tender_pricing_distribution_tender_id_markup_tactic_id_key UNIQUE (markup_tactic_id),
     CONSTRAINT tender_pricing_distribution_tender_id_markup_tactic_id_key UNIQUE (tender_id)
 );
-COMMENT ON TABLE public.tender_pricing_distribution IS 'Правила распределения затрат и наценок между КП (материалы) и работами для каждого        
-
+COMMENT ON TABLE public.tender_pricing_distribution IS 'Правила распределения затрат и наценок между КП (материалы) и работами для каждого        
   тендера';
-COMMENT ON COLUMN public.tender_pricing_distribution.basic_material_base_target IS 'Куда направляется базовая стоимость основных материалов: material = КП, work =
-
+COMMENT ON COLUMN public.tender_pricing_distribution.basic_material_base_target IS 'Куда направляется базовая стоимость основных материалов: material = КП, work =
   работы';
 COMMENT ON COLUMN public.tender_pricing_distribution.basic_material_markup_target IS 'Куда направляется наценка на основные материалы: material = КП, work = работы';
-COMMENT ON COLUMN public.tender_pricing_distribution.auxiliary_material_base_target IS 'Куда направляется базовая стоимость вспомогательных материалов: material = КП, work =     
-
+COMMENT ON COLUMN public.tender_pricing_distribution.auxiliary_material_base_target IS 'Куда направляется базовая стоимость вспомогательных материалов: material = КП, work =     
   работы';
 COMMENT ON COLUMN public.tender_pricing_distribution.auxiliary_material_markup_target IS 'Куда направляется наценка на вспомогательные материалы: material = КП, work = работы';
 COMMENT ON COLUMN public.tender_pricing_distribution.work_base_target IS 'Куда направляется базовая стоимость работ: material = КП, work = работы';
@@ -938,7 +978,7 @@ CREATE TABLE IF NOT EXISTS public.tenders (
     client_name text NOT NULL,
     tender_number text NOT NULL,
     submission_deadline timestamp with time zone,
-    version integer(32) DEFAULT 1,
+    version integer DEFAULT 1,
     area_client numeric(12,2),
     area_sp numeric(12,2),
     usd_rate numeric(10,4),
@@ -954,13 +994,13 @@ CREATE TABLE IF NOT EXISTS public.tenders (
     markup_tactic_id uuid,
     apply_subcontract_works_growth boolean DEFAULT true,
     apply_subcontract_materials_growth boolean DEFAULT true,
-    housing_class USER-DEFINED,
-    construction_scope USER-DEFINED,
+    housing_class housing_class_type,
+    construction_scope construction_scope_type,
     project_folder_link text,
     is_archived boolean NOT NULL DEFAULT false,
     volume_title text DEFAULT 'Полный объём строительства'::text,
-    CONSTRAINT tenders_created_by_fkey FOREIGN KEY (created_by) REFERENCES None.None(None),
-    CONSTRAINT tenders_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES None.None(None),
+    CONSTRAINT tenders_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+    CONSTRAINT tenders_markup_tactic_id_fkey FOREIGN KEY (markup_tactic_id) REFERENCES public.markup_tactics(id),
     CONSTRAINT tenders_pkey PRIMARY KEY (id),
     CONSTRAINT tenders_tender_number_version_key UNIQUE (tender_number),
     CONSTRAINT tenders_tender_number_version_key UNIQUE (version)
@@ -1000,7 +1040,7 @@ CREATE TABLE IF NOT EXISTS public.units (
     name text NOT NULL,
     description text,
     category text,
-    sort_order integer(32) DEFAULT 0,
+    sort_order integer DEFAULT 0,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
@@ -1019,9 +1059,9 @@ CREATE TABLE IF NOT EXISTS public.user_position_filters (
     CONSTRAINT unique_user_tender_position UNIQUE (tender_id),
     CONSTRAINT unique_user_tender_position UNIQUE (user_id),
     CONSTRAINT user_position_filters_pkey PRIMARY KEY (id),
-    CONSTRAINT user_position_filters_position_id_fkey FOREIGN KEY (position_id) REFERENCES None.None(None),
-    CONSTRAINT user_position_filters_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
-    CONSTRAINT user_position_filters_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT user_position_filters_position_id_fkey FOREIGN KEY (position_id) REFERENCES public.client_positions(id),
+    CONSTRAINT user_position_filters_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
+    CONSTRAINT user_position_filters_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 COMMENT ON TABLE public.user_position_filters IS 'Персональные фильтры позиций заказчика для каждого пользователя. Используется для сохранения выбранных позиций при фильтрации на странице /positions.';
 COMMENT ON COLUMN public.user_position_filters.user_id IS 'ID пользователя, которому принадлежит фильтр';
@@ -1036,26 +1076,26 @@ CREATE TABLE IF NOT EXISTS public.user_tasks (
     user_id uuid NOT NULL,
     tender_id uuid NOT NULL,
     description text NOT NULL,
-    task_status USER-DEFINED DEFAULT 'running'::task_status,
+    task_status task_status DEFAULT 'running'::task_status,
     completed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT user_tasks_pkey PRIMARY KEY (id),
-    CONSTRAINT user_tasks_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES None.None(None),
-    CONSTRAINT user_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES None.None(None)
+    CONSTRAINT user_tasks_tender_id_fkey FOREIGN KEY (tender_id) REFERENCES public.tenders(id),
+    CONSTRAINT user_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 COMMENT ON TABLE public.user_tasks IS 'Задачи пользователей по тендерам';
-COMMENT ON COLUMN public.user_tasks.task_status IS 'Статус задачи: running (в работе), paused (остановлена),
-
+COMMENT ON COLUMN public.user_tasks.task_status IS 'Статус задачи: running (в работе), paused (остановлена),
   completed (завершена)';
 
 -- Table: public.users
--- Description: Auth: Stores user login data within a secure schema.
+-- Description: User accounts with role-based access control     
+  via role_code
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     full_name text NOT NULL,
     email text NOT NULL,
-    access_status USER-DEFINED NOT NULL DEFAULT 'pending'::access_status_type,
+    access_status access_status_type NOT NULL DEFAULT 'pending'::access_status_type,
     approved_by uuid,
     approved_at timestamp with time zone,
     registration_date timestamp with time zone NOT NULL DEFAULT now(),
@@ -1065,15 +1105,32 @@ CREATE TABLE IF NOT EXISTS public.users (
     role_code text NOT NULL,
     allowed_pages jsonb DEFAULT '[]'::jsonb,
     tender_deadline_extensions jsonb DEFAULT '[]'::jsonb,
-    current_work_mode USER-DEFINED DEFAULT 'office'::work_mode,
-    current_work_status USER-DEFINED DEFAULT 'working'::work_status,
-    CONSTRAINT fk_users_auth_users FOREIGN KEY (id) REFERENCES None.None(None),
+    current_work_mode work_mode DEFAULT 'office'::work_mode,
+    current_work_status work_status DEFAULT 'working'::work_status,
+    CONSTRAINT fk_users_auth_users FOREIGN KEY (id) REFERENCES auth.users(id),
     CONSTRAINT users_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id),
     CONSTRAINT users_email_key UNIQUE (email),
     CONSTRAINT users_pkey PRIMARY KEY (id),
-    CONSTRAINT users_role_code_fkey FOREIGN KEY (role_code) REFERENCES None.None(None)
+    CONSTRAINT users_role_code_fkey FOREIGN KEY (role_code) REFERENCES public.roles(code)
 );
-COMMENT ON TABLE public.users IS 'Auth: Stores user login data within a secure schema.';
+COMMENT ON TABLE public.users IS 'User accounts with role-based access control     
+  via role_code';
+COMMENT ON COLUMN public.users.id IS 'User ID linked to auth.users';
+COMMENT ON COLUMN public.users.full_name IS 'User full name (ФИО)';
+COMMENT ON COLUMN public.users.email IS 'User email address';
+COMMENT ON COLUMN public.users.access_status IS 'Access status: pending (awaiting approval), approved (can login), blocked (access denied)';
+COMMENT ON COLUMN public.users.approved_by IS 'ID of Admin/Leader who approved this user';
+COMMENT ON COLUMN public.users.approved_at IS 'Timestamp when user was approved';
+COMMENT ON COLUMN public.users.registration_date IS 'Date when user registered';
+COMMENT ON COLUMN public.users.access_enabled IS 'Флаг доступа: true - пользователь может войти, false - доступ закрыт';
+COMMENT ON COLUMN public.users.role_code IS 'Current role code, references roles.code';
+COMMENT ON COLUMN public.users.allowed_pages IS 'Array of page paths the user      
+  can access. Empty array means full access. Sync from roles.allowed_pages based     
+  on role_code.';
+COMMENT ON COLUMN public.users.tender_deadline_extensions IS 'Массив объектов {tender_id: uuid, extended_deadline: timestamp} для ручного продления дедлайна пользователю';
+COMMENT ON COLUMN public.users.current_work_mode IS 'Текущий режим работы: office (офис), remote (удаленка)';
+COMMENT ON COLUMN public.users.current_work_status IS 'Текущий статус работы: working (работаю), not_working (не        
+  работаю)';
 
 -- Table: public.work_names
 -- Description: Справочник наименований работ
@@ -1084,7 +1141,7 @@ CREATE TABLE IF NOT EXISTS public.work_names (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT work_names_pkey PRIMARY KEY (id),
-    CONSTRAINT work_names_unit_fkey FOREIGN KEY (unit) REFERENCES None.None(None)
+    CONSTRAINT work_names_unit_fkey FOREIGN KEY (unit) REFERENCES public.units(code)
 );
 COMMENT ON TABLE public.work_names IS 'Справочник наименований работ';
 COMMENT ON COLUMN public.work_names.id IS 'Уникальный идентификатор работы (UUID)';
@@ -1098,13 +1155,13 @@ COMMENT ON COLUMN public.work_names.updated_at IS 'Дата и время пос
 CREATE TABLE IF NOT EXISTS public.works_library (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     work_name_id uuid NOT NULL,
-    item_type USER-DEFINED NOT NULL,
+    item_type boq_item_type NOT NULL,
     unit_rate numeric(15,2) NOT NULL,
-    currency_type USER-DEFINED NOT NULL DEFAULT 'RUB'::currency_type,
+    currency_type currency_type NOT NULL DEFAULT 'RUB'::currency_type,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT works_library_pkey PRIMARY KEY (id),
-    CONSTRAINT works_library_work_name_id_fkey FOREIGN KEY (work_name_id) REFERENCES None.None(None)
+    CONSTRAINT works_library_work_name_id_fkey FOREIGN KEY (work_name_id) REFERENCES public.work_names(id)
 );
 COMMENT ON TABLE public.works_library IS 'Справочник работ (Works library) с полной детализацией';
 COMMENT ON COLUMN public.works_library.id IS 'Уникальный идентификатор работы (UUID)';
@@ -1115,8 +1172,8 @@ COMMENT ON COLUMN public.works_library.currency_type IS 'Тип валюты (RU
 COMMENT ON COLUMN public.works_library.created_at IS 'Дата и время создания записи';
 COMMENT ON COLUMN public.works_library.updated_at IS 'Дата и время последнего обновления';
 
--- Table: realtime.messages
-CREATE TABLE IF NOT EXISTS realtime.messages (
+-- Table: realtime.messages_2026_01_14
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_14 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1125,12 +1182,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_14_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_14_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2025_12_27
-CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_27 (
+-- Table: realtime.messages_2026_01_15
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_15 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1139,12 +1196,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_27 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2025_12_27_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2025_12_27_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_15_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_15_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2025_12_28
-CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_28 (
+-- Table: realtime.messages_2026_01_16
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_16 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1153,12 +1210,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_28 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2025_12_28_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2025_12_28_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_16_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_16_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2025_12_29
-CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_29 (
+-- Table: realtime.messages_2026_01_17
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_17 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1167,12 +1224,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_29 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2025_12_29_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2025_12_29_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_17_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_17_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2025_12_30
-CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_30 (
+-- Table: realtime.messages_2026_01_18
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_18 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1181,12 +1238,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_30 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2025_12_30_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2025_12_30_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_18_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_18_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2025_12_31
-CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_31 (
+-- Table: realtime.messages_2026_01_19
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_19 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1195,12 +1252,12 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2025_12_31 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2025_12_31_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2025_12_31_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_19_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_19_pkey PRIMARY KEY (inserted_at)
 );
 
--- Table: realtime.messages_2026_01_01
-CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_01 (
+-- Table: realtime.messages_2026_01_20
+CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_20 (
     topic text NOT NULL,
     extension text NOT NULL,
     payload jsonb,
@@ -1209,41 +1266,25 @@ CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_01 (
     updated_at timestamp without time zone NOT NULL DEFAULT now(),
     inserted_at timestamp without time zone NOT NULL DEFAULT now(),
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2026_01_01_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2026_01_01_pkey PRIMARY KEY (inserted_at)
-);
-
--- Table: realtime.messages_2026_01_02
-CREATE TABLE IF NOT EXISTS realtime.messages_2026_01_02 (
-    topic text NOT NULL,
-    extension text NOT NULL,
-    payload jsonb,
-    event text,
-    private boolean DEFAULT false,
-    updated_at timestamp without time zone NOT NULL DEFAULT now(),
-    inserted_at timestamp without time zone NOT NULL DEFAULT now(),
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    CONSTRAINT messages_2026_01_02_pkey PRIMARY KEY (id),
-    CONSTRAINT messages_2026_01_02_pkey PRIMARY KEY (inserted_at)
+    CONSTRAINT messages_2026_01_20_pkey PRIMARY KEY (id),
+    CONSTRAINT messages_2026_01_20_pkey PRIMARY KEY (inserted_at)
 );
 
 -- Table: realtime.schema_migrations
--- Description: Auth: Manages updates to the auth system.
 CREATE TABLE IF NOT EXISTS realtime.schema_migrations (
-    version bigint(64) NOT NULL,
-    inserted_at timestamp without time zone,
+    version bigint NOT NULL,
+    inserted_at timestamp(0) without time zone,
     CONSTRAINT schema_migrations_pkey PRIMARY KEY (version)
 );
-COMMENT ON TABLE realtime.schema_migrations IS 'Auth: Manages updates to the auth system.';
 
 -- Table: realtime.subscription
 CREATE TABLE IF NOT EXISTS realtime.subscription (
-    id bigint(64) NOT NULL,
+    id bigint NOT NULL,
     subscription_id uuid NOT NULL,
     entity regclass NOT NULL,
-    filters ARRAY NOT NULL DEFAULT '{}'::realtime.user_defined_filter[],
+    filters realtime.user_defined_filter[] NOT NULL DEFAULT '{}'::realtime.user_defined_filter[],
     claims jsonb NOT NULL,
-    claims_role regrole NOT NULL,
+    claims_role regrole NOT NULL DEFAULT realtime.to_regrole((claims ->> 'role'::text)),
     created_at timestamp without time zone NOT NULL DEFAULT timezone('utc'::text, now()),
     CONSTRAINT pk_subscription PRIMARY KEY (id)
 );
@@ -1257,10 +1298,10 @@ CREATE TABLE IF NOT EXISTS storage.buckets (
     updated_at timestamp with time zone DEFAULT now(),
     public boolean DEFAULT false,
     avif_autodetection boolean DEFAULT false,
-    file_size_limit bigint(64),
-    allowed_mime_types ARRAY,
+    file_size_limit bigint,
+    allowed_mime_types text[],
     owner_id text,
-    type USER-DEFINED NOT NULL DEFAULT 'STANDARD'::storage.buckettype,
+    type storage.buckettype NOT NULL DEFAULT 'STANDARD'::storage.buckettype,
     CONSTRAINT buckets_pkey PRIMARY KEY (id)
 );
 COMMENT ON COLUMN storage.buckets.owner IS 'Field is deprecated, use owner_id instead';
@@ -1268,7 +1309,7 @@ COMMENT ON COLUMN storage.buckets.owner IS 'Field is deprecated, use owner_id in
 -- Table: storage.buckets_analytics
 CREATE TABLE IF NOT EXISTS storage.buckets_analytics (
     name text NOT NULL,
-    type USER-DEFINED NOT NULL DEFAULT 'ANALYTICS'::storage.buckettype,
+    type storage.buckettype NOT NULL DEFAULT 'ANALYTICS'::storage.buckettype,
     format text NOT NULL DEFAULT 'ICEBERG'::text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -1280,17 +1321,20 @@ CREATE TABLE IF NOT EXISTS storage.buckets_analytics (
 -- Table: storage.buckets_vectors
 CREATE TABLE IF NOT EXISTS storage.buckets_vectors (
     id text NOT NULL,
-    type USER-DEFINED NOT NULL DEFAULT 'VECTOR'::storage.buckettype,
+    type storage.buckettype NOT NULL DEFAULT 'VECTOR'::storage.buckettype,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone NOT NULL DEFAULT now()
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT buckets_vectors_pkey PRIMARY KEY (id)
 );
 
 -- Table: storage.migrations
 CREATE TABLE IF NOT EXISTS storage.migrations (
-    id integer(32) NOT NULL,
+    id integer NOT NULL,
     name character varying(100) NOT NULL,
     hash character varying(40) NOT NULL,
-    executed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    executed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT migrations_name_key UNIQUE (name),
+    CONSTRAINT migrations_pkey PRIMARY KEY (id)
 );
 
 -- Table: storage.objects
@@ -1303,12 +1347,12 @@ CREATE TABLE IF NOT EXISTS storage.objects (
     updated_at timestamp with time zone DEFAULT now(),
     last_accessed_at timestamp with time zone DEFAULT now(),
     metadata jsonb,
-    path_tokens ARRAY,
+    path_tokens text[] DEFAULT string_to_array(name, '/'::text),
     version text,
     owner_id text,
     user_metadata jsonb,
-    level integer(32),
-    CONSTRAINT objects_bucketId_fkey FOREIGN KEY (bucket_id) REFERENCES None.None(None),
+    level integer,
+    CONSTRAINT objects_bucketId_fkey FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id),
     CONSTRAINT objects_pkey PRIMARY KEY (id)
 );
 COMMENT ON COLUMN storage.objects.owner IS 'Field is deprecated, use owner_id instead';
@@ -1317,10 +1361,10 @@ COMMENT ON COLUMN storage.objects.owner IS 'Field is deprecated, use owner_id in
 CREATE TABLE IF NOT EXISTS storage.prefixes (
     bucket_id text NOT NULL,
     name text NOT NULL,
-    level integer(32) NOT NULL,
+    level integer NOT NULL DEFAULT storage.get_level(name),
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT prefixes_bucketId_fkey FOREIGN KEY (bucket_id) REFERENCES None.None(None),
+    CONSTRAINT prefixes_bucketId_fkey FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id),
     CONSTRAINT prefixes_pkey PRIMARY KEY (bucket_id),
     CONSTRAINT prefixes_pkey PRIMARY KEY (level),
     CONSTRAINT prefixes_pkey PRIMARY KEY (name)
@@ -1329,7 +1373,7 @@ CREATE TABLE IF NOT EXISTS storage.prefixes (
 -- Table: storage.s3_multipart_uploads
 CREATE TABLE IF NOT EXISTS storage.s3_multipart_uploads (
     id text NOT NULL,
-    in_progress_size bigint(64) NOT NULL DEFAULT 0,
+    in_progress_size bigint NOT NULL DEFAULT 0,
     upload_signature text NOT NULL,
     bucket_id text NOT NULL,
     key text NOT NULL,
@@ -1337,7 +1381,7 @@ CREATE TABLE IF NOT EXISTS storage.s3_multipart_uploads (
     owner_id text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     user_metadata jsonb,
-    CONSTRAINT s3_multipart_uploads_bucket_id_fkey FOREIGN KEY (bucket_id) REFERENCES None.None(None),
+    CONSTRAINT s3_multipart_uploads_bucket_id_fkey FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id),
     CONSTRAINT s3_multipart_uploads_pkey PRIMARY KEY (id)
 );
 
@@ -1345,17 +1389,17 @@ CREATE TABLE IF NOT EXISTS storage.s3_multipart_uploads (
 CREATE TABLE IF NOT EXISTS storage.s3_multipart_uploads_parts (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     upload_id text NOT NULL,
-    size bigint(64) NOT NULL DEFAULT 0,
-    part_number integer(32) NOT NULL,
+    size bigint NOT NULL DEFAULT 0,
+    part_number integer NOT NULL,
     bucket_id text NOT NULL,
     key text NOT NULL,
     etag text NOT NULL,
     owner_id text,
     version text NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT s3_multipart_uploads_parts_bucket_id_fkey FOREIGN KEY (bucket_id) REFERENCES None.None(None),
+    CONSTRAINT s3_multipart_uploads_parts_bucket_id_fkey FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id),
     CONSTRAINT s3_multipart_uploads_parts_pkey PRIMARY KEY (id),
-    CONSTRAINT s3_multipart_uploads_parts_upload_id_fkey FOREIGN KEY (upload_id) REFERENCES None.None(None)
+    CONSTRAINT s3_multipart_uploads_parts_upload_id_fkey FOREIGN KEY (upload_id) REFERENCES storage.s3_multipart_uploads(id)
 );
 
 -- Table: storage.vector_indexes
@@ -1364,22 +1408,22 @@ CREATE TABLE IF NOT EXISTS storage.vector_indexes (
     name text NOT NULL,
     bucket_id text NOT NULL,
     data_type text NOT NULL,
-    dimension integer(32) NOT NULL,
+    dimension integer NOT NULL,
     distance_metric text NOT NULL,
     metadata_configuration jsonb,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone NOT NULL DEFAULT now()
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vector_indexes_bucket_id_fkey FOREIGN KEY (bucket_id) REFERENCES storage.buckets_vectors(id),
+    CONSTRAINT vector_indexes_pkey PRIMARY KEY (id)
 );
 
 -- Table: supabase_migrations.schema_migrations
--- Description: Auth: Manages updates to the auth system.
 CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
     version text NOT NULL,
-    statements ARRAY,
+    statements text[],
     name text,
     CONSTRAINT schema_migrations_pkey PRIMARY KEY (version)
 );
-COMMENT ON TABLE supabase_migrations.schema_migrations IS 'Auth: Manages updates to the auth system.';
 
 -- Table: supabase_migrations.seed_files
 CREATE TABLE IF NOT EXISTS supabase_migrations.seed_files (
@@ -2408,58 +2452,32 @@ CREATE OR REPLACE FUNCTION public.add_subcontract_growth_exclusion(p_tender_id u
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-DECLARE
-
-  v_id uuid;
-
-BEGIN
-
-  -- Проверяем валидность типа
-
-  IF p_exclusion_type NOT IN ('works', 'materials') THEN
-
-    RAISE EXCEPTION 'Invalid exclusion_type: must be ''works'' or ''materials''';
-
-  END IF;
-
-
-
-  -- Вставляем запись (или возвращаем существующую)
-
-  INSERT INTO public.subcontract_growth_exclusions (
-
-    tender_id,
-
-    detail_cost_category_id,
-
-    exclusion_type
-
-  )
-
-  VALUES (
-
-    p_tender_id,
-
-    p_detail_cost_category_id,
-
-    p_exclusion_type
-
-  )
-
-  ON CONFLICT (tender_id, detail_cost_category_id, exclusion_type)
-
-  DO UPDATE SET updated_at = now()
-
-  RETURNING id INTO v_id;
-
-
-
-  RETURN v_id;
-
-END;
-
+AS $function$
+DECLARE
+  v_id uuid;
+BEGIN
+  -- Проверяем валидность типа
+  IF p_exclusion_type NOT IN ('works', 'materials') THEN
+    RAISE EXCEPTION 'Invalid exclusion_type: must be ''works'' or ''materials''';
+  END IF;
+
+  -- Вставляем запись (или возвращаем существующую)
+  INSERT INTO public.subcontract_growth_exclusions (
+    tender_id,
+    detail_cost_category_id,
+    exclusion_type
+  )
+  VALUES (
+    p_tender_id,
+    p_detail_cost_category_id,
+    p_exclusion_type
+  )
+  ON CONFLICT (tender_id, detail_cost_category_id, exclusion_type)
+  DO UPDATE SET updated_at = now()
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
 $function$
 
 
@@ -2469,78 +2487,42 @@ CREATE OR REPLACE FUNCTION public.check_user_page_access(user_id uuid, page_url 
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-  DECLARE
-
-    user_record RECORD;
-
-    allowed_page TEXT;
-
-    pattern TEXT;
-
-  BEGIN
-
-    SELECT role, access_status, allowed_pages
-
-    INTO user_record
-
-    FROM public.users
-
-    WHERE id = user_id;
-
-
-
-    IF NOT FOUND OR user_record.access_status != 'approved' THEN
-
-      RETURN FALSE;
-
-    END IF;
-
-
-
-    IF user_record.role IN ('Администратор', 'Руководитель', 'Разработчик') THEN     
-
-      RETURN TRUE;
-
-    END IF;
-
-
-
-    IF jsonb_array_length(user_record.allowed_pages) = 0 THEN
-
-      RETURN TRUE;
-
-    END IF;
-
-
-
-    FOR allowed_page IN
-
-      SELECT jsonb_array_elements_text(user_record.allowed_pages)
-
-    LOOP
-
-      pattern := '^' || regexp_replace(allowed_page, ':[^/]+', '[^/]+', 'g') ||      
-
-  '$';
-
-
-
-      IF page_url ~ pattern THEN
-
-        RETURN TRUE;
-
-      END IF;
-
-    END LOOP;
-
-
-
-    RETURN FALSE;
-
-  END;
-
+AS $function$
+  DECLARE
+    user_record RECORD;
+    allowed_page TEXT;
+    pattern TEXT;
+  BEGIN
+    SELECT role, access_status, allowed_pages
+    INTO user_record
+    FROM public.users
+    WHERE id = user_id;
+
+    IF NOT FOUND OR user_record.access_status != 'approved' THEN
+      RETURN FALSE;
+    END IF;
+
+    IF user_record.role IN ('Администратор', 'Руководитель', 'Разработчик') THEN     
+      RETURN TRUE;
+    END IF;
+
+    IF jsonb_array_length(user_record.allowed_pages) = 0 THEN
+      RETURN TRUE;
+    END IF;
+
+    FOR allowed_page IN
+      SELECT jsonb_array_elements_text(user_record.allowed_pages)
+    LOOP
+      pattern := '^' || regexp_replace(allowed_page, ':[^/]+', '[^/]+', 'g') ||      
+  '$';
+
+      IF page_url ~ pattern THEN
+        RETURN TRUE;
+      END IF;
+    END LOOP;
+
+    RETURN FALSE;
+  END;
   $function$
 
 
@@ -2550,16 +2532,11 @@ CREATE OR REPLACE FUNCTION public.clear_audit_user()
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-    BEGIN
-
-      -- Очистить значение на уровне сессии
-
-      PERFORM set_config('app.current_user_id', '', true);
-
-    END;
-
+AS $function$
+    BEGIN
+      -- Очистить значение на уровне сессии
+      PERFORM set_config('app.current_user_id', '', true);
+    END;
     $function$
 
 
@@ -2569,10 +2546,8 @@ CREATE OR REPLACE FUNCTION public.current_user_role()
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
-AS $function$
-
-  SELECT role FROM public.users WHERE id = auth.uid();
-
+AS $function$
+  SELECT role FROM public.users WHERE id = auth.uid();
 $function$
 
 
@@ -2582,10 +2557,8 @@ CREATE OR REPLACE FUNCTION public.current_user_status()
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
-AS $function$
-
-  SELECT access_status FROM public.users WHERE id = auth.uid();
-
+AS $function$
+  SELECT access_status FROM public.users WHERE id = auth.uid();
 $function$
 
 
@@ -2594,64 +2567,35 @@ CREATE OR REPLACE FUNCTION public.delete_boq_item_with_audit(p_user_id uuid, p_i
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-  DECLARE
-
-    v_old_item record;
-
-  BEGIN
-
-    -- Получаем старое состояние
-
-    SELECT * INTO v_old_item FROM public.boq_items WHERE id = p_item_id;
-
-
-
-    IF NOT FOUND THEN
-
-      RAISE EXCEPTION 'BOQ item not found: %', p_item_id;
-
-    END IF;
-
-
-
-    -- Вручную вставляем audit запись ПЕРЕД удалением
-
-    INSERT INTO public.boq_items_audit (
-
-      boq_item_id,
-
-      operation_type,
-
-      changed_by,
-
-      old_data
-
-    ) VALUES (
-
-      p_item_id,
-
-      'DELETE',
-
-      p_user_id,
-
-      to_jsonb(v_old_item)
-
-    );
-
-
-
-    -- Выполняем DELETE
-
-    DELETE FROM public.boq_items WHERE id = p_item_id;
-
-
-
-    RETURN to_jsonb(v_old_item);
-
-  END;
-
+AS $function$
+  DECLARE
+    v_old_item record;
+  BEGIN
+    -- Получаем старое состояние
+    SELECT * INTO v_old_item FROM public.boq_items WHERE id = p_item_id;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'BOQ item not found: %', p_item_id;
+    END IF;
+
+    -- Вручную вставляем audit запись ПЕРЕД удалением
+    INSERT INTO public.boq_items_audit (
+      boq_item_id,
+      operation_type,
+      changed_by,
+      old_data
+    ) VALUES (
+      p_item_id,
+      'DELETE',
+      p_user_id,
+      to_jsonb(v_old_item)
+    );
+
+    -- Выполняем DELETE
+    DELETE FROM public.boq_items WHERE id = p_item_id;
+
+    RETURN to_jsonb(v_old_item);
+  END;
   $function$
 
 
@@ -2661,24 +2605,15 @@ CREATE OR REPLACE FUNCTION public.get_subcontract_growth_exclusions(p_tender_id 
  RETURNS TABLE(detail_cost_category_id uuid, exclusion_type text)
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-BEGIN
-
-  RETURN QUERY
-
-  SELECT
-
-    e.detail_cost_category_id,
-
-    e.exclusion_type
-
-  FROM public.subcontract_growth_exclusions e
-
-  WHERE e.tender_id = p_tender_id;
-
-END;
-
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    e.detail_cost_category_id,
+    e.exclusion_type
+  FROM public.subcontract_growth_exclusions e
+  WHERE e.tender_id = p_tender_id;
+END;
 $function$
 
 
@@ -2686,16 +2621,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = now();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -2704,132 +2634,69 @@ CREATE OR REPLACE FUNCTION public.insert_boq_item_with_audit(p_user_id uuid, p_d
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-  DECLARE
-
-    v_new_item record;
-
-  BEGIN
-
-    -- Выполняем INSERT
-
-    INSERT INTO public.boq_items (
-
-      tender_id,
-
-      client_position_id,
-
-      sort_number,
-
-      boq_item_type,
-
-      work_name_id,
-
-      material_name_id,
-
-      parent_work_item_id,
-
-      unit_code,
-
-      quantity,
-
-      conversion_coefficient,
-
-      consumption_coefficient,
-
-      unit_rate,
-
-      currency_type,
-
-      total_amount,
-
-      delivery_price_type,
-
-      delivery_amount,
-
-      quote_link,
-
-      detail_cost_category_id,
-
-      material_type
-
-    )
-
-    SELECT
-
-      (p_data->>'tender_id')::uuid,
-
-      (p_data->>'client_position_id')::uuid,
-
-      COALESCE((p_data->>'sort_number')::integer, 0),
-
-      (p_data->>'boq_item_type')::boq_item_type,
-
-      (p_data->>'work_name_id')::uuid,
-
-      (p_data->>'material_name_id')::uuid,
-
-      (p_data->>'parent_work_item_id')::uuid,
-
-      p_data->>'unit_code',
-
-      COALESCE((p_data->>'quantity')::numeric, 1),
-
-      (p_data->>'conversion_coefficient')::numeric,
-
-      (p_data->>'consumption_coefficient')::numeric,
-
-      COALESCE((p_data->>'unit_rate')::numeric, 0),
-
-      COALESCE((p_data->>'currency_type')::currency_type, 'RUB'::currency_type),
-
-      COALESCE((p_data->>'total_amount')::numeric, 0),
-
-      (p_data->>'delivery_price_type')::delivery_price_type,
-
-      (p_data->>'delivery_amount')::numeric,
-
-      p_data->>'quote_link',
-
-      (p_data->>'detail_cost_category_id')::uuid,
-
-      (p_data->>'material_type')::material_type
-
-    RETURNING * INTO v_new_item;
-
-
-
-    -- Вручную вставляем audit запись с user_id
-
-    INSERT INTO public.boq_items_audit (
-
-      boq_item_id,
-
-      operation_type,
-
-      changed_by,
-
-      new_data
-
-    ) VALUES (
-
-      v_new_item.id,
-
-      'INSERT',
-
-      p_user_id,
-
-      to_jsonb(v_new_item)
-
-    );
-
-
-
-    RETURN to_jsonb(v_new_item);
-
-  END;
-
+AS $function$
+  DECLARE
+    v_new_item record;
+  BEGIN
+    -- Выполняем INSERT
+    INSERT INTO public.boq_items (
+      tender_id,
+      client_position_id,
+      sort_number,
+      boq_item_type,
+      work_name_id,
+      material_name_id,
+      parent_work_item_id,
+      unit_code,
+      quantity,
+      conversion_coefficient,
+      consumption_coefficient,
+      unit_rate,
+      currency_type,
+      total_amount,
+      delivery_price_type,
+      delivery_amount,
+      quote_link,
+      detail_cost_category_id,
+      material_type
+    )
+    SELECT
+      (p_data->>'tender_id')::uuid,
+      (p_data->>'client_position_id')::uuid,
+      COALESCE((p_data->>'sort_number')::integer, 0),
+      (p_data->>'boq_item_type')::boq_item_type,
+      (p_data->>'work_name_id')::uuid,
+      (p_data->>'material_name_id')::uuid,
+      (p_data->>'parent_work_item_id')::uuid,
+      p_data->>'unit_code',
+      COALESCE((p_data->>'quantity')::numeric, 1),
+      (p_data->>'conversion_coefficient')::numeric,
+      (p_data->>'consumption_coefficient')::numeric,
+      COALESCE((p_data->>'unit_rate')::numeric, 0),
+      COALESCE((p_data->>'currency_type')::currency_type, 'RUB'::currency_type),
+      COALESCE((p_data->>'total_amount')::numeric, 0),
+      (p_data->>'delivery_price_type')::delivery_price_type,
+      (p_data->>'delivery_amount')::numeric,
+      p_data->>'quote_link',
+      (p_data->>'detail_cost_category_id')::uuid,
+      (p_data->>'material_type')::material_type
+    RETURNING * INTO v_new_item;
+
+    -- Вручную вставляем audit запись с user_id
+    INSERT INTO public.boq_items_audit (
+      boq_item_id,
+      operation_type,
+      changed_by,
+      new_data
+    ) VALUES (
+      v_new_item.id,
+      'INSERT',
+      p_user_id,
+      to_jsonb(v_new_item)
+    );
+
+    RETURN to_jsonb(v_new_item);
+  END;
   $function$
 
 
@@ -2838,116 +2705,61 @@ AS $function$
 CREATE OR REPLACE FUNCTION public.log_boq_items_changes()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-  DECLARE
-
-    v_user_id uuid;
-
-    v_changed_fields text[];
-
-    v_key text;
-
-    v_old_val jsonb;
-
-    v_new_val jsonb;
-
-  BEGIN
-
-    -- Получаем user_id из app.current_user_id
-
-    BEGIN
-
-      v_user_id := NULLIF(current_setting('app.current_user_id', true), '')::uuid;
-
-    EXCEPTION WHEN OTHERS THEN
-
-      v_user_id := NULL;
-
-    END;
-
-
-
-    -- Вычисляем измененные поля для UPDATE
-
-    IF TG_OP = 'UPDATE' THEN
-
-      v_changed_fields := ARRAY[]::text[];
-
-
-
-      FOR v_key IN
-
-        SELECT jsonb_object_keys(to_jsonb(NEW.*))
-
-      LOOP
-
-        v_old_val := to_jsonb(OLD.*) -> v_key;
-
-        v_new_val := to_jsonb(NEW.*) -> v_key;
-
-
-
-        IF v_key NOT IN ('updated_at', 'created_at')
-
-           AND (v_old_val IS DISTINCT FROM v_new_val) THEN
-
-          v_changed_fields := array_append(v_changed_fields, v_key);
-
-        END IF;
-
-      END LOOP;
-
-
-
-      IF array_length(v_changed_fields, 1) IS NULL THEN
-
-        RETURN NEW;
-
-      END IF;
-
-    END IF;
-
-
-
-    -- Вставка записи в audit
-
-    INSERT INTO public.boq_items_audit (
-
-      boq_item_id,
-
-      operation_type,
-
-      changed_by,
-
-      old_data,
-
-      new_data,
-
-      changed_fields
-
-    ) VALUES (
-
-      COALESCE(NEW.id, OLD.id),
-
-      TG_OP,
-
-      v_user_id,
-
-      CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD.*) ELSE NULL END,
-
-      CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW.*) ELSE NULL END,
-
-      v_changed_fields
-
-    );
-
-
-
-    RETURN COALESCE(NEW, OLD);
-
-  END;
-
+AS $function$
+  DECLARE
+    v_user_id uuid;
+    v_changed_fields text[];
+    v_key text;
+    v_old_val jsonb;
+    v_new_val jsonb;
+  BEGIN
+    -- Получаем user_id из app.current_user_id
+    BEGIN
+      v_user_id := NULLIF(current_setting('app.current_user_id', true), '')::uuid;
+    EXCEPTION WHEN OTHERS THEN
+      v_user_id := NULL;
+    END;
+
+    -- Вычисляем измененные поля для UPDATE
+    IF TG_OP = 'UPDATE' THEN
+      v_changed_fields := ARRAY[]::text[];
+
+      FOR v_key IN
+        SELECT jsonb_object_keys(to_jsonb(NEW.*))
+      LOOP
+        v_old_val := to_jsonb(OLD.*) -> v_key;
+        v_new_val := to_jsonb(NEW.*) -> v_key;
+
+        IF v_key NOT IN ('updated_at', 'created_at')
+           AND (v_old_val IS DISTINCT FROM v_new_val) THEN
+          v_changed_fields := array_append(v_changed_fields, v_key);
+        END IF;
+      END LOOP;
+
+      IF array_length(v_changed_fields, 1) IS NULL THEN
+        RETURN NEW;
+      END IF;
+    END IF;
+
+    -- Вставка записи в audit
+    INSERT INTO public.boq_items_audit (
+      boq_item_id,
+      operation_type,
+      changed_by,
+      old_data,
+      new_data,
+      changed_fields
+    ) VALUES (
+      COALESCE(NEW.id, OLD.id),
+      TG_OP,
+      v_user_id,
+      CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD.*) ELSE NULL END,
+      CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW.*) ELSE NULL END,
+      v_changed_fields
+    );
+
+    RETURN COALESCE(NEW, OLD);
+  END;
   $function$
 
 
@@ -2957,66 +2769,36 @@ CREATE OR REPLACE FUNCTION public.register_user(p_user_id uuid, p_full_name text
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
-AS $function$
-
-  DECLARE
-
-    v_is_first_user BOOLEAN;
-
-    v_access_status access_status_type;
-
-  BEGIN
-
-    -- Проверка первого пользователя
-
-    SELECT NOT EXISTS (SELECT 1 FROM public.users LIMIT 1) INTO v_is_first_user;
-
-
-
-    -- Первый admin/director/developer → auto-approved
-
-    IF v_is_first_user AND p_role_code IN ('administrator', 'director', 'developer') THEN
-
-      v_access_status := 'approved';
-
-
-
-      INSERT INTO public.users (
-
-        id, full_name, email, role_code, access_status, allowed_pages,
-
-        approved_by, approved_at
-
-      ) VALUES (
-
-        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages,
-
-        p_user_id, NOW()
-
-      );
-
-    ELSE
-
-      -- Остальные → pending (ждут одобрения)
-
-      v_access_status := 'pending';
-
-
-
-      INSERT INTO public.users (
-
-        id, full_name, email, role_code, access_status, allowed_pages
-
-      ) VALUES (
-
-        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages
-
-      );
-
-    END IF;
-
-  END;
-
+AS $function$
+  DECLARE
+    v_is_first_user BOOLEAN;
+    v_access_status access_status_type;
+  BEGIN
+    -- Проверка первого пользователя
+    SELECT NOT EXISTS (SELECT 1 FROM public.users LIMIT 1) INTO v_is_first_user;
+
+    -- Первый admin/director/developer → auto-approved
+    IF v_is_first_user AND p_role_code IN ('administrator', 'director', 'developer') THEN
+      v_access_status := 'approved';
+
+      INSERT INTO public.users (
+        id, full_name, email, role_code, access_status, allowed_pages,
+        approved_by, approved_at
+      ) VALUES (
+        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages,
+        p_user_id, NOW()
+      );
+    ELSE
+      -- Остальные → pending (ждут одобрения)
+      v_access_status := 'pending';
+
+      INSERT INTO public.users (
+        id, full_name, email, role_code, access_status, allowed_pages
+      ) VALUES (
+        p_user_id, p_full_name, p_email, p_role_code, v_access_status, p_allowed_pages
+      );
+    END IF;
+  END;
 $function$
 
 
@@ -3026,30 +2808,18 @@ CREATE OR REPLACE FUNCTION public.remove_subcontract_growth_exclusion(p_tender_i
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-DECLARE
-
-  v_deleted boolean;
-
-BEGIN
-
-  DELETE FROM public.subcontract_growth_exclusions
-
-  WHERE tender_id = p_tender_id
-
-    AND detail_cost_category_id = p_detail_cost_category_id
-
-    AND exclusion_type = p_exclusion_type;
-
-
-
-  GET DIAGNOSTICS v_deleted = ROW_COUNT;
-
-  RETURN v_deleted > 0;
-
-END;
-
+AS $function$
+DECLARE
+  v_deleted boolean;
+BEGIN
+  DELETE FROM public.subcontract_growth_exclusions
+  WHERE tender_id = p_tender_id
+    AND detail_cost_category_id = p_detail_cost_category_id
+    AND exclusion_type = p_exclusion_type;
+
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted > 0;
+END;
 $function$
 
 
@@ -3059,16 +2829,11 @@ CREATE OR REPLACE FUNCTION public.set_audit_user(user_id uuid)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-    BEGIN
-
-      -- Используем is_local = true для установки на уровне сессии
-
-      PERFORM set_config('app.current_user_id', user_id::text, true);
-
-    END;
-
+AS $function$
+    BEGIN
+      -- Используем is_local = true для установки на уровне сессии
+      PERFORM set_config('app.current_user_id', user_id::text, true);
+    END;
     $function$
 
 
@@ -3076,16 +2841,11 @@ AS $function$
 CREATE OR REPLACE FUNCTION public.set_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = now();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -3095,52 +2855,29 @@ CREATE OR REPLACE FUNCTION public.toggle_subcontract_growth_exclusion(p_tender_i
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-DECLARE
-
-  v_exists boolean;
-
-BEGIN
-
-  -- Проверяем существование
-
-  SELECT EXISTS (
-
-    SELECT 1
-
-    FROM public.subcontract_growth_exclusions
-
-    WHERE tender_id = p_tender_id
-
-      AND detail_cost_category_id = p_detail_cost_category_id
-
-      AND exclusion_type = p_exclusion_type
-
-  ) INTO v_exists;
-
-
-
-  IF v_exists THEN
-
-    -- Удаляем если существует
-
-    PERFORM remove_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);
-
-    RETURN false;
-
-  ELSE
-
-    -- Добавляем если не существует
-
-    PERFORM add_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);
-
-    RETURN true;
-
-  END IF;
-
-END;
-
+AS $function$
+DECLARE
+  v_exists boolean;
+BEGIN
+  -- Проверяем существование
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.subcontract_growth_exclusions
+    WHERE tender_id = p_tender_id
+      AND detail_cost_category_id = p_detail_cost_category_id
+      AND exclusion_type = p_exclusion_type
+  ) INTO v_exists;
+
+  IF v_exists THEN
+    -- Удаляем если существует
+    PERFORM remove_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);
+    RETURN false;
+  ELSE
+    -- Добавляем если не существует
+    PERFORM add_subcontract_growth_exclusion(p_tender_id, p_detail_cost_category_id, p_exclusion_type);
+    RETURN true;
+  END IF;
+END;
 $function$
 
 
@@ -3149,164 +2886,85 @@ CREATE OR REPLACE FUNCTION public.update_boq_item_with_audit(p_user_id uuid, p_i
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
-AS $function$
-
-    DECLARE
-
-      v_old_item record;
-
-      v_new_item record;
-
-      v_changed_fields text[] := ARRAY[]::text[];
-
-      v_key text;
-
-      v_old_val jsonb;
-
-      v_new_val jsonb;
-
-    BEGIN
-
-      -- Получаем старое состояние
-
-      SELECT * INTO v_old_item FROM public.boq_items WHERE id = p_item_id;
-
-
-
-      IF NOT FOUND THEN
-
-        RAISE EXCEPTION 'BOQ item not found: %', p_item_id;
-
-      END IF;
-
-
-
-      -- Выполняем UPDATE только переданных полей
-
-      UPDATE public.boq_items
-
-      SET
-
-        boq_item_type = COALESCE((p_data->>'boq_item_type')::boq_item_type, boq_item_type),
-
-        quantity = COALESCE((p_data->>'quantity')::numeric, quantity),
-
-        unit_rate = COALESCE((p_data->>'unit_rate')::numeric, unit_rate),
-
-        total_amount = COALESCE((p_data->>'total_amount')::numeric, total_amount),
-
-        conversion_coefficient = COALESCE((p_data->>'conversion_coefficient')::numeric, conversion_coefficient),      
-
-        consumption_coefficient = COALESCE((p_data->>'consumption_coefficient')::numeric, consumption_coefficient),   
-
-        delivery_price_type = COALESCE((p_data->>'delivery_price_type')::delivery_price_type, delivery_price_type),   
-
-        delivery_amount = COALESCE((p_data->>'delivery_amount')::numeric, delivery_amount),
-
-        currency_type = COALESCE((p_data->>'currency_type')::currency_type, currency_type),
-
-        quote_link = COALESCE(p_data->>'quote_link', quote_link),
-
-        description = COALESCE(p_data->>'description', description),
-
-        detail_cost_category_id = COALESCE((p_data->>'detail_cost_category_id')::uuid, detail_cost_category_id),      
-
-        material_type = COALESCE((p_data->>'material_type')::material_type, material_type),
-
-        work_name_id = COALESCE((p_data->>'work_name_id')::uuid, work_name_id),
-
-        material_name_id = COALESCE((p_data->>'material_name_id')::uuid, material_name_id),
-
-        unit_code = COALESCE(p_data->>'unit_code', unit_code),
-
-        parent_work_item_id = COALESCE((p_data->>'parent_work_item_id')::uuid, parent_work_item_id),
-
-        sort_number = COALESCE((p_data->>'sort_number')::integer, sort_number)
-
-      WHERE id = p_item_id
-
-      RETURNING * INTO v_new_item;
-
-
-
-      -- Сравниваем old и new, добавляем только реально измененные поля
-
-      FOR v_key IN SELECT jsonb_object_keys(to_jsonb(v_new_item.*))
-
-      LOOP
-
-        v_old_val := to_jsonb(v_old_item.*) -> v_key;
-
-        v_new_val := to_jsonb(v_new_item.*) -> v_key;
-
-
-
-        -- Пропускаем служебные поля
-
-        IF v_key NOT IN ('updated_at', 'created_at', 'id') THEN
-
-          -- Добавляем в список только если значение изменилось
-
-          IF v_old_val IS DISTINCT FROM v_new_val THEN
-
-            v_changed_fields := array_append(v_changed_fields, v_key);
-
-          END IF;
-
-        END IF;
-
-      END LOOP;
-
-
-
-      -- Если ничего не изменилось, не создаем audit запись
-
-      IF array_length(v_changed_fields, 1) IS NULL THEN
-
-        RETURN to_jsonb(v_new_item);
-
-      END IF;
-
-
-
-      -- Вручную вставляем audit запись с user_id
-
-      INSERT INTO public.boq_items_audit (
-
-        boq_item_id,
-
-        operation_type,
-
-        changed_by,
-
-        old_data,
-
-        new_data,
-
-        changed_fields
-
-      ) VALUES (
-
-        p_item_id,
-
-        'UPDATE',
-
-        p_user_id,
-
-        to_jsonb(v_old_item),
-
-        to_jsonb(v_new_item),
-
-        v_changed_fields
-
-      );
-
-
-
-      RETURN to_jsonb(v_new_item);
-
-    END;
-
+AS $function$
+    DECLARE
+      v_old_item record;
+      v_new_item record;
+      v_changed_fields text[] := ARRAY[]::text[];
+      v_key text;
+      v_old_val jsonb;
+      v_new_val jsonb;
+    BEGIN
+      -- Получаем старое состояние
+      SELECT * INTO v_old_item FROM public.boq_items WHERE id = p_item_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'BOQ item not found: %', p_item_id;
+      END IF;
+
+      -- Выполняем UPDATE только переданных полей
+      UPDATE public.boq_items
+      SET
+        boq_item_type = COALESCE((p_data->>'boq_item_type')::boq_item_type, boq_item_type),
+        quantity = COALESCE((p_data->>'quantity')::numeric, quantity),
+        unit_rate = COALESCE((p_data->>'unit_rate')::numeric, unit_rate),
+        total_amount = COALESCE((p_data->>'total_amount')::numeric, total_amount),
+        conversion_coefficient = COALESCE((p_data->>'conversion_coefficient')::numeric, conversion_coefficient),      
+        consumption_coefficient = COALESCE((p_data->>'consumption_coefficient')::numeric, consumption_coefficient),   
+        delivery_price_type = COALESCE((p_data->>'delivery_price_type')::delivery_price_type, delivery_price_type),   
+        delivery_amount = COALESCE((p_data->>'delivery_amount')::numeric, delivery_amount),
+        currency_type = COALESCE((p_data->>'currency_type')::currency_type, currency_type),
+        quote_link = COALESCE(p_data->>'quote_link', quote_link),
+        description = COALESCE(p_data->>'description', description),
+        detail_cost_category_id = COALESCE((p_data->>'detail_cost_category_id')::uuid, detail_cost_category_id),      
+        material_type = COALESCE((p_data->>'material_type')::material_type, material_type),
+        work_name_id = COALESCE((p_data->>'work_name_id')::uuid, work_name_id),
+        material_name_id = COALESCE((p_data->>'material_name_id')::uuid, material_name_id),
+        unit_code = COALESCE(p_data->>'unit_code', unit_code),
+        parent_work_item_id = COALESCE((p_data->>'parent_work_item_id')::uuid, parent_work_item_id),
+        sort_number = COALESCE((p_data->>'sort_number')::integer, sort_number)
+      WHERE id = p_item_id
+      RETURNING * INTO v_new_item;
+
+      -- Сравниваем old и new, добавляем только реально измененные поля
+      FOR v_key IN SELECT jsonb_object_keys(to_jsonb(v_new_item.*))
+      LOOP
+        v_old_val := to_jsonb(v_old_item.*) -> v_key;
+        v_new_val := to_jsonb(v_new_item.*) -> v_key;
+
+        -- Пропускаем служебные поля
+        IF v_key NOT IN ('updated_at', 'created_at', 'id') THEN
+          -- Добавляем в список только если значение изменилось
+          IF v_old_val IS DISTINCT FROM v_new_val THEN
+            v_changed_fields := array_append(v_changed_fields, v_key);
+          END IF;
+        END IF;
+      END LOOP;
+
+      -- Если ничего не изменилось, не создаем audit запись
+      IF array_length(v_changed_fields, 1) IS NULL THEN
+        RETURN to_jsonb(v_new_item);
+      END IF;
+
+      -- Вручную вставляем audit запись с user_id
+      INSERT INTO public.boq_items_audit (
+        boq_item_id,
+        operation_type,
+        changed_by,
+        old_data,
+        new_data,
+        changed_fields
+      ) VALUES (
+        p_item_id,
+        'UPDATE',
+        p_user_id,
+        to_jsonb(v_old_item),
+        to_jsonb(v_new_item),
+        v_changed_fields
+      );
+
+      RETURN to_jsonb(v_new_item);
+    END;
     $function$
 
 
@@ -3314,16 +2972,11 @@ AS $function$
 CREATE OR REPLACE FUNCTION public.update_boq_items_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-    NEW.updated_at = now();
-
-    RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
 $function$
 
 
@@ -3331,16 +2984,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_client_positions_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-    NEW.updated_at = NOW();
-
-    RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
 $function$
 
 
@@ -3348,16 +2996,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_cost_redistribution_results_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-    NEW.updated_at = NOW();
-
-    RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
 $function$
 
 
@@ -3365,16 +3008,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_markup_parameters_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = NOW();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -3382,16 +3020,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_markup_tactics_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = NOW();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -3399,16 +3032,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_roles_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = NOW();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -3416,16 +3044,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_tender_documents_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-    NEW.updated_at = NOW();
-
-    RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
 $function$
 
 
@@ -3433,16 +3056,11 @@ $function$
 CREATE OR REPLACE FUNCTION public.update_tender_markup_percentage_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
-AS $function$
-
-BEGIN
-
-  NEW.updated_at = NOW();
-
-  RETURN NEW;
-
-END;
-
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
 $function$
 
 
@@ -3452,7 +3070,7 @@ CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  LANGUAGE plpgsql
 AS $function$
 BEGIN
-    NEW.updated_at = NOW();
+    NEW.updated_at = now();
     RETURN NEW;
 END;
 $function$
@@ -5149,6 +4767,15 @@ CREATE TRIGGER update_material_names_updated_at BEFORE UPDATE ON public.material
 -- Trigger: update_materials_library_updated_at on public.materials_library
 CREATE TRIGGER update_materials_library_updated_at BEFORE UPDATE ON public.materials_library FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 
+-- Trigger: update_project_additional_agreements_updated_at on public.project_additional_agreements
+CREATE TRIGGER update_project_additional_agreements_updated_at BEFORE UPDATE ON public.project_additional_agreements FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+
+-- Trigger: update_project_monthly_completion_updated_at on public.project_monthly_completion
+CREATE TRIGGER update_project_monthly_completion_updated_at BEFORE UPDATE ON public.project_monthly_completion FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+
+-- Trigger: update_projects_updated_at on public.projects
+CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+
 -- Trigger: roles_updated_at_trigger on public.roles
 CREATE TRIGGER roles_updated_at_trigger BEFORE UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION update_roles_updated_at()
 
@@ -5563,6 +5190,24 @@ CREATE INDEX idx_materials_library_name ON public.materials_library USING btree 
 -- Index on public.materials_library
 CREATE INDEX idx_materials_library_type_currency ON public.materials_library USING btree (material_type, currency_type);
 
+-- Index on public.project_additional_agreements
+CREATE INDEX idx_additional_agreements_project_id ON public.project_additional_agreements USING btree (project_id);
+
+-- Index on public.project_monthly_completion
+CREATE INDEX idx_monthly_completion_project_id ON public.project_monthly_completion USING btree (project_id);
+
+-- Index on public.project_monthly_completion
+CREATE INDEX idx_monthly_completion_year_month ON public.project_monthly_completion USING btree (year, month);
+
+-- Index on public.project_monthly_completion
+CREATE UNIQUE INDEX project_monthly_completion_unique ON public.project_monthly_completion USING btree (project_id, year, month);
+
+-- Index on public.projects
+CREATE INDEX idx_projects_is_active ON public.projects USING btree (is_active);
+
+-- Index on public.projects
+CREATE INDEX idx_projects_tender_id ON public.projects USING btree (tender_id);
+
 -- Index on public.roles
 CREATE UNIQUE INDEX roles_name_key ON public.roles USING btree (name);
 
@@ -5725,26 +5370,26 @@ CREATE INDEX idx_works_library_work_name_id ON public.works_library USING btree 
 -- Index on realtime.messages
 CREATE INDEX messages_inserted_at_topic_index ON ONLY realtime.messages USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2025_12_27
-CREATE INDEX messages_2025_12_27_inserted_at_topic_idx ON realtime.messages_2025_12_27 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_14
+CREATE INDEX messages_2026_01_14_inserted_at_topic_idx ON realtime.messages_2026_01_14 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2025_12_28
-CREATE INDEX messages_2025_12_28_inserted_at_topic_idx ON realtime.messages_2025_12_28 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_15
+CREATE INDEX messages_2026_01_15_inserted_at_topic_idx ON realtime.messages_2026_01_15 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2025_12_29
-CREATE INDEX messages_2025_12_29_inserted_at_topic_idx ON realtime.messages_2025_12_29 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_16
+CREATE INDEX messages_2026_01_16_inserted_at_topic_idx ON realtime.messages_2026_01_16 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2025_12_30
-CREATE INDEX messages_2025_12_30_inserted_at_topic_idx ON realtime.messages_2025_12_30 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_17
+CREATE INDEX messages_2026_01_17_inserted_at_topic_idx ON realtime.messages_2026_01_17 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2025_12_31
-CREATE INDEX messages_2025_12_31_inserted_at_topic_idx ON realtime.messages_2025_12_31 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_18
+CREATE INDEX messages_2026_01_18_inserted_at_topic_idx ON realtime.messages_2026_01_18 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2026_01_01
-CREATE INDEX messages_2026_01_01_inserted_at_topic_idx ON realtime.messages_2026_01_01 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_19
+CREATE INDEX messages_2026_01_19_inserted_at_topic_idx ON realtime.messages_2026_01_19 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
--- Index on realtime.messages_2026_01_02
-CREATE INDEX messages_2026_01_02_inserted_at_topic_idx ON realtime.messages_2026_01_02 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
+-- Index on realtime.messages_2026_01_20
+CREATE INDEX messages_2026_01_20_inserted_at_topic_idx ON realtime.messages_2026_01_20 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE));
 
 -- Index on realtime.subscription
 CREATE INDEX ix_realtime_subscription_entity ON realtime.subscription USING btree (entity);
@@ -5801,649 +5446,42 @@ CREATE UNIQUE INDEX secrets_name_idx ON vault.secrets USING btree (name) WHERE (
 
 -- Role: anon
 CREATE ROLE anon;
--- Members of role anon:
--- - authenticator
--- - postgres (WITH ADMIN OPTION)
--- Database privileges for anon:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO anon;
--- Schema privileges for anon:
--- GRANT USAGE ON SCHEMA auth TO anon;
--- GRANT USAGE ON SCHEMA extensions TO anon;
--- GRANT USAGE ON SCHEMA graphql TO anon;
--- GRANT USAGE ON SCHEMA graphql_public TO anon;
--- GRANT USAGE ON SCHEMA public TO anon;
--- GRANT USAGE ON SCHEMA realtime TO anon;
--- GRANT USAGE ON SCHEMA storage TO anon;
 
 -- Role: authenticated
 CREATE ROLE authenticated;
--- Members of role authenticated:
--- - authenticator
--- - postgres (WITH ADMIN OPTION)
--- Database privileges for authenticated:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO authenticated;
--- Schema privileges for authenticated:
--- GRANT USAGE ON SCHEMA auth TO authenticated;
--- GRANT USAGE ON SCHEMA extensions TO authenticated;
--- GRANT USAGE ON SCHEMA graphql TO authenticated;
--- GRANT USAGE ON SCHEMA graphql_public TO authenticated;
--- GRANT USAGE ON SCHEMA public TO authenticated;
--- GRANT USAGE ON SCHEMA realtime TO authenticated;
--- GRANT USAGE ON SCHEMA storage TO authenticated;
 
 -- Role: authenticator
 CREATE ROLE authenticator WITH LOGIN NOINHERIT;
-GRANT anon TO authenticator;
-GRANT authenticated TO authenticator;
-GRANT service_role TO authenticator;
--- Members of role authenticator:
--- - postgres (WITH ADMIN OPTION)
--- - supabase_storage_admin
--- Database privileges for authenticator:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO authenticator;
--- Schema privileges for authenticator:
--- GRANT USAGE ON SCHEMA public TO authenticator;
 
 -- Role: cli_login_postgres
 CREATE ROLE cli_login_postgres WITH LOGIN NOINHERIT VALID UNTIL '2025-11-24 08:36:06.867941+00';
-GRANT postgres TO cli_login_postgres;
--- Database privileges for cli_login_postgres:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO cli_login_postgres;
--- Schema privileges for cli_login_postgres:
--- GRANT USAGE ON SCHEMA public TO cli_login_postgres;
 
 -- Role: dashboard_user
 CREATE ROLE dashboard_user WITH CREATEDB CREATEROLE REPLICATION;
--- Database privileges for dashboard_user:
--- GRANT CONNECT, CREATE, TEMP ON DATABASE postgres TO dashboard_user;
--- Schema privileges for dashboard_user:
--- GRANT CREATE, USAGE ON SCHEMA auth TO dashboard_user;
--- GRANT CREATE, USAGE ON SCHEMA extensions TO dashboard_user;
--- GRANT USAGE ON SCHEMA public TO dashboard_user;
--- GRANT CREATE, USAGE ON SCHEMA storage TO dashboard_user;
 
 -- Role: postgres
 CREATE ROLE postgres WITH CREATEDB CREATEROLE LOGIN REPLICATION BYPASSRLS;
-GRANT anon TO postgres WITH ADMIN OPTION;
-GRANT authenticated TO postgres WITH ADMIN OPTION;
-GRANT authenticator TO postgres WITH ADMIN OPTION;
-GRANT pg_create_subscription TO postgres WITH ADMIN OPTION;
-GRANT pg_monitor TO postgres WITH ADMIN OPTION;
-GRANT pg_read_all_data TO postgres WITH ADMIN OPTION;
-GRANT pg_signal_backend TO postgres WITH ADMIN OPTION;
-GRANT service_role TO postgres WITH ADMIN OPTION;
-GRANT supabase_realtime_admin TO postgres;
--- Members of role postgres:
--- - cli_login_postgres
--- Database privileges for postgres:
--- GRANT CONNECT, CREATE, TEMP ON DATABASE postgres TO postgres;
--- Schema privileges for postgres:
--- GRANT USAGE ON SCHEMA auth TO postgres;
--- GRANT CREATE, USAGE ON SCHEMA extensions TO postgres;
--- GRANT USAGE ON SCHEMA graphql TO postgres;
--- GRANT USAGE ON SCHEMA graphql_public TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_0 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_1 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_10 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_11 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_12 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_13 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_14 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_15 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_16 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_17 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_18 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_19 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_2 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_20 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_21 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_22 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_23 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_24 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_25 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_27 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_28 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_29 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_3 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_30 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_31 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_32 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_33 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_34 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_35 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_36 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_37 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_38 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_4 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_40 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_41 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_42 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_43 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_44 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_45 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_46 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_47 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_48 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_49 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_5 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_50 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_51 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_52 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_53 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_54 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_55 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_56 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_57 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_58 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_59 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_7 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_8 TO postgres;
--- GRANT USAGE ON SCHEMA pg_temp_9 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_0 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_1 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_10 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_11 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_12 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_13 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_14 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_15 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_16 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_17 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_18 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_19 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_2 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_20 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_21 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_22 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_23 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_24 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_25 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_27 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_28 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_29 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_3 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_30 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_31 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_32 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_33 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_34 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_35 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_36 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_37 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_38 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_4 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_40 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_41 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_42 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_43 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_44 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_45 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_46 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_47 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_48 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_49 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_5 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_50 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_51 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_52 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_53 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_54 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_55 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_56 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_57 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_58 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_59 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_7 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_8 TO postgres;
--- GRANT USAGE ON SCHEMA pg_toast_temp_9 TO postgres;
--- GRANT USAGE ON SCHEMA pgbouncer TO postgres;
--- GRANT CREATE, USAGE ON SCHEMA public TO postgres;
--- GRANT CREATE, USAGE ON SCHEMA realtime TO postgres;
--- GRANT USAGE ON SCHEMA storage TO postgres;
--- GRANT CREATE, USAGE ON SCHEMA supabase_migrations TO postgres;
--- GRANT USAGE ON SCHEMA vault TO postgres;
 
 -- Role: service_role
 CREATE ROLE service_role WITH BYPASSRLS;
--- Members of role service_role:
--- - authenticator
--- - postgres (WITH ADMIN OPTION)
--- Database privileges for service_role:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO service_role;
--- Schema privileges for service_role:
--- GRANT USAGE ON SCHEMA auth TO service_role;
--- GRANT USAGE ON SCHEMA extensions TO service_role;
--- GRANT USAGE ON SCHEMA graphql TO service_role;
--- GRANT USAGE ON SCHEMA graphql_public TO service_role;
--- GRANT USAGE ON SCHEMA public TO service_role;
--- GRANT USAGE ON SCHEMA realtime TO service_role;
--- GRANT USAGE ON SCHEMA storage TO service_role;
--- GRANT USAGE ON SCHEMA vault TO service_role;
 
 -- Role: supabase_admin
 CREATE ROLE supabase_admin WITH SUPERUSER CREATEDB CREATEROLE LOGIN REPLICATION BYPASSRLS;
--- Database privileges for supabase_admin:
--- GRANT CONNECT, CREATE, TEMP ON DATABASE postgres TO supabase_admin;
--- Schema privileges for supabase_admin:
--- GRANT CREATE, USAGE ON SCHEMA auth TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA extensions TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA graphql TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA graphql_public TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_0 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_1 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_10 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_11 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_12 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_13 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_14 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_15 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_16 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_17 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_18 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_19 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_2 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_20 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_21 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_22 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_23 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_24 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_25 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_27 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_28 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_29 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_3 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_30 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_31 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_32 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_33 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_34 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_35 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_36 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_37 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_38 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_4 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_40 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_41 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_42 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_43 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_44 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_45 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_46 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_47 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_48 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_49 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_5 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_50 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_51 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_52 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_53 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_54 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_55 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_56 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_57 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_58 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_59 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_7 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_8 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_temp_9 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_0 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_1 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_10 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_11 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_12 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_13 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_14 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_15 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_16 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_17 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_18 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_19 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_2 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_20 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_21 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_22 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_23 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_24 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_25 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_27 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_28 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_29 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_3 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_30 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_31 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_32 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_33 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_34 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_35 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_36 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_37 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_38 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_4 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_40 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_41 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_42 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_43 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_44 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_45 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_46 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_47 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_48 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_49 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_5 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_50 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_51 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_52 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_53 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_54 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_55 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_56 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_57 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_58 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_59 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_7 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_8 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pg_toast_temp_9 TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA pgbouncer TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA public TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA realtime TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA storage TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA supabase_migrations TO supabase_admin;
--- GRANT CREATE, USAGE ON SCHEMA vault TO supabase_admin;
 
 -- Role: supabase_auth_admin
 CREATE ROLE supabase_auth_admin WITH CREATEROLE LOGIN NOINHERIT;
--- Database privileges for supabase_auth_admin:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO supabase_auth_admin;
--- Schema privileges for supabase_auth_admin:
--- GRANT CREATE, USAGE ON SCHEMA auth TO supabase_auth_admin;
--- GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 
 -- Role: supabase_etl_admin
 CREATE ROLE supabase_etl_admin WITH LOGIN REPLICATION;
-GRANT pg_monitor TO supabase_etl_admin;
-GRANT pg_read_all_data TO supabase_etl_admin;
--- Database privileges for supabase_etl_admin:
--- GRANT CONNECT, CREATE, TEMP ON DATABASE postgres TO supabase_etl_admin;
--- Schema privileges for supabase_etl_admin:
--- GRANT USAGE ON SCHEMA auth TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA extensions TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA graphql TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA graphql_public TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_0 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_1 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_10 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_11 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_12 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_13 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_14 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_15 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_16 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_17 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_18 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_19 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_2 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_20 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_21 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_22 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_23 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_24 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_25 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_27 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_28 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_29 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_3 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_30 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_31 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_32 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_33 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_34 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_35 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_36 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_37 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_38 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_4 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_40 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_41 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_42 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_43 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_44 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_45 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_46 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_47 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_48 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_49 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_5 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_50 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_51 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_52 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_53 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_54 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_55 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_56 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_57 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_58 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_59 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_7 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_8 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_temp_9 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_0 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_1 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_10 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_11 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_12 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_13 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_14 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_15 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_16 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_17 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_18 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_19 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_2 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_20 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_21 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_22 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_23 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_24 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_25 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_27 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_28 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_29 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_3 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_30 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_31 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_32 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_33 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_34 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_35 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_36 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_37 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_38 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_4 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_40 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_41 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_42 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_43 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_44 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_45 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_46 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_47 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_48 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_49 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_5 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_50 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_51 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_52 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_53 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_54 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_55 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_56 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_57 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_58 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_59 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_7 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_8 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pg_toast_temp_9 TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA pgbouncer TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA public TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA realtime TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA storage TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA supabase_migrations TO supabase_etl_admin;
--- GRANT USAGE ON SCHEMA vault TO supabase_etl_admin;
 
 -- Role: supabase_read_only_user
 CREATE ROLE supabase_read_only_user WITH LOGIN BYPASSRLS;
-GRANT pg_monitor TO supabase_read_only_user;
-GRANT pg_read_all_data TO supabase_read_only_user;
--- Database privileges for supabase_read_only_user:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO supabase_read_only_user;
--- Schema privileges for supabase_read_only_user:
--- GRANT USAGE ON SCHEMA auth TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA extensions TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA graphql TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA graphql_public TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_0 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_1 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_10 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_11 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_12 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_13 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_14 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_15 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_16 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_17 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_18 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_19 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_2 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_20 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_21 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_22 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_23 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_24 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_25 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_27 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_28 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_29 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_3 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_30 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_31 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_32 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_33 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_34 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_35 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_36 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_37 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_38 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_4 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_40 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_41 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_42 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_43 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_44 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_45 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_46 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_47 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_48 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_49 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_5 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_50 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_51 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_52 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_53 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_54 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_55 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_56 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_57 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_58 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_59 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_7 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_8 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_temp_9 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_0 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_1 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_10 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_11 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_12 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_13 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_14 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_15 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_16 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_17 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_18 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_19 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_2 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_20 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_21 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_22 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_23 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_24 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_25 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_27 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_28 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_29 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_3 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_30 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_31 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_32 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_33 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_34 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_35 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_36 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_37 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_38 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_4 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_40 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_41 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_42 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_43 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_44 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_45 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_46 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_47 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_48 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_49 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_5 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_50 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_51 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_52 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_53 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_54 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_55 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_56 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_57 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_58 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_59 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_7 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_8 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pg_toast_temp_9 TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA pgbouncer TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA public TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA realtime TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA storage TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA supabase_migrations TO supabase_read_only_user;
--- GRANT USAGE ON SCHEMA vault TO supabase_read_only_user;
 
 -- Role: supabase_realtime_admin
 CREATE ROLE supabase_realtime_admin WITH NOINHERIT;
--- Members of role supabase_realtime_admin:
--- - postgres
--- Database privileges for supabase_realtime_admin:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO supabase_realtime_admin;
--- Schema privileges for supabase_realtime_admin:
--- GRANT USAGE ON SCHEMA public TO supabase_realtime_admin;
--- GRANT CREATE, USAGE ON SCHEMA realtime TO supabase_realtime_admin;
 
 -- Role: supabase_replication_admin
 CREATE ROLE supabase_replication_admin WITH LOGIN REPLICATION;
--- Database privileges for supabase_replication_admin:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO supabase_replication_admin;
--- Schema privileges for supabase_replication_admin:
--- GRANT USAGE ON SCHEMA public TO supabase_replication_admin;
 
 -- Role: supabase_storage_admin
 CREATE ROLE supabase_storage_admin WITH CREATEROLE LOGIN NOINHERIT;
-GRANT authenticator TO supabase_storage_admin;
--- Database privileges for supabase_storage_admin:
--- GRANT CONNECT, TEMP ON DATABASE postgres TO supabase_storage_admin;
--- Schema privileges for supabase_storage_admin:
--- GRANT USAGE ON SCHEMA public TO supabase_storage_admin;
--- GRANT CREATE, USAGE ON SCHEMA storage TO supabase_storage_admin;

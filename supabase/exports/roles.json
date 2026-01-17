@@ -38,19 +38,6 @@
     "valid_until": null,
     "comment": null
   },
-  "cli_login_postgres": {
-    "name": "cli_login_postgres",
-    "is_superuser": false,
-    "inherit": false,
-    "can_create_role": false,
-    "can_create_db": false,
-    "can_login": true,
-    "is_replication": false,
-    "bypass_rls": false,
-    "connection_limit": null,
-    "valid_until": "2025-11-24 08:36:06.867941+00",
-    "comment": null
-  },
   "dashboard_user": {
     "name": "dashboard_user",
     "is_superuser": false,

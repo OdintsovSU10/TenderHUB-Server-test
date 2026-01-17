@@ -4,3 +4,4 @@ export { useMarkupSequences } from './useMarkupSequences';
 export { usePricingDistribution } from './usePricingDistribution';
 export { useBaseCosts } from './useBaseCosts';
 export { useMarkupCalculator } from './useMarkupCalculator';
+export { useTenders } from './useTenders';

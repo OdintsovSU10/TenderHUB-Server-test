@@ -5,3 +5,4 @@
 export * from './AntdNotificationService';
 export * from './AntdConfirmationService';
 export * from './ConsoleLoggerService';
+export * from './SupabaseBoqItemWriteService';

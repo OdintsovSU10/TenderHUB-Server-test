@@ -266,7 +266,7 @@ export const PricingDistributionForm: React.FC = () => {
       render: (value: string, record: DistributionRow) => (
         <Select
           value={value}
-          onChange={(newValue) => handleBaseCostTargetChange(record.key, newValue)}
+          onChange={(newValue) => handleBaseCostTargetChange(record.key, newValue as 'materials' | 'works')}
           style={{ width: '100%' }}
           options={[
             { label: 'Материалы КП', value: 'materials' },
@@ -283,7 +283,7 @@ export const PricingDistributionForm: React.FC = () => {
       render: (value: string, record: DistributionRow) => (
         <Select
           value={value}
-          onChange={(newValue) => handleMarkupTargetChange(record.key, newValue)}
+          onChange={(newValue) => handleMarkupTargetChange(record.key, newValue as 'materials' | 'works')}
           style={{ width: '100%' }}
           options={[
             { label: 'Материалы КП', value: 'materials' },

@@ -17,7 +17,7 @@ export interface RoundableItem {
 /**
  * Расширенный результат с добавленными полями округления
  */
-export interface RoundedResult<T> extends T {
+export type RoundedResult<T> = T & {
   /** Округленная цена за единицу (материалы) */
   rounded_material_unit_price?: number;
   /** Округленная цена за единицу (работы) */
@@ -26,7 +26,7 @@ export interface RoundedResult<T> extends T {
   rounded_material_total?: number;
   /** Округленная общая стоимость (работы) */
   rounded_work_total?: number;
-}
+};
 
 /**
  * Внутренний тип для отслеживания округления

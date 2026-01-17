@@ -111,7 +111,7 @@ export const SequenceStepList = ({ tabKey }: SequenceStepListProps) => {
 
         return (
           <SequenceStepItem
-            key={step.id || index}
+            key={index}
             step={step}
             index={index}
             intermediateResult={intermediateResult}

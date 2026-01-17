@@ -1,13 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import type { AuthUser } from '../lib/supabase/types';
+import type { AuthUser, UserOrganization } from '../lib/supabase/types';
 
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  authError: string | null;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  clearAuthError: () => void;
+  /** Переключить текущую организацию */
+  switchOrganization: (organizationId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,13 +23,48 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const userRef = useRef<AuthUser | null>(null);
   const initCompletedRef = useRef(false);
+
+  // Очистка ошибки аутентификации
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
 
   // Синхронизируем ref с state
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  // Загрузка организаций пользователя
+  const loadUserOrganizations = useCallback(async (userId: string): Promise<UserOrganization[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select(`
+          organization_id,
+          role,
+          organizations(id, name)
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+      if (error) {
+        console.error('[AuthContext] Ошибка загрузки организаций:', error.message);
+        return [];
+      }
+
+      return (data || []).map((item: any) => ({
+        id: item.organizations?.id || item.organization_id,
+        name: item.organizations?.name || 'Неизвестная организация',
+        role: item.role as 'owner' | 'admin' | 'member',
+      }));
+    } catch (err) {
+      console.error('[AuthContext] Исключение при загрузке организаций:', err);
+      return [];
+    }
+  }, []);
 
   // Загрузка данных пользователя из public.users
   const loadUserData = useCallback(async (authUserId: string): Promise<AuthUser | null> => {
@@ -58,13 +97,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const userData = userDataArray[0];
 
-      // Загружаем данные роли
-      const { data: roleDataArray } = await supabase
-        .from('roles')
-        .select('name, color')
-        .eq('code', userData.role_code);
+      // Загружаем данные роли и организации параллельно
+      const [roleDataArray, organizations] = await Promise.all([
+        supabase
+          .from('roles')
+          .select('name, color')
+          .eq('code', userData.role_code)
+          .then(res => res.data),
+        loadUserOrganizations(authUserId),
+      ]);
 
       const roleData = roleDataArray?.[0];
+
+      // Определяем текущую организацию (первая из списка или из localStorage)
+      const savedOrgId = localStorage.getItem('currentOrganizationId');
+      const currentOrganizationId = organizations.find(o => o.id === savedOrgId)?.id
+        || organizations[0]?.id
+        || null;
 
       return {
         id: userData.id,
@@ -76,12 +125,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         access_status: userData.access_status,
         allowed_pages: userData.allowed_pages || [],
         access_enabled: userData.access_enabled,
+        organizations,
+        currentOrganizationId,
       };
     } catch (err) {
       console.error('[AuthContext] Исключение при загрузке пользователя:', err);
       return null;
     }
-  }, []);
+  }, [loadUserOrganizations]);
 
   // Обновление данных пользователя
   const refreshUser = useCallback(async () => {
@@ -99,10 +150,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await supabase.auth.signOut();
       setUser(null);
+      localStorage.removeItem('currentOrganizationId');
     } catch (error) {
       console.error('[AuthContext] Ошибка при выходе:', error);
     }
   }, []);
+
+  // Переключение текущей организации
+  const switchOrganization = useCallback((organizationId: string) => {
+    if (!user) return;
+
+    // Проверяем, что пользователь состоит в этой организации
+    const org = user.organizations.find(o => o.id === organizationId);
+    if (!org) {
+      console.error('[AuthContext] Пользователь не состоит в организации:', organizationId);
+      return;
+    }
+
+    // Сохраняем в localStorage
+    localStorage.setItem('currentOrganizationId', organizationId);
+
+    // Обновляем state
+    setUser(prev => prev ? { ...prev, currentOrganizationId: organizationId } : null);
+  }, [user]);
 
   // Инициализация при монтировании
   useEffect(() => {
@@ -121,9 +191,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Обрабатываем только если initAuth завершился И user ещё не установлен
         if (initCompletedRef.current && !userRef.current) {
           const userData = await loadUserData(session.user.id);
-          if (mounted && userData) {
-            // Устанавливаем user для всех статусов - Login покажет соответствующий экран
-            setUser(userData);
+          if (mounted) {
+            if (userData) {
+              // Устанавливаем user для всех статусов - Login покажет соответствующий экран
+              setUser(userData);
+              setAuthError(null);
+            } else {
+              // Аутентификация успешна, но данные пользователя не найдены
+              console.error('[AuthContext] SIGNED_IN: пользователь не найден в БД');
+              setAuthError('Профиль пользователя не найден. Обратитесь к администратору.');
+              // Выходим из системы, т.к. без профиля работать нельзя
+              await supabase.auth.signOut();
+            }
             setLoading(false);
           }
         }
@@ -177,7 +256,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [loadUserData]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, authError, signOut, refreshUser, clearAuthError, switchOrganization }}>
       {children}
     </AuthContext.Provider>
   );

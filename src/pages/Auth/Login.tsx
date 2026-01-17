@@ -17,7 +17,7 @@ const Login: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authError, clearAuthError } = useAuth();
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Очистка таймаута при размонтировании
@@ -28,6 +28,20 @@ const Login: React.FC = () => {
       }
     };
   }, []);
+
+  // Обработка ошибок аутентификации из AuthContext
+  useEffect(() => {
+    if (authError) {
+      // Останавливаем загрузку при ошибке
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      setLoading(false);
+      message.error(authError);
+      clearAuthError();
+    }
+  }, [authError, clearAuthError]);
 
   // Автоматический редирект если пользователь уже авторизован
   useEffect(() => {
@@ -76,11 +90,11 @@ const Login: React.FC = () => {
 
       // Успешный вход - AuthContext получит событие SIGNED_IN и загрузит user
       // useEffect сделает редирект когда user появится
-      // Таймаут на случай если что-то пойдёт не так
+      // Таймаут на случай если что-то пойдёт не так (сокращён до 8 секунд)
       loadingTimeoutRef.current = setTimeout(() => {
         setLoading(false);
-        message.error('Превышено время ожидания. Попробуйте обновить страницу');
-      }, 15000);
+        message.error('Превышено время ожидания загрузки профиля. Попробуйте войти снова.');
+      }, 8000);
     } catch (error) {
       console.error('Ошибка при входе:', error);
       message.error('Произошла ошибка при входе');

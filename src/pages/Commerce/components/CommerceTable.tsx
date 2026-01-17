@@ -285,7 +285,18 @@ export default function CommerceTable({
                   {formatCommercialCost(totalCommercial)}
                 </Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={9} colSpan={2} />
+              <Table.Summary.Cell index={9} align="center">
+                {(() => {
+                  const totalCoefficient = totalBase > 0 ? totalCommercial / totalBase : 1;
+                  const color = totalCoefficient > 1 ? 'green' : totalCoefficient < 1 ? 'red' : 'default';
+                  return (
+                    <Tag color={color}>
+                      {totalCoefficient.toFixed(4)}
+                    </Tag>
+                  );
+                })()}
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={10} />
             </Table.Summary.Row>
           </Table.Summary>
         );

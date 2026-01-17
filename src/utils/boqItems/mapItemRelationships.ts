@@ -32,10 +32,12 @@ export async function mapItemRelationships(
 
       if (newItemId && newParentId) {
         updatePromises.push(
-          supabase
-            .from('boq_items')
-            .update({ parent_work_item_id: newParentId })
-            .eq('id', newItemId)
+          Promise.resolve(
+            supabase
+              .from('boq_items')
+              .update({ parent_work_item_id: newParentId })
+              .eq('id', newItemId)
+          )
         );
       }
     }
