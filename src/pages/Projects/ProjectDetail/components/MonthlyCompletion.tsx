@@ -16,9 +16,10 @@ import {
 import { SaveOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { supabase } from '../../../../lib/supabase';
+import { useProjectCompletionRepository } from '../../../../client/contexts/CoreServicesContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
-import type { ProjectFull, ProjectCompletion } from '../../../../lib/supabase/types';
+import type { ProjectFull } from '../../../../lib/supabase/types';
+import type { ProjectCompletion } from '@/core/domain/entities';
 
 const { Text } = Typography;
 
@@ -80,6 +81,7 @@ export const MonthlyCompletion: React.FC<MonthlyCompletionProps> = ({
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [modifiedRows, setModifiedRows] = useState<Record<string, Partial<MonthRow>>>({});
+  const completionRepository = useProjectCompletionRepository();
 
   // Generate months based on construction dates and existing completion data
   const monthRows = useMemo(() => {
@@ -190,20 +192,13 @@ export const MonthlyCompletion: React.FC<MonthlyCompletionProps> = ({
         };
 
         if (row.existingId) {
-          const { error } = await supabase
-            .from('project_monthly_completion')
-            .update({
-              actual_amount: data.actual_amount,
-              forecast_amount: data.forecast_amount,
-              note: data.note,
-            })
-            .eq('id', row.existingId);
-
-          if (error) throw error;
+          await completionRepository.update(row.existingId, {
+            actual_amount: data.actual_amount,
+            forecast_amount: data.forecast_amount,
+            note: data.note,
+          });
         } else {
-          const { error } = await supabase.from('project_monthly_completion').insert([data]);
-
-          if (error) throw error;
+          await completionRepository.create(data);
         }
       }
 

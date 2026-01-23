@@ -17,8 +17,9 @@ import {
 } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { supabase } from '../../../../lib/supabase';
-import type { ProjectFull, Tender, ProjectInsert } from '../../../../lib/supabase/types';
+import { useCoreServices } from '../../../../client/contexts/CoreServicesContext';
+import type { ProjectFull, Tender } from '../../../../lib/supabase/types';
+import type { ProjectCreate } from '@/core/domain/entities';
 
 const { Text } = Typography;
 
@@ -50,19 +51,14 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onSav
   const [loading, setLoading] = useState(false);
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [tendersLoading, setTendersLoading] = useState(false);
+  const { tenderRepository, projectRepository } = useCoreServices();
 
   useEffect(() => {
     const loadTenders = async () => {
       setTendersLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('tenders')
-          .select('id, title, tender_number, client_name')
-          .eq('is_archived', false)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setTenders((data as Tender[]) || []);
+        const data = await tenderRepository.findActive();
+        setTenders(data as Tender[]);
       } catch (error) {
         console.error('Error loading tenders:', error);
       } finally {
@@ -71,7 +67,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onSav
     };
 
     loadTenders();
-  }, []);
+  }, [tenderRepository]);
 
   useEffect(() => {
     form.setFieldsValue({
@@ -92,7 +88,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onSav
       const values = await form.validateFields();
       setLoading(true);
 
-      const projectData: Partial<ProjectInsert> = {
+      const projectData: Partial<ProjectCreate> = {
         name: values.name,
         client_name: values.client_name,
         contract_cost: values.contract_cost,
@@ -102,9 +98,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onSav
         tender_id: values.tender_id || null,
       };
 
-      const { error } = await supabase.from('projects').update(projectData).eq('id', project.id);
-
-      if (error) throw error;
+      await projectRepository.update(project.id, projectData);
 
       message.success('Объект сохранён');
       await onSave();
