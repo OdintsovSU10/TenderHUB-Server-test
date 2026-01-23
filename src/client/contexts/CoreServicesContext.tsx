@@ -16,6 +16,14 @@ import type {
   ITenderRepository,
   IClientPositionRepository,
   IBoqItemWriteService,
+  IMaterialNameRepository,
+  IMaterialLibraryRepository,
+  IWorkNameRepository,
+  IWorkLibraryRepository,
+  IMarkupTacticRepository,
+  IProjectRepository,
+  IProjectAgreementRepository,
+  IProjectCompletionRepository,
 } from '@/core/ports';
 
 // Адаптеры
@@ -27,6 +35,14 @@ import {
   SupabaseTenderRepository,
   SupabaseClientPositionRepository,
   SupabaseBoqItemWriteService,
+  SupabaseMaterialNameRepository,
+  SupabaseMaterialLibraryRepository,
+  SupabaseWorkNameRepository,
+  SupabaseWorkLibraryRepository,
+  SupabaseMarkupTacticRepository,
+  SupabaseProjectRepository,
+  SupabaseProjectAgreementRepository,
+  SupabaseProjectCompletionRepository,
 } from '../adapters';
 
 /**
@@ -47,6 +63,22 @@ export interface CoreServices {
   boqItemRepository: IBoqItemRepository;
   tenderRepository: ITenderRepository;
   clientPositionRepository: IClientPositionRepository;
+
+  // Репозитории материалов
+  materialNameRepository: IMaterialNameRepository;
+  materialLibraryRepository: IMaterialLibraryRepository;
+
+  // Репозитории работ
+  workNameRepository: IWorkNameRepository;
+  workLibraryRepository: IWorkLibraryRepository;
+
+  // Репозиторий тактик наценок
+  markupTacticRepository: IMarkupTacticRepository;
+
+  // Репозитории проектов
+  projectRepository: IProjectRepository;
+  projectAgreementRepository: IProjectAgreementRepository;
+  projectCompletionRepository: IProjectCompletionRepository;
 
   // Сервис записи BOQ элементов (с audit)
   boqItemWriteService: IBoqItemWriteService;
@@ -81,6 +113,22 @@ export function CoreServicesProvider({ children }: CoreServicesProviderProps) {
     const tenderRepository = new SupabaseTenderRepository();
     const clientPositionRepository = new SupabaseClientPositionRepository();
 
+    // Репозитории материалов
+    const materialNameRepository = new SupabaseMaterialNameRepository();
+    const materialLibraryRepository = new SupabaseMaterialLibraryRepository();
+
+    // Репозитории работ
+    const workNameRepository = new SupabaseWorkNameRepository();
+    const workLibraryRepository = new SupabaseWorkLibraryRepository();
+
+    // Репозиторий тактик наценок
+    const markupTacticRepository = new SupabaseMarkupTacticRepository();
+
+    // Репозитории проектов
+    const projectRepository = new SupabaseProjectRepository();
+    const projectAgreementRepository = new SupabaseProjectAgreementRepository();
+    const projectCompletionRepository = new SupabaseProjectCompletionRepository();
+
     // Сервис записи BOQ элементов
     const boqItemWriteService = new SupabaseBoqItemWriteService();
 
@@ -94,6 +142,14 @@ export function CoreServicesProvider({ children }: CoreServicesProviderProps) {
       boqItemRepository,
       tenderRepository,
       clientPositionRepository,
+      materialNameRepository,
+      materialLibraryRepository,
+      workNameRepository,
+      workLibraryRepository,
+      markupTacticRepository,
+      projectRepository,
+      projectAgreementRepository,
+      projectCompletionRepository,
       boqItemWriteService,
     };
   }, []);
@@ -155,4 +211,38 @@ export function useMatchingService(): MatchingService {
 
 export function useBoqItemWriteService(): IBoqItemWriteService {
   return useCoreServices().boqItemWriteService;
+}
+
+// Хуки для новых репозиториев
+
+export function useMaterialNameRepository(): IMaterialNameRepository {
+  return useCoreServices().materialNameRepository;
+}
+
+export function useMaterialLibraryRepository(): IMaterialLibraryRepository {
+  return useCoreServices().materialLibraryRepository;
+}
+
+export function useWorkNameRepository(): IWorkNameRepository {
+  return useCoreServices().workNameRepository;
+}
+
+export function useWorkLibraryRepository(): IWorkLibraryRepository {
+  return useCoreServices().workLibraryRepository;
+}
+
+export function useMarkupTacticRepository(): IMarkupTacticRepository {
+  return useCoreServices().markupTacticRepository;
+}
+
+export function useProjectRepository(): IProjectRepository {
+  return useCoreServices().projectRepository;
+}
+
+export function useProjectAgreementRepository(): IProjectAgreementRepository {
+  return useCoreServices().projectAgreementRepository;
+}
+
+export function useProjectCompletionRepository(): IProjectCompletionRepository {
+  return useCoreServices().projectCompletionRepository;
 }
