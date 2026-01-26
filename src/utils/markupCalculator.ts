@@ -18,19 +18,32 @@ export interface CalculationContext {
 }
 
 /**
+ * Детализация одного шага расчета
+ */
+export interface StepDetail {
+  stepIndex: number;           // Индекс шага (0-based)
+  stepName?: string;           // Название шага из тактики
+  parameterKeys: string[];     // Ключи параметров наценок, использованных в шаге
+  baseValue: number;           // Базовое значение для этого шага
+  result: number;              // Результат шага
+  markupAmount: number;        // Сумма наценки = result - baseValue
+}
+
+/**
  * Результат расчета наценки
  */
 export interface CalculationResult {
   commercialCost: number; // Итоговая коммерческая стоимость
   markupCoefficient: number; // Итоговый коэффициент наценки
   stepResults: number[]; // Результаты каждого шага расчета
+  stepDetails: StepDetail[]; // Детализация каждого шага с параметрами
   errors?: string[]; // Ошибки расчета (если были)
 }
 
 /**
  * Тип операции
  */
-type OperationType = 'multiply' | 'divide' | 'add' | 'subtract';
+export type OperationType = 'multiply' | 'divide' | 'add' | 'subtract';
 
 /**
  * Применяет последовательность операций наценок к базовой стоимости
@@ -41,6 +54,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
   const { baseAmount, markupSequence, markupParameters, baseCost } = context;
   const errors: string[] = [];
   const stepResults: number[] = [];
+  const stepDetails: StepDetail[] = [];
 
   // DEBUG: Логирование входных данных
   logger.debug('calculateMarkupResult входные данные:', {
@@ -59,6 +73,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
       commercialCost: baseAmount,
       markupCoefficient: 1,
       stepResults: [],
+      stepDetails: [],
       errors: ['Последовательность операций не определена']
     };
   }
@@ -69,6 +84,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
       commercialCost: baseAmount,
       markupCoefficient: 1,
       stepResults: [],
+      stepDetails: [],
       errors: ['Последовательность операций пуста']
     };
   }
@@ -84,6 +100,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
       commercialCost: currentAmount,
       markupCoefficient: 1,
       stepResults: [],
+      stepDetails: [],
       errors: currentAmount < 0 ? ['Базовая стоимость отрицательная'] : []
     };
   }
@@ -181,6 +198,35 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
 
       stepResults.push(stepResult);
       currentAmount = stepResult; // Последний результат становится итоговой стоимостью
+
+      // Собираем ключи параметров, использованных в этом шаге
+      const parameterKeys: string[] = [];
+      if (step.operand1Type === 'markup' && step.operand1Key) {
+        parameterKeys.push(String(step.operand1Key));
+      }
+      if (step.operand2Type === 'markup' && step.operand2Key) {
+        parameterKeys.push(String(step.operand2Key));
+      }
+      if (step.operand3Type === 'markup' && step.operand3Key) {
+        parameterKeys.push(String(step.operand3Key));
+      }
+      if (step.operand4Type === 'markup' && step.operand4Key) {
+        parameterKeys.push(String(step.operand4Key));
+      }
+      if (step.operand5Type === 'markup' && step.operand5Key) {
+        parameterKeys.push(String(step.operand5Key));
+      }
+
+      // Добавляем детали шага
+      stepDetails.push({
+        stepIndex: i,
+        stepName: step.name,
+        parameterKeys,
+        baseValue,
+        result: stepResult,
+        markupAmount: stepResult - baseValue
+      });
+
       logger.debug(`  Шаг ${i + 1} завершен. Результат: ${stepResult}, Текущая стоимость: ${currentAmount}`);
       logger.debug(`  stepResults теперь:`, stepResults);
 
@@ -191,6 +237,14 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
 
       // Продолжаем расчет, используя предыдущее значение
       stepResults.push(currentAmount);
+      stepDetails.push({
+        stepIndex: i,
+        stepName: step.name,
+        parameterKeys: [],
+        baseValue: currentAmount,
+        result: currentAmount,
+        markupAmount: 0
+      });
       logger.debug(`  После ошибки stepResults:`, stepResults);
     }
   }
@@ -204,6 +258,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
     commercialCost: currentAmount,
     markupCoefficient,
     stepResults,
+    stepDetails,
     errors: errors.length > 0 ? errors : undefined
   };
 }
@@ -215,7 +270,7 @@ export function calculateMarkupResult(context: CalculationContext): CalculationR
  * @param stepResults Результаты предыдущих шагов
  * @returns Базовое значение
  */
-function getBaseValue(
+export function getBaseValue(
   baseIndex: number,
   baseAmount: number,
   stepResults: number[]
@@ -242,7 +297,7 @@ function getBaseValue(
  * @param baseAmount Базовая сумма (для operandIndex = -1)
  * @returns Значение операнда
  */
-function getOperandValue(
+export function getOperandValue(
   operandType?: 'markup' | 'step' | 'number',
   operandKey?: string | number,
   operandIndex?: number,
@@ -336,7 +391,7 @@ function getOperandValue(
  * @param operandValue Значение операнда
  * @returns Результат операции
  */
-function applyOperation(
+export function applyOperation(
   baseValue: number,
   operation: OperationType,
   operandValue: number

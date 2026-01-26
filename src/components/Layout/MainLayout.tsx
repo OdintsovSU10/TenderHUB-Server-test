@@ -30,6 +30,7 @@ import {
   DeleteOutlined,
   SwapOutlined,
   BuildOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -361,6 +362,11 @@ const MainLayout: React.FC<MainLayoutProps> = () => {
       key: '/settings',
       icon: <SettingOutlined />,
       label: 'Настройки',
+    },
+    {
+      key: '/test',
+      icon: <ExperimentOutlined />,
+      label: 'Тест',
     },
   ];
 

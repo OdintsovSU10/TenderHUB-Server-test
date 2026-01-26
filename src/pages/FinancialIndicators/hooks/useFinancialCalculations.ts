@@ -1,6 +1,22 @@
+/**
+ * Хук для расчёта финансовых показателей
+ * Использует пошаговую агрегацию тактики наценок для соответствия с Формой КП
+ */
+
 import { useState, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { logger } from '../../../utils/debug';
+import { loadMarkupParameters } from '../../../services/markupTactic/parameters';
+import {
+  loadSubcontractGrowthExclusions,
+  type SubcontractGrowthExclusions
+} from '../../../services/markupTactic/calculation';
+import {
+  calculateTenderMarkupAggregation,
+  getMarkupByParameter,
+  type TenderMarkupAggregation
+} from '../../../services/markupTactic/aggregation';
+import type { BoqItem } from '../../../lib/supabase';
 
 export interface IndicatorRow {
   key: string;
@@ -14,11 +30,18 @@ export interface IndicatorRow {
   is_total?: boolean;
   is_yellow?: boolean;
   tooltip?: string;
-  // Промежуточные расчеты для роста стоимости
+  // Промежуточные расчеты для роста стоимости (для drill-down в графиках)
   works_su10_growth?: number;
   materials_su10_growth?: number;
   works_sub_growth?: number;
   materials_sub_growth?: number;
+}
+
+interface MarkupParameterInfo {
+  id: string;
+  key: string;
+  label: string;
+  default_value: number;
 }
 
 const addNotification = async (
@@ -38,17 +61,127 @@ const addNotification = async (
   }
 };
 
+/**
+ * Загружает тактику наценок для тендера
+ */
+async function loadTacticForTender(tacticId: string) {
+  const { data, error } = await supabase
+    .from('markup_tactics')
+    .select('*')
+    .eq('id', tacticId)
+    .single();
+
+  if (error) {
+    logger.error('Ошибка загрузки тактики:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Загружает BOQ элементы для тендера с батчингом
+ */
+async function loadBoqItems(tenderId: string): Promise<BoqItem[]> {
+  const allItems: BoqItem[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('boq_items')
+      .select(`
+        *,
+        client_position:client_positions!inner(tender_id)
+      `)
+      .eq('client_position.tender_id', tenderId)
+      .range(from, from + batchSize - 1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allItems.push(...data);
+      from += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allItems;
+}
+
+/**
+ * Загружает информацию о параметрах наценок для отображения коэффициентов
+ */
+async function loadMarkupParametersInfo(tenderId: string): Promise<{
+  params: MarkupParameterInfo[];
+  valuesMap: Map<string, number>;
+}> {
+  const { data: tenderMarkupPercentages } = await supabase
+    .from('tender_markup_percentage')
+    .select(`
+      *,
+      markup_parameter:markup_parameters(*)
+    `)
+    .eq('tender_id', tenderId);
+
+  const params: MarkupParameterInfo[] = (tenderMarkupPercentages || [])
+    .map(tmp => tmp.markup_parameter)
+    .filter(Boolean);
+
+  const valuesMap = new Map<string, number>();
+  tenderMarkupPercentages?.forEach(tmp => {
+    if (tmp.markup_parameter?.key) {
+      valuesMap.set(tmp.markup_parameter.key, tmp.value ?? tmp.markup_parameter.default_value ?? 0);
+    }
+  });
+
+  return { params, valuesMap };
+}
+
+/**
+ * Находит параметр по ключевым словам
+ */
+function findParamByKeywords(
+  params: MarkupParameterInfo[],
+  keywords: string[],
+  excludeKeywords: string[] = []
+): MarkupParameterInfo | undefined {
+  return params.find(p => {
+    const label = p.label.toLowerCase();
+    const key = p.key.toLowerCase();
+    const matchesInclude = keywords.every(kw => label.includes(kw) || key.includes(kw));
+    const matchesExclude = excludeKeywords.length === 0 || !excludeKeywords.some(kw => label.includes(kw));
+    return matchesInclude && matchesExclude;
+  });
+}
+
+/**
+ * Получает значение коэффициента
+ */
+function getCoeffValue(
+  param: MarkupParameterInfo | undefined,
+  valuesMap: Map<string, number>
+): number {
+  if (!param) return 0;
+  return valuesMap.get(param.key) ?? param.default_value ?? 0;
+}
+
 export const useFinancialCalculations = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<IndicatorRow[]>([]);
   const [spTotal, setSpTotal] = useState<number>(0);
   const [customerTotal, setCustomerTotal] = useState<number>(0);
+  const [aggregation, setAggregation] = useState<TenderMarkupAggregation | null>(null);
 
   const fetchFinancialIndicators = useCallback(async (selectedTenderId: string | null) => {
     if (!selectedTenderId) return;
 
     setLoading(true);
     try {
+      // 1. Загружаем тендер
       const { data: tender, error: tenderError } = await supabase
         .from('tenders')
         .select('*')
@@ -56,393 +189,149 @@ export const useFinancialCalculations = () => {
         .single();
 
       if (tenderError) {
-        await addNotification(
-          'Ошибка загрузки тендера',
-          `Не удалось загрузить данные тендера: ${tenderError.message}`,
-          'warning'
-        );
+        await addNotification('Ошибка загрузки тендера', tenderError.message, 'warning');
         throw tenderError;
       }
-
-      const { error: tacticError } = await supabase
-        .from('markup_tactics')
-        .select('*')
-        .eq('id', tender.markup_tactic_id)
-        .single();
-
-      if (tacticError && tacticError.code !== 'PGRST116') {
-        await addNotification(
-          'Ошибка загрузки тактики наценок',
-          `Не удалось загрузить тактику наценок: ${tacticError.message}`,
-          'warning'
-        );
-      }
-
-      const { data: tenderMarkupPercentages, error: percentagesError } = await supabase
-        .from('tender_markup_percentage')
-        .select(`
-          *,
-          markup_parameter:markup_parameters(*)
-        `)
-        .eq('tender_id', selectedTenderId);
-
-      if (percentagesError) {
-        await addNotification(
-          'Ошибка загрузки процентов наценок',
-          `Не удалось загрузить проценты наценок: ${percentagesError.message}`,
-          'warning'
-        );
-      }
-
-      // Загружаем ВСЕ BOQ элементы с батчингом (Supabase лимит 1000 строк)
-      let boqItems: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('boq_items')
-          .select(`
-            *,
-            client_position:client_positions!inner(tender_id)
-          `)
-          .eq('client_position.tender_id', selectedTenderId)
-          .range(from, from + batchSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          boqItems = [...boqItems, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // Загрузка исключений роста субподряда для текущего тендера
-      const { data: exclusions } = await supabase
-        .from('subcontract_growth_exclusions')
-        .select('detail_cost_category_id')
-        .eq('tender_id', selectedTenderId);
-
-      const excludedCategoryIds = new Set(
-        exclusions?.map(e => e.detail_cost_category_id) || []
-      );
-
-      // Расчет прямых затрат
-      let subcontractWorks = 0;
-      let subcontractMaterials = 0;
-      let subcontractWorksForGrowth = 0; // Субподряд работы для расчета роста (с учетом исключений)
-      let subcontractMaterialsForGrowth = 0; // Субподряд материалы для расчета роста (с учетом исключений)
-      let works = 0;
-      let materials = 0;
-      let materialsComp = 0;
-      let worksComp = 0;
-
-      boqItems?.forEach(item => {
-        const baseCost = item.total_amount || 0;
-        const categoryId = item.detail_cost_category_id;
-        const isExcludedFromGrowth = categoryId && excludedCategoryIds.has(categoryId);
-
-        switch (item.boq_item_type) {
-          case 'суб-раб':
-            subcontractWorks += baseCost; // Всегда включаем в общую сумму
-            if (!isExcludedFromGrowth) {
-              subcontractWorksForGrowth += baseCost; // Включаем в базу для роста только если не исключено
-            }
-            break;
-          case 'суб-мат':
-            subcontractMaterials += baseCost; // Всегда включаем в общую сумму
-            if (!isExcludedFromGrowth) {
-              subcontractMaterialsForGrowth += baseCost; // Включаем в базу для роста только если не исключено
-            }
-            break;
-          case 'раб':
-            works += baseCost;
-            break;
-          case 'мат':
-            materials += baseCost;
-            break;
-          case 'мат-комп.':
-            materialsComp += baseCost;
-            break;
-          case 'раб-комп.':
-            worksComp += baseCost;
-            break;
-        }
-      });
-
-      const subcontractTotal = subcontractWorks + subcontractMaterials;
-      const su10Total = works + materials + materialsComp + worksComp;
-      const directCostsTotal = subcontractTotal + su10Total;
 
       const areaSp = tender?.area_sp || 0;
       const areaClient = tender?.area_client || 0;
 
-      const markupParams = (tenderMarkupPercentages || [])
-        .map(tmp => tmp.markup_parameter)
-        .filter(Boolean);
+      // 2. Загружаем тактику
+      if (!tender.markup_tactic_id) {
+        await addNotification('Тактика не назначена', 'Для тендера не назначена тактика наценок', 'warning');
+        setData([]);
+        return;
+      }
 
-      const percentagesMap = new Map<string, number>();
-      tenderMarkupPercentages?.forEach(tmp => {
-        percentagesMap.set(tmp.markup_parameter_id, tmp.value);
-      });
+      const tactic = await loadTacticForTender(tender.markup_tactic_id);
+      if (!tactic) {
+        await addNotification('Тактика не найдена', 'Не удалось загрузить тактику наценок', 'warning');
+        setData([]);
+        return;
+      }
 
-      // Получение параметров наценок
-      const mechanizationParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('механизац') ||
-        p.label.toLowerCase().includes('буринц')
+      // 3. Загружаем параметры наценок
+      const markupParameters = await loadMarkupParameters(selectedTenderId);
+
+      // 4. Загружаем исключения роста субподряда
+      const exclusions = await loadSubcontractGrowthExclusions(selectedTenderId);
+
+      // 5. Загружаем BOQ элементы
+      const boqItems = await loadBoqItems(selectedTenderId);
+
+      if (boqItems.length === 0) {
+        setData([]);
+        return;
+      }
+
+      // 6. Выполняем агрегацию (КЛЮЧЕВОЙ РАСЧЁТ)
+      const agg = calculateTenderMarkupAggregation(
+        boqItems,
+        tactic,
+        markupParameters,
+        exclusions
       );
+      setAggregation(agg);
 
-      const mvpGsmParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('мвп') ||
-        p.label.toLowerCase().includes('гсм')
-      );
+      // 7. Загружаем информацию о параметрах для отображения коэффициентов
+      const { params, valuesMap } = await loadMarkupParametersInfo(selectedTenderId);
 
-      const warrantyParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('гарант')
-      );
+      // 8. Находим параметры по ключевым словам (для отображения коэффициентов)
+      const mechanizationParam = findParamByKeywords(params, ['механизац']);
+      const mvpGsmParam = findParamByKeywords(params, ['мвп', 'гсм']);
+      const warrantyParam = findParamByKeywords(params, ['гарант']);
+      const coefficient06Param = findParamByKeywords(params, ['1,6', '1.6', 'works_16']);
+      const worksCostGrowthParam = findParamByKeywords(params, ['рост', 'работ'], ['субподряд']);
+      const materialCostGrowthParam = findParamByKeywords(params, ['рост', 'материал'], ['субподряд']);
+      const subWorksCostGrowthParam = findParamByKeywords(params, ['рост', 'работ', 'субподряд']);
+      const subMatCostGrowthParam = findParamByKeywords(params, ['рост', 'материал', 'субподряд']);
+      const overheadOwnForcesParam = findParamByKeywords(params, ['ооз'], ['субподряд']);
+      const overheadSubcontractParam = findParamByKeywords(params, ['ооз', 'субподряд']);
+      const generalCostsParam = findParamByKeywords(params, ['офз']);
+      const profitOwnForcesParam = findParamByKeywords(params, ['прибыль'], ['субподряд']);
+      const profitSubcontractParam = findParamByKeywords(params, ['прибыль', 'субподряд']);
+      const unforeseeableParam = findParamByKeywords(params, ['непредвид']);
+      const vatParam = findParamByKeywords(params, ['ндс']);
 
-      const coefficient06Param = markupParams.find(p => {
-        const name = p.label.toLowerCase();
-        const key = p.key.toLowerCase();
-        return name.includes('0,6') ||
-               name.includes('0.6') ||
-               name.includes('1,6') ||
-               name.includes('1.6') ||
-               (name.includes('раб') && name.includes('1')) ||
-               key.includes('works_16') ||
-               key.includes('works_markup');
-      });
+      // 9. Получаем коэффициенты для отображения
+      const mechanizationCoeff = getCoeffValue(mechanizationParam, valuesMap);
+      const mvpGsmCoeff = getCoeffValue(mvpGsmParam, valuesMap);
+      const warrantyCoeff = getCoeffValue(warrantyParam, valuesMap);
+      const coefficient06 = getCoeffValue(coefficient06Param, valuesMap);
+      const worksCostGrowth = getCoeffValue(worksCostGrowthParam, valuesMap);
+      const materialCostGrowth = getCoeffValue(materialCostGrowthParam, valuesMap);
+      const subWorksCostGrowth = getCoeffValue(subWorksCostGrowthParam, valuesMap);
+      const subMatCostGrowth = getCoeffValue(subMatCostGrowthParam, valuesMap);
+      const overheadOwnForcesCoeff = getCoeffValue(overheadOwnForcesParam, valuesMap);
+      const overheadSubcontractCoeff = getCoeffValue(overheadSubcontractParam, valuesMap);
+      const generalCostsCoeff = getCoeffValue(generalCostsParam, valuesMap);
+      const profitOwnForcesCoeff = getCoeffValue(profitOwnForcesParam, valuesMap);
+      const profitSubcontractCoeff = getCoeffValue(profitSubcontractParam, valuesMap);
+      const unforeseeableCoeff = getCoeffValue(unforeseeableParam, valuesMap);
+      const vatCoeff = getCoeffValue(vatParam, valuesMap);
 
-      const worksCostGrowthParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('рост') &&
-        p.label.toLowerCase().includes('работ') &&
-        !p.label.toLowerCase().includes('субподряд')
-      );
+      // 10. Получаем данные из агрегации
+      const { directCosts } = agg;
+      const subcontractTotal = directCosts.subcontractWorks + directCosts.subcontractMaterials;
+      const su10Total = directCosts.works + directCosts.materials + directCosts.worksComp + directCosts.materialsComp;
 
-      const materialCostGrowthParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('рост') &&
-        p.label.toLowerCase().includes('материал') &&
-        !p.label.toLowerCase().includes('субподряд')
-      );
+      // Наценки из агрегации (пошаговый расчёт как в КП)
+      const mechanizationCost = getMarkupByParameter(agg, 'mechanization_service');
+      const mvpGsmCost = getMarkupByParameter(agg, 'mbp_gsm');
+      const warrantyCost = getMarkupByParameter(agg, 'warranty_period');
+      const coefficient06Cost = getMarkupByParameter(agg, 'works_16_markup');
+      const worksCostGrowthAmount = getMarkupByParameter(agg, 'works_cost_growth');
+      const materialCostGrowthAmount = getMarkupByParameter(agg, 'material_cost_growth');
+      const subWorksCostGrowthAmount = getMarkupByParameter(agg, 'subcontract_works_cost_growth');
+      const subMatCostGrowthAmount = getMarkupByParameter(agg, 'subcontract_materials_cost_growth');
+      const unforeseeableCost = getMarkupByParameter(agg, 'contingency_costs');
+      const overheadOwnForcesCost = getMarkupByParameter(agg, 'overhead_own_forces');
+      const overheadSubcontractCost = getMarkupByParameter(agg, 'overhead_subcontract');
+      const generalCostsCost = getMarkupByParameter(agg, 'general_costs_without_subcontract');
+      const profitOwnForcesCost = getMarkupByParameter(agg, 'profit_own_forces');
+      const profitSubcontractCost = getMarkupByParameter(agg, 'profit_subcontract');
+      const vatCost = getMarkupByParameter(agg, 'nds_22');
 
-      const subcontractWorksCostGrowthParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('рост') &&
-        p.label.toLowerCase().includes('работ') &&
-        p.label.toLowerCase().includes('субподряд')
-      );
+      const totalCostGrowth = worksCostGrowthAmount + materialCostGrowthAmount +
+                              subWorksCostGrowthAmount + subMatCostGrowthAmount;
 
-      const subcontractMaterialsCostGrowthParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('рост') &&
-        p.label.toLowerCase().includes('материал') &&
-        p.label.toLowerCase().includes('субподряд')
-      );
+      const grandTotal = agg.totalCommercialCost;
+      const grandTotalBeforeVAT = grandTotal - vatCost;
 
-      const overheadOwnForcesParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('ооз') &&
-        !p.label.toLowerCase().includes('субподряд')
-      );
-
-      const overheadSubcontractParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('ооз') &&
-        p.label.toLowerCase().includes('субподряд')
-      );
-
-      const generalCostsParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('офз') ||
-        (p.label.toLowerCase().includes('общ') && p.label.toLowerCase().includes('затрат'))
-      );
-
-      const profitOwnForcesParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('прибыль') &&
-        !p.label.toLowerCase().includes('субподряд')
-      );
-
-      const profitSubcontractParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('прибыль') &&
-        p.label.toLowerCase().includes('субподряд')
-      );
-
-      const unforeseeableParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('непредвид') ||
-        p.label.toLowerCase().includes('непредвиден')
-      );
-
-      const vatParam = markupParams.find(p =>
-        p.label.toLowerCase().includes('ндс')
-      );
-
-      // Получение коэффициентов
-      const mechanizationCoeff = mechanizationParam
-        ? (percentagesMap.get(mechanizationParam.id) ?? mechanizationParam.default_value)
-        : 0;
-
-      const mvpGsmCoeff = mvpGsmParam
-        ? (percentagesMap.get(mvpGsmParam.id) ?? mvpGsmParam.default_value)
-        : 0;
-
-      const warrantyCoeff = warrantyParam
-        ? (percentagesMap.get(warrantyParam.id) ?? warrantyParam.default_value)
-        : 0;
-
-      const coefficient06 = coefficient06Param
-        ? (percentagesMap.get(coefficient06Param.id) ?? coefficient06Param.default_value)
-        : 0;
-
-      const worksCostGrowth = worksCostGrowthParam
-        ? (percentagesMap.get(worksCostGrowthParam.id) ?? worksCostGrowthParam.default_value)
-        : 0;
-
-      const materialCostGrowth = materialCostGrowthParam
-        ? (percentagesMap.get(materialCostGrowthParam.id) ?? materialCostGrowthParam.default_value)
-        : 0;
-
-      const subcontractWorksCostGrowth = subcontractWorksCostGrowthParam
-        ? (percentagesMap.get(subcontractWorksCostGrowthParam.id) ?? subcontractWorksCostGrowthParam.default_value)
-        : 0;
-
-      const subcontractMaterialsCostGrowth = subcontractMaterialsCostGrowthParam
-        ? (percentagesMap.get(subcontractMaterialsCostGrowthParam.id) ?? subcontractMaterialsCostGrowthParam.default_value)
-        : 0;
-
-      const overheadOwnForcesCoeff = overheadOwnForcesParam
-        ? (percentagesMap.get(overheadOwnForcesParam.id) ?? overheadOwnForcesParam.default_value)
-        : 0;
-
-      const overheadSubcontractCoeff = overheadSubcontractParam
-        ? (percentagesMap.get(overheadSubcontractParam.id) ?? overheadSubcontractParam.default_value)
-        : 0;
-
-      const generalCostsCoeff = generalCostsParam
-        ? (percentagesMap.get(generalCostsParam.id) ?? generalCostsParam.default_value)
-        : 0;
-
-      const profitOwnForcesCoeff = profitOwnForcesParam
-        ? (percentagesMap.get(profitOwnForcesParam.id) ?? profitOwnForcesParam.default_value)
-        : 0;
-
-      const profitSubcontractCoeff = profitSubcontractParam
-        ? (percentagesMap.get(profitSubcontractParam.id) ?? profitSubcontractParam.default_value)
-        : 0;
-
-      const unforeseeableCoeff = unforeseeableParam
-        ? (percentagesMap.get(unforeseeableParam.id) ?? unforeseeableParam.default_value)
-        : 0;
-
-      const vatCoeff = vatParam
-        ? (percentagesMap.get(vatParam.id) ?? vatParam.default_value)
-        : 0;
-
-      logger.debug('=== DEBUG 0,6к Parameter ===');
-      logger.debug('All markup parameters:', markupParams.map(p => ({
-        key: p.key,
-        label: p.label,
-        default_value: p.default_value
-      })));
-      logger.debug('Found 0,6к parameter:', coefficient06Param ? {
-        key: coefficient06Param.key,
-        label: coefficient06Param.label,
-        default_value: coefficient06Param.default_value,
-        manual_value: percentagesMap.get(coefficient06Param.id)
-      } : 'NOT FOUND');
-      logger.debug('Final coefficient06 value:', coefficient06);
-      logger.debug('Works (раб):', works);
-      logger.debug('WorksComp (раб-комп.):', worksComp);
-      logger.debug('WorksSu10Only base:', works + worksComp);
-      logger.debug('Calculated 0,6к cost:', (works + worksComp) * (coefficient06 / 100));
-      logger.debug('=========================');
-
-      const worksSu10Only = works;
-      const mechanizationCost = worksSu10Only * (mechanizationCoeff / 100);
-      const coefficient06Cost = (worksSu10Only + mechanizationCost) * (coefficient06 / 100);
-      const mvpGsmCost = worksSu10Only * (mvpGsmCoeff / 100);
-      const warrantyCost = worksSu10Only * (warrantyCoeff / 100);
-
-      const worksWithMarkup = worksSu10Only + coefficient06Cost + mvpGsmCost + mechanizationCost;
-      const worksCostGrowthAmount = worksWithMarkup * (worksCostGrowth / 100);
-      const materialCostGrowthAmount = materials * (materialCostGrowth / 100);
-      // Используем отфильтрованные суммы для расчета роста субподряда
-      const subcontractWorksCostGrowthAmount = subcontractWorksForGrowth * (subcontractWorksCostGrowth / 100);
-      const subcontractMaterialsCostGrowthAmount = subcontractMaterialsForGrowth * (subcontractMaterialsCostGrowth / 100);
-
-      const totalCostGrowth = worksCostGrowthAmount +
-                              materialCostGrowthAmount +
-                              subcontractWorksCostGrowthAmount +
-                              subcontractMaterialsCostGrowthAmount;
-
-      const baseForUnforeseeable = worksSu10Only + coefficient06Cost + materials + mvpGsmCost + mechanizationCost;
-      const unforeseeableCost = baseForUnforeseeable * (unforeseeableCoeff / 100);
-
-      const baseForOOZ = baseForUnforeseeable + worksCostGrowthAmount + materialCostGrowthAmount + unforeseeableCost;
-      const overheadOwnForcesCost = baseForOOZ * (overheadOwnForcesCoeff / 100);
-
-      const subcontractGrowth = subcontractWorksCostGrowthAmount + subcontractMaterialsCostGrowthAmount;
-      const baseForSubcontractOOZ = subcontractTotal + subcontractGrowth;
-      const overheadSubcontractCost = baseForSubcontractOOZ * (overheadSubcontractCoeff / 100);
-
-      const baseForOFZ = baseForOOZ + overheadOwnForcesCost;
-      const generalCostsCost = baseForOFZ * (generalCostsCoeff / 100);
-
-      const baseForProfit = baseForOFZ + generalCostsCost;
-      const profitOwnForcesCost = baseForProfit * (profitOwnForcesCoeff / 100);
-
-      const baseForSubcontractProfit = baseForSubcontractOOZ + overheadSubcontractCost;
-      const profitSubcontractCost = baseForSubcontractProfit * (profitSubcontractCoeff / 100);
-
-      const grandTotalBeforeVAT = directCostsTotal +
-                        mechanizationCost +
-                        mvpGsmCost +
-                        warrantyCost +
-                        coefficient06Cost +
-                        totalCostGrowth +
-                        unforeseeableCost +
-                        overheadOwnForcesCost +
-                        overheadSubcontractCost +
-                        generalCostsCost +
-                        profitOwnForcesCost +
-                        profitSubcontractCost;
-
-      const vatCost = grandTotalBeforeVAT * (vatCoeff / 100);
-      const grandTotal = grandTotalBeforeVAT + vatCost;
-
-      logger.debug('=== Financial Indicators Calculation ===');
-      logger.debug('Direct costs (base):', directCostsTotal);
-      logger.debug('  - Subcontract:', subcontractTotal);
-      logger.debug('  - SU-10:', su10Total);
+      logger.debug('=== Financial Indicators from Aggregation ===');
+      logger.debug('Direct costs:', directCosts.total);
       logger.debug('Mechanization:', mechanizationCost);
       logger.debug('MVP+GSM:', mvpGsmCost);
       logger.debug('Warranty:', warrantyCost);
-      logger.debug('0.6k coefficient:', coefficient06Cost);
-      logger.debug('Cost growth (inflation):', totalCostGrowth);
+      logger.debug('1.6k:', coefficient06Cost);
+      logger.debug('Cost growth:', totalCostGrowth);
       logger.debug('Unforeseeable:', unforeseeableCost);
-      logger.debug('Overhead own forces:', overheadOwnForcesCost);
-      logger.debug('Overhead subcontract:', overheadSubcontractCost);
-      logger.debug('General costs (OFZ):', generalCostsCost);
-      logger.debug('Profit own forces:', profitOwnForcesCost);
-      logger.debug('Profit subcontract:', profitSubcontractCost);
-      logger.debug('GRAND TOTAL (sum of all rows):', grandTotal);
-      logger.debug('=======================================');
+      logger.debug('Overhead own:', overheadOwnForcesCost);
+      logger.debug('Overhead sub:', overheadSubcontractCost);
+      logger.debug('General costs:', generalCostsCost);
+      logger.debug('Profit own:', profitOwnForcesCost);
+      logger.debug('Profit sub:', profitSubcontractCost);
+      logger.debug('VAT:', vatCost);
+      logger.debug('GRAND TOTAL:', grandTotal);
 
+      // 11. Формируем данные таблицы
       const tableData: IndicatorRow[] = [
         {
           key: '1',
           row_number: 1,
           indicator_name: 'Прямые затраты, в т.ч.',
           coefficient: '',
-          sp_cost: areaSp > 0 ? directCostsTotal / areaSp : 0,
-          customer_cost: areaClient > 0 ? directCostsTotal / areaClient : 0,
-          total_cost: directCostsTotal,
-          tooltip: `Состав прямых затрат:\n` +
-                   `Субподряд работы: ${subcontractWorks.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Субподряд материалы: ${subcontractMaterials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Работы СУ-10: ${works.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Материалы СУ-10: ${materials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Работы комп.: ${worksComp.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Материалы комп.: ${materialsComp.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${directCostsTotal.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          sp_cost: areaSp > 0 ? directCosts.total / areaSp : 0,
+          customer_cost: areaClient > 0 ? directCosts.total / areaClient : 0,
+          total_cost: directCosts.total,
+          tooltip: `Состав прямых затрат (из агрегации BOQ):\n` +
+                   `Субподряд работы: ${directCosts.subcontractWorks.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `+ Субподряд материалы: ${directCosts.subcontractMaterials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `+ Работы СУ-10: ${directCosts.works.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `+ Материалы СУ-10: ${directCosts.materials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `+ Работы комп.: ${directCosts.worksComp.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `+ Материалы комп.: ${directCosts.materialsComp.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `= ${directCosts.total.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '2',
@@ -468,8 +357,10 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? mechanizationCost / areaSp : 0,
           customer_cost: areaClient > 0 ? mechanizationCost / areaClient : 0,
           total_cost: mechanizationCost,
-          tooltip: `Формула: Работы СУ-10 × ${mechanizationCoeff}%\n` +
-                   `Расчёт: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${mechanizationCoeff}% = ${mechanizationCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "mechanization_service"\n` +
+                   `Коэффициент: ${mechanizationCoeff}%\n` +
+                   `Итого: ${mechanizationCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.\n` +
+                   `(рассчитано пошагово для каждого BOQ элемента)`
         },
         {
           key: '5',
@@ -479,8 +370,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? mvpGsmCost / areaSp : 0,
           customer_cost: areaClient > 0 ? mvpGsmCost / areaClient : 0,
           total_cost: mvpGsmCost,
-          tooltip: `Формула: Работы СУ-10 × ${mvpGsmCoeff}%\n` +
-                   `Расчёт: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${mvpGsmCoeff}% = ${mvpGsmCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "mbp_gsm"\n` +
+                   `Коэффициент: ${mvpGsmCoeff}%\n` +
+                   `Итого: ${mvpGsmCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '6',
@@ -490,8 +382,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? warrantyCost / areaSp : 0,
           customer_cost: areaClient > 0 ? warrantyCost / areaClient : 0,
           total_cost: warrantyCost,
-          tooltip: `Формула: Работы СУ-10 × ${warrantyCoeff}%\n` +
-                   `Расчёт: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${warrantyCoeff}% = ${warrantyCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "warranty_period"\n` +
+                   `Коэффициент: ${warrantyCoeff}%\n` +
+                   `Итого: ${warrantyCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '7',
@@ -501,11 +394,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? coefficient06Cost / areaSp : 0,
           customer_cost: areaClient > 0 ? coefficient06Cost / areaClient : 0,
           total_cost: coefficient06Cost,
-          tooltip: `Формула: (Работы ПЗ + СМ) × ${coefficient06}%\n` +
-                   `Работы ПЗ: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ СМ: ${mechanizationCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${(worksSu10Only + mechanizationCost).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${(worksSu10Only + mechanizationCost).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${coefficient06}% = ${coefficient06Cost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "works_16_markup"\n` +
+                   `Коэффициент: ${coefficient06}%\n` +
+                   `Итого: ${coefficient06Cost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '8',
@@ -514,30 +405,21 @@ export const useFinancialCalculations = () => {
           coefficient: [
             worksCostGrowth > 0 ? `Раб:${parseFloat(worksCostGrowth.toFixed(5))}%` : '',
             materialCostGrowth > 0 ? `Мат:${parseFloat(materialCostGrowth.toFixed(5))}%` : '',
-            subcontractWorksCostGrowth > 0 ? `С.Раб:${parseFloat(subcontractWorksCostGrowth.toFixed(5))}%` : '',
-            subcontractMaterialsCostGrowth > 0 ? `С.Мат:${parseFloat(subcontractMaterialsCostGrowth.toFixed(5))}%` : ''
+            subWorksCostGrowth > 0 ? `С.Раб:${parseFloat(subWorksCostGrowth.toFixed(5))}%` : '',
+            subMatCostGrowth > 0 ? `С.Мат:${parseFloat(subMatCostGrowth.toFixed(5))}%` : ''
           ].filter(Boolean).join(', '),
           sp_cost: areaSp > 0 ? totalCostGrowth / areaSp : 0,
           customer_cost: areaClient > 0 ? totalCostGrowth / areaClient : 0,
           total_cost: totalCostGrowth,
-          // Промежуточные расчеты для роста стоимости
           works_su10_growth: worksCostGrowthAmount,
           materials_su10_growth: materialCostGrowthAmount,
-          works_sub_growth: subcontractWorksCostGrowthAmount,
-          materials_sub_growth: subcontractMaterialsCostGrowthAmount,
-          tooltip: `Формула: Рост по каждой категории отдельно\n` +
-                   `Работы СУ-10: (Работы + 0,6к + МБП + СМ) × ${worksCostGrowth}%\n` +
-                   `  Работы: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  + 0,6к: ${coefficient06Cost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  + МБП: ${mvpGsmCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  + СМ: ${mechanizationCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  = ${worksWithMarkup.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  Рост: ${worksWithMarkup.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${worksCostGrowth}% = ${worksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Материалы СУ-10: ${materials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${materialCostGrowth}% = ${materialCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Работы субподряд: ${subcontractWorksForGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${subcontractWorksCostGrowth}% = ${subcontractWorksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  (База для роста: ${subcontractWorksForGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} из ${subcontractWorks.toLocaleString('ru-RU', { maximumFractionDigits: 2 })})\n` +
-                   `Материалы субподряд: ${subcontractMaterialsForGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${subcontractMaterialsCostGrowth}% = ${subcontractMaterialsCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  (База для роста: ${subcontractMaterialsForGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} из ${subcontractMaterials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })})\n` +
+          works_sub_growth: subWorksCostGrowthAmount,
+          materials_sub_growth: subMatCostGrowthAmount,
+          tooltip: `Рост стоимости (из агрегации):\n` +
+                   `Работы СУ-10 (works_cost_growth): ${worksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `Материалы СУ-10 (material_cost_growth): ${materialCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `Работы субподряд (subcontract_works_cost_growth): ${subWorksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
+                   `Материалы субподряд (subcontract_materials_cost_growth): ${subMatCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
                    `Итого: ${totalCostGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
@@ -548,14 +430,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? unforeseeableCost / areaSp : 0,
           customer_cost: areaClient > 0 ? unforeseeableCost / areaClient : 0,
           total_cost: unforeseeableCost,
-          tooltip: `Формула: (Работы + 0,6к + Материалы + МБП + СМ) × ${unforeseeableCoeff}%\n` +
-                   `Работы: ${worksSu10Only.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ 0,6к: ${coefficient06Cost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Материалы: ${materials.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ МБП: ${mvpGsmCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ СМ: ${mechanizationCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${baseForUnforeseeable.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForUnforeseeable.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${unforeseeableCoeff}% = ${unforeseeableCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "contingency_costs"\n` +
+                   `Коэффициент: ${unforeseeableCoeff}%\n` +
+                   `Итого: ${unforeseeableCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '10',
@@ -565,13 +442,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? overheadOwnForcesCost / areaSp : 0,
           customer_cost: areaClient > 0 ? overheadOwnForcesCost / areaClient : 0,
           total_cost: overheadOwnForcesCost,
-          tooltip: `Формула: (Работы + 0,6к + Материалы + МБП + СМ + Рост работ + Рост материалов + Непредвиденные) × ${overheadOwnForcesCoeff}%\n` +
-                   `Работы + 0,6к + Материалы + МБП + СМ: ${baseForUnforeseeable.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Рост работ: ${worksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Рост материалов: ${materialCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Непредвиденные: ${unforeseeableCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${baseForOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${overheadOwnForcesCoeff}% = ${overheadOwnForcesCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "overhead_own_forces"\n` +
+                   `Коэффициент: ${overheadOwnForcesCoeff}%\n` +
+                   `Итого: ${overheadOwnForcesCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '11',
@@ -581,12 +454,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? overheadSubcontractCost / areaSp : 0,
           customer_cost: areaClient > 0 ? overheadSubcontractCost / areaClient : 0,
           total_cost: overheadSubcontractCost,
-          tooltip: `Формула: (Субподряд ПЗ + Рост субподряда) × ${overheadSubcontractCoeff}%\n` +
-                   `Субподряд ПЗ: ${subcontractTotal.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ Рост субподряда: ${subcontractGrowth.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `  (Рост работ: ${subcontractWorksCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} + Рост мат.: ${subcontractMaterialsCostGrowthAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })})\n` +
-                   `= ${baseForSubcontractOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForSubcontractOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${overheadSubcontractCoeff}% = ${overheadSubcontractCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "overhead_subcontract"\n` +
+                   `Коэффициент: ${overheadSubcontractCoeff}%\n` +
+                   `Итого: ${overheadSubcontractCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '12',
@@ -596,11 +466,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? generalCostsCost / areaSp : 0,
           customer_cost: areaClient > 0 ? generalCostsCost / areaClient : 0,
           total_cost: generalCostsCost,
-          tooltip: `Формула: (Работы + 0,6к + Материалы + МБП + СМ + Рост работ + Рост материалов + Непредвиденные + ООЗ) × ${generalCostsCoeff}%\n` +
-                   `Работы + 0,6к + Материалы + МБП + СМ + Рост + Непредв.: ${baseForOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ ООЗ: ${overheadOwnForcesCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${baseForOFZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForOFZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${generalCostsCoeff}% = ${generalCostsCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "general_costs_without_subcontract"\n` +
+                   `Коэффициент: ${generalCostsCoeff}%\n` +
+                   `Итого: ${generalCostsCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '13',
@@ -610,11 +478,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? profitOwnForcesCost / areaSp : 0,
           customer_cost: areaClient > 0 ? profitOwnForcesCost / areaClient : 0,
           total_cost: profitOwnForcesCost,
-          tooltip: `Формула: (Работы + 0,6к + Материалы + МБП + СМ + Рост работ + Рост материалов + Непредвиденные + ООЗ + ОФЗ) × ${profitOwnForcesCoeff}%\n` +
-                   `Работы + 0,6к + Материалы + МБП + СМ + Рост + Непредв. + ООЗ: ${baseForOFZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ ОФЗ: ${generalCostsCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${baseForProfit.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForProfit.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${profitOwnForcesCoeff}% = ${profitOwnForcesCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "profit_own_forces"\n` +
+                   `Коэффициент: ${profitOwnForcesCoeff}%\n` +
+                   `Итого: ${profitOwnForcesCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '14',
@@ -624,11 +490,9 @@ export const useFinancialCalculations = () => {
           sp_cost: areaSp > 0 ? profitSubcontractCost / areaSp : 0,
           customer_cost: areaClient > 0 ? profitSubcontractCost / areaClient : 0,
           total_cost: profitSubcontractCost,
-          tooltip: `Формула: (Субподряд ПЗ + Рост субподряда + ООЗ Субподряд) × ${profitSubcontractCoeff}%\n` +
-                   `Субподряд ПЗ + Рост: ${baseForSubcontractOOZ.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `+ ООЗ Субподряд: ${overheadSubcontractCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `= ${baseForSubcontractProfit.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${baseForSubcontractProfit.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${profitSubcontractCoeff}% = ${profitSubcontractCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "profit_subcontract"\n` +
+                   `Коэффициент: ${profitSubcontractCoeff}%\n` +
+                   `Итого: ${profitSubcontractCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '15',
@@ -639,9 +503,9 @@ export const useFinancialCalculations = () => {
           customer_cost: areaClient > 0 ? vatCost / areaClient : 0,
           total_cost: vatCost,
           is_yellow: true,
-          tooltip: `Формула: (Сумма строк 1-14) × ${vatCoeff}%\n` +
-                   `Сумма без НДС: ${grandTotalBeforeVAT.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\n` +
-                   `Расчёт: ${grandTotalBeforeVAT.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} × ${vatCoeff}% = ${vatCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
+          tooltip: `Сумма наценок по параметру "nds_22"\n` +
+                   `Коэффициент: ${vatCoeff}%\n` +
+                   `Итого: ${vatCost.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} руб.`
         },
         {
           key: '16',
@@ -676,5 +540,6 @@ export const useFinancialCalculations = () => {
     customerTotal,
     loading,
     fetchFinancialIndicators,
+    aggregation, // Экспортируем агрегацию для возможной верификации
   };
 };

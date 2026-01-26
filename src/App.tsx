@@ -30,6 +30,7 @@ import FinancialIndicators from './pages/FinancialIndicators/FinancialIndicators
 import Users from './pages/Users/Users';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/Projects/ProjectDetail';
+import Test from './pages/Test/Test';
 import './App.css';
 
 function AppContent() {
@@ -91,6 +92,7 @@ function AppContent() {
             <Route path="projects/:projectId" element={<ProjectDetail />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<div>Настройки</div>} />
+            <Route path="test" element={<Test />} />
           </Route>
 
           {/* Перенаправление на главную для неизвестных маршрутов */}
